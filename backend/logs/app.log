@@ -1,0 +1,23 @@
+2026-01-13 17:44:19,884 INFO app.main OPTIONS /api/projects 0.80ms
+2026-01-13 17:44:19,886 INFO app.main OPTIONS /api/models 1.71ms
+2026-01-13 17:44:19,898 INFO app.main GET /api/models 2.71ms
+2026-01-13 17:44:19,901 INFO app.main GET /api/projects 11.13ms
+2026-01-13 17:44:52,291 INFO app.main GET /api/projects 2.88ms
+2026-01-13 17:45:06,739 INFO app.main GET /api/projects 2.17ms
+2026-01-13 17:45:06,742 INFO app.main GET /api/projects 1.20ms
+2026-01-13 17:45:31,950 INFO app.main GET /api/projects 4.31ms
+2026-01-13 17:47:42,219 INFO app.main OPTIONS /api/create_outline 0.19ms
+2026-01-13 17:47:42,230 ERROR app.graph Workflow error: OPENAI_API_KEY is not configured
+NoneType: None
+2026-01-13 18:00:16,829 INFO app.main OPTIONS /api/projects 0.43ms
+2026-01-13 18:00:16,831 INFO app.main OPTIONS /api/models 1.19ms
+2026-01-13 18:00:16,838 INFO app.main GET /api/models 4.63ms
+2026-01-13 18:00:16,840 INFO app.main GET /api/projects 6.73ms
+2026-01-13 18:00:26,667 INFO app.main GET /api/projects 2.18ms
+2026-01-13 18:01:14,393 INFO app.main GET /api/projects 2.10ms
+2026-01-13 18:04:19,716 INFO app.main OPTIONS /api/create_outline 0.15ms
+2026-01-13 18:04:20,796 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-01-13 18:04:21,058 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-01-13 18:04:21,328 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-01-13 18:04:21,330 ERROR app.graph Workflow error: LLM drafting failed after 3 attempts: Error code: 400 - {'error': {'message': 'Invalid JSON payload received. Unknown name "$defs" at \'***.tools[0].function_declarations[0].parameters\': Cannot find field.', 'type': 'upstream_error', 'param': '', 'code': 400}}
+NoneType: None

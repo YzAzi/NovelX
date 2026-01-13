@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from .config import settings
+from .schema_utils import pydantic_to_openai_function_inline
 
 
 class ChunkingStrategy(Enum):
@@ -187,11 +188,12 @@ def _semantic_split(text: str, config: ChunkConfig) -> list[tuple[str, int, int]
 
     try:
         model_name = settings.model_name or "gpt-4o"
+        schema = pydantic_to_openai_function_inline(SemanticSplitResult)
         llm = ChatOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             model=model_name,
-        ).with_structured_output(SemanticSplitResult)
+        ).with_structured_output(schema)
         result = llm.invoke(prompt)
         starts = sorted({max(1, value) for value in result.starts})
     except Exception:

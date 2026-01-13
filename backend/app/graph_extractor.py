@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from .config import get_api_key, get_base_url, get_model_name
 from .knowledge_graph import Entity, KnowledgeGraph, Relation
 from .models import StoryNode, StoryProject
+from .schema_utils import pydantic_json_schema_inline, pydantic_to_openai_function_inline
 
 
 class ExtractionResult(BaseModel):
@@ -66,17 +67,19 @@ class GraphExtractor:
             return ExtractionResult()
 
         model_name = get_model_name("extraction")
+        schema = pydantic_to_openai_function_inline(ExtractionResult)
+        prompt_schema = pydantic_json_schema_inline(ExtractionResult)
         llm = ChatOpenAI(
             api_key=api_key,
             base_url=get_base_url(),
             model=model_name,
-        ).with_structured_output(ExtractionResult)
+        ).with_structured_output(schema)
 
         prompt = PROMPT_TEMPLATE.format(
             text=text,
             existing_entities=_serialize_entities(existing_graph.entities),
             output_schema=json.dumps(
-                ExtractionResult.model_json_schema(), ensure_ascii=False, indent=2
+                prompt_schema, ensure_ascii=False, indent=2
             ),
         )
 

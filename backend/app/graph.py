@@ -16,6 +16,7 @@ from .graph_retriever import RetrievalContext, GraphRetriever
 from .knowledge_graph import KnowledgeGraph, load_graph, save_graph
 from .models import CreateOutlineRequest, StoryNode, StoryProject, SyncAnalysisResult
 from .node_indexer import NodeIndexer
+from .schema_utils import pydantic_to_openai_function_inline
 from .world_knowledge import WorldKnowledgeManager
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode
 
@@ -148,11 +149,12 @@ async def drafting_node(state: AgentState) -> AgentState:
             raise ValidationError("OPENAI_API_KEY is not configured")
 
         model_name = get_model_name("drafting")
+        schema = pydantic_to_openai_function_inline(StoryProject)
         llm = ChatOpenAI(
             api_key=api_key,
             base_url=get_base_url(),
             model=model_name,
-        ).with_structured_output(StoryProject)
+        ).with_structured_output(schema)
 
         retrieved_context = state.get("retrieved_context")
         retrieved_text = (
@@ -217,11 +219,12 @@ async def reverse_sync_node(state: AgentState) -> AgentState:
             raise ValidationError("Sync failed: missing project or modified node")
 
         model_name = get_model_name("sync")
+        schema = pydantic_to_openai_function_inline(SyncAnalysisResult)
         llm = ChatOpenAI(
             api_key=api_key,
             base_url=get_base_url(),
             model=model_name,
-        ).with_structured_output(SyncAnalysisResult)
+        ).with_structured_output(schema)
 
         retrieved_context = state.get("retrieved_context")
         retrieved_text = (

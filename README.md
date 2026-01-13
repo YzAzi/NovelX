@@ -30,7 +30,7 @@
 3. 根据 `.env.example` 创建本地 `.env`
 4. 启动后端：
    - `cd backend`
-   - `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+   - `poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000`
 5. 启动前端：
    - `cd frontend`
    - `pnpm dev -H 0.0.0.0 -p 3000`
