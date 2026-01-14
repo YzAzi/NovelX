@@ -29,7 +29,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useProjectStore } from "@/src/stores/project-store"
 
@@ -45,8 +44,9 @@ export default function Home() {
     setError,
     setProject,
     setProjectTitle,
+    selectNode,
+    setNodeEditorOpen,
   } = useProjectStore()
-  const [layoutDirection, setLayoutDirection] = useState<"horizontal" | "vertical">("horizontal")
   const [activeTab, setActiveTab] = useState("outline")
   const [title, setTitle] = useState(DEFAULT_TITLE)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -140,13 +140,19 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    const updateDirection = () => {
-      setLayoutDirection(window.innerWidth < 1024 ? "vertical" : "horizontal")
+    const id = window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"))
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [activeTab, currentProject?.id])
+
+  useEffect(() => {
+    if (activeTab !== "outline") {
+      selectNode(null)
+      setNodeEditorOpen(false)
     }
-    updateDirection()
-    window.addEventListener("resize", updateDirection)
-    return () => window.removeEventListener("resize", updateDirection)
-  }, [])
+  }, [activeTab, selectNode, setNodeEditorOpen])
+
 
   const handleTitleChange = (value: string) => {
     setTitle(value)
@@ -235,7 +241,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen min-h-screen flex-col">
       <header className="glass-panel border-b border-white/40">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-4 py-5 lg:flex-nowrap">
           <Button
@@ -423,34 +429,21 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col px-4 py-6 animate-float-in">
-        <ResizablePanelGroup
-          direction={layoutDirection}
-          className="mx-auto w-full max-w-6xl flex-1"
-        >
-          <ResizablePanel defaultSize={60} minSize={30}>
-            <div className="h-full pr-2 lg:pr-3">
-              {activeTab === "outline" ? (
-                <StoryVisualizer />
-              ) : activeTab === "relations" ? (
-                <CharacterGraph />
-              ) : (
-                <KnowledgeWorkspace />
-              )}
-            </div>
-          </ResizablePanel>
-          {activeTab === "knowledge" ? null : (
-            <>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={40} minSize={25}>
-                <div className="h-full pl-2 lg:pl-3">
-                  <NodeEditor />
-                </div>
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+      <main className="flex flex-1 min-h-0 flex-col px-4 py-6 animate-float-in">
+        <div className="mx-auto w-full max-w-6xl flex-1 min-h-0 min-w-0">
+          <div className="h-full w-full min-h-0">
+            {activeTab === "outline" ? (
+              <StoryVisualizer />
+            ) : activeTab === "relations" ? (
+              <CharacterGraph />
+            ) : (
+              <KnowledgeWorkspace />
+            )}
+          </div>
+        </div>
       </main>
+
+      <NodeEditor />
 
       {isLoading ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">

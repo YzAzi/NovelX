@@ -2,12 +2,15 @@
 
 import "@xyflow/react/dist/style.css"
 
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, useEffect, useRef } from "react"
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
+  Handle,
+  Position,
+  type ReactFlowInstance,
   type Edge,
   type Node,
   type NodeProps,
@@ -55,10 +58,12 @@ function StoryNodeCard({ data, selected }: NodeProps<StoryFlowNode>) {
             : "hover:border-slate-300/70"
       )}
     >
+      <Handle type="target" position={Position.Left} isConnectable={false} />
       <div className="mb-2 text-sm font-semibold text-slate-900">{data.title}</div>
       <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", data.colorClass)}>
         {data.locationTag}
       </span>
+      <Handle type="source" position={Position.Right} isConnectable={false} />
     </div>
   )
 }
@@ -148,8 +153,16 @@ function buildLayout(
 }
 
 export function StoryVisualizer() {
-  const { currentProject, selectedNodeId, highlightedNodeIds, selectNode } = useProjectStore()
+  const {
+    currentProject,
+    selectedNodeId,
+    highlightedNodeIds,
+    selectNode,
+    setNodeEditorOpen,
+  } = useProjectStore()
   const storyNodes = currentProject?.nodes ?? []
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const flowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const lanes = useMemo(() => {
     const seen = new Set<string>()
     const result: string[] = []
@@ -180,8 +193,9 @@ export function StoryVisualizer() {
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       selectNode(node.id)
+      setNodeEditorOpen(true)
     },
-    [selectNode]
+    [selectNode, setNodeEditorOpen]
   )
 
   const handleNodeDoubleClick = useCallback(
@@ -194,6 +208,37 @@ export function StoryVisualizer() {
 
   const nodeTypes = useMemo(() => ({ storyNode: StoryNodeCard }), [])
 
+  useEffect(() => {
+    const instance = flowInstanceRef.current
+    if (!instance || flowNodes.length === 0) {
+      return
+    }
+    const id = window.requestAnimationFrame(() => {
+      instance.fitView({ padding: 0.2, duration: 0 })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [flowNodes.length])
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) {
+      return
+    }
+
+    const observer = new ResizeObserver(() => {
+      const instance = flowInstanceRef.current
+      if (!instance || flowNodes.length === 0) {
+        return
+      }
+      window.requestAnimationFrame(() => {
+        instance.fitView({ padding: 0.2, duration: 0 })
+      })
+    })
+
+    observer.observe(wrapper)
+    return () => observer.disconnect()
+  }, [flowNodes.length])
+
   if (!currentProject) {
     return (
       <div className="surface-card flex h-full items-center justify-center border-dashed text-sm text-muted-foreground">
@@ -203,7 +248,7 @@ export function StoryVisualizer() {
   }
 
   return (
-    <div className="surface-card flex h-full overflow-hidden">
+    <div ref={wrapperRef} className="surface-card flex h-full overflow-hidden">
       <div className="flex w-[140px] shrink-0 flex-col border-r border-white/60 bg-white/60">
         <div className="px-3 py-3 text-xs font-semibold text-slate-500">场景泳道</div>
         <div className="flex flex-1 flex-col">
@@ -223,9 +268,13 @@ export function StoryVisualizer() {
           nodes={flowNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          className="h-full w-full"
           defaultEdgeOptions={defaultEdgeOptions}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
+          onInit={(instance) => {
+            flowInstanceRef.current = instance
+          }}
           panOnScroll
           zoomOnScroll
           fitView

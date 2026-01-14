@@ -20,6 +20,10 @@ import { useProjectStore } from "@/src/stores/project-store"
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError"
+}
+
 async function request<T>(
   path: string,
   options: RequestInit,
@@ -50,8 +54,10 @@ async function request<T>(
 
     return (await response.json()) as T
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    setError(message)
+    if (!isAbortError(error)) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      setError(message)
+    }
     throw error
   } finally {
     if (shouldSetLoading) {
@@ -323,8 +329,10 @@ export async function uploadWorldKnowledgeFile(
     }
     return (await response.json()) as WorldDocument[]
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    setError(message)
+    if (!isAbortError(error)) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      setError(message)
+    }
     throw error
   } finally {
     setLoading(false)

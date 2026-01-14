@@ -20,12 +20,13 @@ def _node_text(node: StoryNode) -> str:
 
 
 def _node_metadata(project_id: str, node: StoryNode) -> dict:
+    characters = ",".join(node.characters) if node.characters else ""
     return {
         "project_id": project_id,
         "node_id": node.id,
         "timeline_order": node.timeline_order,
         "location_tag": node.location_tag,
-        "characters": node.characters,
+        "characters": characters,
     }
 
 

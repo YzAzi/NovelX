@@ -1,0 +1,306 @@
+{
+  "version": 5,
+  "snapshot_type": "auto",
+  "name": null,
+  "description": null,
+  "story_project": {
+    "id": "6149dce6-3784-4187-9c0f-faaa71487c80",
+    "title": "《雨夜钟摆》",
+    "world_view": "现代都市，阴雨连绵的氛围，科技与心理学并存的背景。",
+    "style_tags": [
+      "悬疑",
+      "心理惊悚",
+      "非线性叙事",
+      "反转"
+    ],
+    "nodes": [
+      {
+        "id": "node_1",
+        "title": "第一章：无声的节拍器",
+        "content": "暴雨后的清晨，陈默来到位于市中心的“林远心理诊所”。林远死在办公椅上，死因初步判断为过量注射镇静剂。现场门窗紧闭，形成密室。陈默在案发现场发现了一个奇怪的细节：桌上的节拍器还在摆动，但并没有发出声音，指针被某种透明胶带固定在了最左侧。陈默推断，这是凶手留下的心理暗示符号。",
+        "narrative_order": 1,
+        "timeline_order": 4.0,
+        "location_tag": "案发现场-心理诊所",
+        "characters": [
+          "char_chen_mo",
+          "char_lin_yuan"
+        ]
+      },
+      {
+        "id": "node_2",
+        "title": "第二章：植入指令",
+        "content": "叙事切回案发前三天。诊疗室内，林远正在给苏青进行深度催眠。房间里回荡着节拍器单调的“滴答”声。林远的声音低沉诱导：“当节拍器停下的时候，你会忘记所有的恐惧，也会忘记你是谁。”苏青在催眠中表现出极度的抗拒，她的潜意识里似乎隐藏着另一个暴力的防卫人格，这让林远感到兴奋又危险。",
+        "narrative_order": 2,
+        "timeline_order": 1.0,
+        "location_tag": "回忆-诊疗室",
+        "characters": [
+          "char_lin_yuan",
+          "char_su_qing"
+        ]
+      },
+      {
+        "id": "node_3",
+        "title": "第三章：空白的记忆断层",
+        "content": "时间回到现在。审讯室里，陈默面对苏青。苏青显得惊恐万分，她坚称自己最后一次见林医生是三天前，昨晚她一直在家睡觉。然而，陈默拿出了监控截图，显示昨晚暴雨中，一个穿着红色雨衣的身影进入了诊所大楼，身形与苏青完全吻合。苏青看着照片，突然抱住头，痛苦地表示自己脑中只有一片空白的噪音。",
+        "narrative_order": 3,
+        "timeline_order": 5.0,
+        "location_tag": "警察局-审讯室",
+        "characters": [
+          "char_chen_mo",
+          "char_su_qing"
+        ]
+      },
+      {
+        "id": "node_4",
+        "title": "第四章：反转的猎物",
+        "content": "记忆闪回至案发当晚（昨夜）。苏青确实去了诊所，她想质问林远为什么最近自己总是莫名其妙地断片。林远露出真面目，试图再次启动催眠指令控制苏青。争执中，苏青被逼到墙角，林远伸手去够桌上的镇静剂。就在这时，苏青的眼神突然变了，变得冷酷而精准。她反手夺过针管，利用林远惊讶的瞬间，将药剂推入了他的颈动脉。",
+        "narrative_order": 4,
+        "timeline_order": 2.0,
+        "location_tag": "案发现场-诊所（昨夜）",
+        "characters": [
+          "char_su_qing",
+          "char_lin_yuan"
+        ]
+      },
+      {
+        "id": "node_5",
+        "title": "第五章：雨中的独奏",
+        "content": "案发后一小时（昨夜）。苏青穿着红色雨衣走在河边的步道上。雨水冲刷着一切。她停下脚步，从口袋里掏出那个让节拍器静音的透明胶带卷，随手扔进了滚滚河水。她的表情不再柔弱，嘴角挂着一丝冷笑。她并没有失忆，所谓的“第二人格”是她为了反杀林远而长期伪装的保护色。她看了一眼手表，轻声说道：“催眠结束。”",
+        "narrative_order": 5,
+        "timeline_order": 3.0,
+        "location_tag": "河滨步道",
+        "characters": [
+          "char_su_qing"
+        ]
+      }
+    ],
+    "characters": [
+      {
+        "id": "char_chen_mo",
+        "name": "陈默",
+        "tags": [
+          "侦探",
+          "敏锐",
+          "失眠"
+        ],
+        "bio": "刑侦支队队长，35岁。患有严重的失眠症，性格孤僻冷硬，擅长从微小的细节中拼凑真相。由于三年前的一桩未结悬案，他对所有看似完美的自杀或意外都抱有极度的怀疑。"
+      },
+      {
+        "id": "char_su_qing",
+        "name": "苏青",
+        "tags": [
+          "嫌疑人",
+          "失诊者",
+          "不可靠叙述者"
+        ],
+        "bio": "自由插画师，26岁。因童年创伤患有分离性遗忘症，长期在林远处接受心理治疗。外表柔弱，神情总是带着一种游离感，是案件的第一嫌疑人，但她声称自己完全失去了案发当晚的记忆。"
+      },
+      {
+        "id": "char_lin_yuan",
+        "name": "林远",
+        "tags": [
+          "死者",
+          "心理医生",
+          "控制欲"
+        ],
+        "bio": "知名心理医生，45岁。儒雅随和，在业界享有盛誉，但私下里热衷于通过催眠控制病人的潜意识。死于自己的诊所内，死状安详，仿佛只是睡着了。"
+      }
+    ],
+    "created_at": "2026-01-14T06:52:49.644171",
+    "updated_at": "2026-01-14T06:52:49.644180"
+  },
+  "knowledge_graph": {
+    "project_id": "6149dce6-3784-4187-9c0f-faaa71487c80",
+    "entities": [
+      {
+        "id": "chen_mo",
+        "name": "陈默",
+        "type": "character",
+        "description": "负责审讯苏青的人员，可能是警察或侦探。",
+        "aliases": [],
+        "properties": {},
+        "source_refs": [
+          "审讯室里，陈默面对苏青。",
+          "陈默拿出了监控截图",
+          "node_3"
+        ]
+      },
+      {
+        "id": "su_qing",
+        "name": "苏青",
+        "type": "character",
+        "description": "正在接受审讯的女性，表现出惊恐和记忆缺失的症状。",
+        "aliases": [],
+        "properties": {},
+        "source_refs": [
+          "审讯室里，陈默面对苏青。",
+          "苏青显得惊恐万分",
+          "node_3"
+        ]
+      },
+      {
+        "id": "lin_yi_sheng",
+        "name": "林医生",
+        "type": "character",
+        "description": "苏青认识的一位医生，苏青声称最后一次见他是三天前。",
+        "aliases": [
+          "林医生"
+        ],
+        "properties": {},
+        "source_refs": [
+          "她坚称自己最后一次见林医生是三天前",
+          "node_3"
+        ]
+      },
+      {
+        "id": "shen_xun_shi",
+        "name": "审讯室",
+        "type": "location",
+        "description": "陈默审讯苏青的地点。",
+        "aliases": [],
+        "properties": {},
+        "source_refs": [
+          "审讯室里，陈默面对苏青。",
+          "node_3"
+        ]
+      },
+      {
+        "id": "zhen_suo_da_lou",
+        "name": "诊所大楼",
+        "type": "location",
+        "description": "昨晚暴雨中，监控显示有人进入的建筑物。",
+        "aliases": [],
+        "properties": {},
+        "source_refs": [
+          "一个穿着红色雨衣的身影进入了诊所大楼",
+          "node_3"
+        ]
+      },
+      {
+        "id": "jian_kong_jie_tu",
+        "name": "监控截图",
+        "type": "item",
+        "description": "陈默出示的证据，显示昨晚暴雨中的情景。",
+        "aliases": [
+          "照片"
+        ],
+        "properties": {},
+        "source_refs": [
+          "陈默拿出了监控截图",
+          "苏青看着照片",
+          "node_3"
+        ]
+      },
+      {
+        "id": "hong_se_yu_yi",
+        "name": "红色雨衣",
+        "type": "item",
+        "description": "监控中神秘身影穿着的衣物。",
+        "aliases": [],
+        "properties": {},
+        "source_refs": [
+          "一个穿着红色雨衣的身影",
+          "node_3"
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "id": "rel_chen_mo_loc",
+        "source_id": "chen_mo",
+        "target_id": "shen_xun_shi",
+        "relation_type": "located_at",
+        "relation_name": "位于",
+        "description": "陈默在审讯室里。",
+        "properties": {},
+        "source_refs": [
+          "审讯室里，陈默面对苏青。",
+          "node_3"
+        ]
+      },
+      {
+        "id": "rel_su_qing_loc",
+        "source_id": "su_qing",
+        "target_id": "shen_xun_shi",
+        "relation_type": "located_at",
+        "relation_name": "位于",
+        "description": "苏青在审讯室里。",
+        "properties": {},
+        "source_refs": [
+          "审讯室里，陈默面对苏青。",
+          "node_3"
+        ]
+      },
+      {
+        "id": "rel_chen_mo_su_qing",
+        "source_id": "chen_mo",
+        "target_id": "su_qing",
+        "relation_type": "related_to",
+        "relation_name": "审讯",
+        "description": "陈默正在审讯苏青。",
+        "properties": {},
+        "source_refs": [
+          "审讯室里，陈默面对苏青。",
+          "node_3"
+        ]
+      },
+      {
+        "id": "rel_su_qing_lin",
+        "source_id": "su_qing",
+        "target_id": "lin_yi_sheng",
+        "relation_type": "related_to",
+        "relation_name": "认识",
+        "description": "苏青认识林医生，并声称三天前见过他。",
+        "properties": {},
+        "source_refs": [
+          "她坚称自己最后一次见林医生是三天前",
+          "node_3"
+        ]
+      },
+      {
+        "id": "rel_chen_mo_item",
+        "source_id": "chen_mo",
+        "target_id": "jian_kong_jie_tu",
+        "relation_type": "related_to",
+        "relation_name": "持有",
+        "description": "陈默拿出并使用监控截图作为证据。",
+        "properties": {},
+        "source_refs": [
+          "陈默拿出了监控截图",
+          "node_3"
+        ]
+      },
+      {
+        "id": "rel_item_loc",
+        "source_id": "jian_kong_jie_tu",
+        "target_id": "zhen_suo_da_lou",
+        "relation_type": "related_to",
+        "relation_name": "记录地点",
+        "description": "监控截图记录了诊所大楼的画面。",
+        "properties": {},
+        "source_refs": [
+          "显示昨晚暴雨中...进入了诊所大楼",
+          "node_3"
+        ]
+      },
+      {
+        "id": "rel_su_qing_raincoat",
+        "source_id": "su_qing",
+        "target_id": "hong_se_yu_yi",
+        "relation_type": "related_to",
+        "relation_name": "疑似穿着",
+        "description": "陈默指出监控中穿着红色雨衣的身影身形与苏青完全吻合，暗示苏青可能穿着该雨衣。",
+        "properties": {},
+        "source_refs": [
+          "身形与苏青完全吻合",
+          "node_3"
+        ]
+      }
+    ],
+    "last_updated": "2026-01-14T06:55:49.375461"
+  },
+  "world_documents": [],
+  "node_count": 5,
+  "entity_count": 7,
+  "created_at": "2026-01-14T07:21:19.607877"
+}

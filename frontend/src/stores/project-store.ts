@@ -18,6 +18,7 @@ interface ProjectStore {
   syncRequestId: string | null
   conflicts: Array<Conflict & { _id: string }>
   graphUpdateVersion: number
+  nodeEditorOpen: boolean
   isLoading: boolean
   error: string | null
 
@@ -29,6 +30,7 @@ interface ProjectStore {
   setSaveStatus: (status: "idle" | "saving" | "saved") => void
   setSyncStatus: (status: "idle" | "syncing" | "completed" | "failed") => void
   setSyncRequestId: (requestId: string | null) => void
+  setNodeEditorOpen: (open: boolean) => void
   loadProjects: () => Promise<void>
   loadProject: (projectId: string) => Promise<void>
   removeProject: (projectId: string) => Promise<void>
@@ -54,6 +56,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   syncRequestId: null,
   conflicts: [],
   graphUpdateVersion: 0,
+  nodeEditorOpen: false,
   wsStatus: "disconnected",
   isLoading: false,
   error: null,
@@ -103,6 +106,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setSaveStatus: (status) => set({ saveStatus: status }),
   setSyncStatus: (status) => set({ syncStatus: status }),
   setSyncRequestId: (requestId) => set({ syncRequestId: requestId }),
+  setNodeEditorOpen: (open) => set({ nodeEditorOpen: open }),
   loadProjects: async () => {
     const { setError } = get()
     try {

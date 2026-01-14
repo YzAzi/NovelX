@@ -4,10 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 
 import type { Conflict, StoryNode } from "@/src/types/models"
 import { syncNode } from "@/src/lib/api"
-import { useDebounce } from "@/src/lib/use-debounce"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -17,9 +23,11 @@ export function NodeEditor() {
     clearConflicts,
     conflicts,
     currentProject,
+    nodeEditorOpen,
     selectedNodeId,
     saveStatus,
     setSaveStatus,
+    setNodeEditorOpen,
     setSyncRequestId,
     setSyncStatus,
     setProject,
@@ -48,18 +56,19 @@ export function NodeEditor() {
 
   useEffect(() => {
     if (!selectedNode) {
+      setNodeEditorOpen(false)
       setTitle("")
       setContent("")
       setNarrativeOrder("")
       setTimelineOrder("")
-    setLocationTag("")
-    setCharacters([])
-    setSaveStatus("idle")
-    setNewCharacterNotice(null)
-    setValidationError(null)
-    clearConflicts()
-    setExpandedConflict(null)
-    lastSavedRef.current = null
+      setLocationTag("")
+      setCharacters([])
+      setSaveStatus("idle")
+      setNewCharacterNotice(null)
+      setValidationError(null)
+      clearConflicts()
+      setExpandedConflict(null)
+      lastSavedRef.current = null
       return
     }
 
@@ -82,7 +91,7 @@ export function NodeEditor() {
       locationTag: selectedNode.location_tag ?? "",
       characters: selectedNode.characters ?? [],
     })
-  }, [selectedNodeId, selectedNode])
+  }, [selectedNodeId, selectedNode, setNodeEditorOpen])
 
   const formSnapshot = useMemo(
     () => ({
@@ -96,8 +105,8 @@ export function NodeEditor() {
     [title, content, narrativeOrder, timelineOrder, locationTag, characters]
   )
 
-  const debouncedSnapshot = useDebounce(formSnapshot, 2000)
   const snapshotKey = useMemo(() => JSON.stringify(formSnapshot), [formSnapshot])
+  const isDirty = lastSavedRef.current !== snapshotKey
 
   useEffect(() => {
     if (saveStatus === "saving") {
@@ -233,18 +242,12 @@ export function NodeEditor() {
     ]
   )
 
-  useEffect(() => {
-    if (!selectedNode) {
-      return
-    }
-    if (lastSavedRef.current === JSON.stringify(debouncedSnapshot)) {
-      return
-    }
-    saveNode(debouncedSnapshot)
-  }, [debouncedSnapshot, saveNode, selectedNode])
-
   const handleManualSave = useCallback(() => {
     if (!selectedNode) {
+      return
+    }
+    const confirmed = window.confirm("确认保存并更新当前节点吗？")
+    if (!confirmed) {
       return
     }
     saveNode(formSnapshot)
@@ -282,41 +285,40 @@ export function NodeEditor() {
     }
 
   if (!selectedNode) {
-    return (
-      <Card id="node-editor" tabIndex={-1} className="h-full outline-none">
-        <CardHeader>
-          <CardTitle>节点编辑</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          点击左侧节点进行编辑
-        </CardContent>
-      </Card>
-    )
+    return null
   }
 
   const characterOptions = currentProject?.characters ?? []
 
   return (
-    <Card id="node-editor" tabIndex={-1} className="h-full outline-none">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle>节点编辑</CardTitle>
-          <div className="text-xs text-muted-foreground">
-            {saveStatus === "saving"
-              ? "保存中..."
-              : syncStatus === "syncing"
-                ? "同步中..."
-                : syncStatus === "failed"
-                  ? "同步失败"
-                  : saveStatus === "saved" && syncStatus === "completed"
-                    ? "已保存并同步"
-                    : saveStatus === "saved"
-                      ? "本地已保存"
-                      : null}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Dialog open={nodeEditorOpen} onOpenChange={setNodeEditorOpen}>
+      <DialogContent className="max-h-[80vh] max-w-2xl overflow-hidden p-0">
+        <Card
+          id="node-editor"
+          tabIndex={-1}
+          className="flex h-full flex-col border-0 shadow-none"
+        >
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <DialogTitle className="text-lg font-semibold">节点编辑</DialogTitle>
+              <div className="text-xs text-muted-foreground">
+                {saveStatus === "saving"
+                  ? "保存中..."
+                  : syncStatus === "syncing"
+                    ? "同步中..."
+                    : syncStatus === "failed"
+                      ? "同步失败"
+                      : saveStatus === "saved" && syncStatus === "completed"
+                        ? "已保存并同步"
+                        : saveStatus === "saved"
+                          ? "本地已保存"
+                          : isDirty
+                            ? "修改未保存"
+                            : null}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 min-h-0 space-y-4 overflow-y-auto px-6 pb-2">
         {newCharacterNotice ? (
           <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
             {newCharacterNotice}
@@ -436,12 +438,19 @@ export function NodeEditor() {
             </div>
           )}
         </div>
-        <div className="flex justify-end">
-          <Button type="button" onClick={handleManualSave}>
-            手动保存 (Ctrl+S)
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+          <DialogFooter className="px-6 pb-6">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                取消
+              </Button>
+            </DialogClose>
+            <Button type="button" onClick={handleManualSave} disabled={!isDirty}>
+              保存并更新 (Ctrl+S)
+            </Button>
+          </DialogFooter>
+        </Card>
+      </DialogContent>
+    </Dialog>
   )
 }

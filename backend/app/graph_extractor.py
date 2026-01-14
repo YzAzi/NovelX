@@ -83,7 +83,17 @@ class GraphExtractor:
             ),
         )
 
-        result: ExtractionResult = await asyncio.to_thread(llm.invoke, prompt)
+        raw_result = await asyncio.to_thread(llm.invoke, prompt)
+        if raw_result is None:
+            return ExtractionResult()
+        if isinstance(raw_result, ExtractionResult):
+            result = raw_result
+        elif isinstance(raw_result, dict):
+            result = ExtractionResult.model_validate(raw_result)
+        elif hasattr(raw_result, "model_dump"):
+            result = ExtractionResult.model_validate(raw_result.model_dump())
+        else:
+            result = ExtractionResult.model_validate(raw_result)
         result.new_entities = _ensure_entity_ids(result.new_entities)
         result.new_relations = _ensure_relation_ids(result.new_relations)
         return result

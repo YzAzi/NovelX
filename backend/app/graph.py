@@ -177,7 +177,15 @@ async def drafting_node(state: AgentState) -> AgentState:
                 if attempt > 1:
                     prompt_text = f"{prompt_text}\n\n请严格按照要求的格式输出"
                 result = await llm.ainvoke(prompt_text)
-                state["current_project"] = result
+                if isinstance(result, StoryProject):
+                    project = result
+                elif isinstance(result, dict):
+                    project = StoryProject.model_validate(result)
+                elif hasattr(result, "model_dump"):
+                    project = StoryProject.model_validate(result.model_dump())
+                else:
+                    project = StoryProject.model_validate(result)
+                state["current_project"] = project
                 state["error"] = None
                 print("[drafting_node] complete")
                 return state

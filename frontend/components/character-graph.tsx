@@ -36,6 +36,16 @@ const ENTITY_COLORS: Record<string, string> = {
   unknown: "#94a3b8",
 }
 
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  character: "角色",
+  location: "地点",
+  item: "物品",
+  organization: "组织",
+  event: "事件",
+  concept: "概念",
+  unknown: "未知",
+}
+
 const RELATION_COLORS: Record<string, string> = {
   family: "#0ea5e9",
   friend: "#22c55e",
@@ -67,9 +77,8 @@ function getRelationColor(relation?: string) {
 
 function buildNodeLabel(node: CharacterGraphNode) {
   const rows = [node.name]
-  if (node.type) {
-    rows.push(`类型：${node.type}`)
-  }
+  const normalizedType = normalizeEntityType(node.type)
+  rows.push(`类型：${ENTITY_TYPE_LABELS[normalizedType]}`)
   if (node.aliases && node.aliases.length > 0) {
     rows.push(`别名：${node.aliases.join("、")}`)
   }
@@ -79,11 +88,18 @@ function buildNodeLabel(node: CharacterGraphNode) {
   return rows.join("\n")
 }
 
-function getEntityColor(entityType?: EntityType) {
+function getEntityColor(entityType?: string) {
   if (!entityType) {
     return ENTITY_COLORS.unknown
   }
   return ENTITY_COLORS[entityType] ?? ENTITY_COLORS.unknown
+}
+
+function normalizeEntityType(type?: string) {
+  if (type && ENTITY_COLORS[type]) {
+    return type
+  }
+  return "unknown"
 }
 
 function drawShape(
@@ -125,6 +141,8 @@ export function CharacterGraph() {
     links: [],
   })
   const graphDataRef = useRef(graphData)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [graphSize, setGraphSize] = useState({ width: 0, height: 0 })
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -157,6 +175,7 @@ export function CharacterGraph() {
     organization: true,
     event: true,
     concept: true,
+    unknown: true,
   })
   const [filterRelations, setFilterRelations] = useState<Record<string, boolean>>({})
   const [pathEndpoints, setPathEndpoints] = useState({
@@ -165,9 +184,49 @@ export function CharacterGraph() {
   })
   const [pathRelations, setPathRelations] = useState<CharacterGraphLink[]>([])
 
+  const measureContainer = useCallback(() => {
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+    const rect = container.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      setGraphSize({ width: Math.floor(rect.width), height: Math.floor(rect.height) })
+    }
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) {
+        return
+      }
+      const nextWidth = Math.floor(entry.contentRect.width)
+      const nextHeight = Math.floor(entry.contentRect.height)
+      if (nextWidth > 0 && nextHeight > 0) {
+        setGraphSize({ width: nextWidth, height: nextHeight })
+      }
+    })
+
+    observer.observe(container)
+    const id = window.requestAnimationFrame(() => {
+      measureContainer()
+    })
+    return () => {
+      window.cancelAnimationFrame(id)
+      observer.disconnect()
+    }
+  }, [measureContainer])
+
   useEffect(() => {
     graphDataRef.current = graphData
   }, [graphData])
+
 
   const loadGraph = useCallback(async () => {
     if (!currentProject) {
@@ -283,7 +342,7 @@ export function CharacterGraph() {
         .map(([key]) => key)
     )
     const filteredNodes = graphData.nodes.filter((node) => {
-      const type = node.type ?? "character"
+      const type = normalizeEntityType(node.type)
       return allowedTypes.has(type)
     })
     const nodeIds = new Set(filteredNodes.map((node) => node.id))
@@ -299,6 +358,46 @@ export function CharacterGraph() {
       links: filteredLinks,
     }
   }, [filterTypes, filterRelations, graphData.links, graphData.nodes])
+
+  useEffect(() => {
+    if (graphDataMemo.nodes.length === 0) {
+      return
+    }
+    if (graphSize.width > 0 && graphSize.height > 0) {
+      return
+    }
+    const id = window.requestAnimationFrame(() => {
+      measureContainer()
+      if (graphSize.width === 0 || graphSize.height === 0) {
+        const fallbackWidth = Math.max(640, Math.floor(window.innerWidth * 0.7))
+        const fallbackHeight = Math.max(420, Math.floor(window.innerHeight * 0.6))
+        setGraphSize({ width: fallbackWidth, height: fallbackHeight })
+      }
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [graphDataMemo.nodes.length, graphSize.height, graphSize.width, measureContainer])
+
+  useEffect(() => {
+    if (!graphRef.current || graphDataMemo.nodes.length === 0) {
+      return
+    }
+    if (graphSize.width === 0 || graphSize.height === 0) {
+      return
+    }
+    const id = window.requestAnimationFrame(() => {
+      graphRef.current?.zoomToFit(500, 60)
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [graphDataMemo.nodes.length, graphSize.height, graphSize.width])
+
+  useEffect(() => {
+    if (!graphRef.current || graphDataMemo.nodes.length === 0) {
+      return
+    }
+    graphRef.current.d3Force("charge")?.strength(-900)
+    graphRef.current.d3Force("link")?.distance(200)
+    graphRef.current.d3Force("collide")?.radius(68).strength(0.98)
+  }, [graphDataMemo.nodes.length])
 
   const searchMatches = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -506,6 +605,20 @@ export function CharacterGraph() {
       const y = (source.y + target.y) / 2
       ctx.save()
       ctx.font = "11px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      const textWidth = ctx.measureText(relation).width
+      const paddingX = 6
+      const paddingY = 3
+      const boxWidth = textWidth + paddingX * 2
+      const boxHeight = 14 + paddingY
+      ctx.fillStyle = "rgba(248, 250, 252, 0.92)"
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.6)"
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.rect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight)
+      ctx.fill()
+      ctx.stroke()
       ctx.fillStyle = "#475569"
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
@@ -517,7 +630,7 @@ export function CharacterGraph() {
 
   if (!currentProject) {
     return (
-      <div className="flex h-full items-center justify-center rounded-xl border border-dashed bg-white text-sm text-muted-foreground">
+      <div className="flex h-full min-h-[420px] items-center justify-center rounded-2xl border border-dashed bg-white/80 text-sm text-muted-foreground shadow-sm">
         先生成大纲，再查看角色关系。
       </div>
     )
@@ -525,7 +638,7 @@ export function CharacterGraph() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center rounded-xl border bg-white text-sm text-muted-foreground">
+      <div className="flex h-full min-h-[420px] items-center justify-center rounded-2xl border bg-white/80 text-sm text-muted-foreground shadow-sm">
         正在加载角色关系...
       </div>
     )
@@ -533,34 +646,44 @@ export function CharacterGraph() {
 
   if (graphData.nodes.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center rounded-xl border border-dashed bg-white text-sm text-muted-foreground">
+      <div className="flex h-full min-h-[420px] items-center justify-center rounded-2xl border border-dashed bg-white/80 text-sm text-muted-foreground shadow-sm">
         暂无角色关系数据
       </div>
     )
   }
 
   return (
-    <div className="relative h-full overflow-hidden rounded-xl border bg-white">
+    <div
+      ref={containerRef}
+      className="relative h-full min-h-[420px] overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/80 shadow-[0_20px_60px_rgba(15,23,42,0.08)]"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_45%),radial-gradient(circle_at_bottom,_rgba(16,185,129,0.12),_transparent_42%)]" />
       {isRefreshing ? (
-        <div className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-500 shadow">
+        <div className="absolute right-4 top-4 z-10 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-xs text-slate-500 shadow">
           更新中...
         </div>
       ) : null}
       <ForceGraph2D
         ref={graphRef}
         graphData={graphDataMemo}
+        width={graphSize.width}
+        height={graphSize.height}
         nodeLabel={buildNodeLabel}
-        nodeRelSize={6}
+        nodeRelSize={4}
         nodeCanvasObject={(node, ctx) => {
           const graphNode = node as CharacterGraphNode & { x?: number; y?: number }
           if (graphNode.x == null || graphNode.y == null) {
             return
           }
-          const size = graphNode.id === selectedEntity?.id ? 10 : 7
+          const normalizedType = normalizeEntityType(graphNode.type)
+          const size = graphNode.id === selectedEntity?.id ? 8 : 5
           const isMatch = searchMatches.has(graphNode.id)
           const isPath = pathNodeIds.has(graphNode.id)
           ctx.save()
-          ctx.fillStyle = getEntityColor(graphNode.type)
+          ctx.shadowColor = "rgba(15, 23, 42, 0.18)"
+          ctx.shadowBlur = graphNode.id === selectedEntity?.id ? 14 : 8
+          ctx.shadowOffsetY = 2
+          ctx.fillStyle = getEntityColor(normalizedType as EntityType)
           if (isPath) {
             ctx.fillStyle = "#f97316"
           }
@@ -571,18 +694,32 @@ export function CharacterGraph() {
             ctx.strokeStyle = isMatch ? "#facc15" : "#2563eb"
             ctx.stroke()
           }
-          ctx.font = "12px sans-serif"
-          ctx.fillStyle = "#0f172a"
+          ctx.shadowBlur = 0
+          ctx.font = "9px sans-serif"
           ctx.textAlign = "center"
           ctx.textBaseline = "top"
-          ctx.fillText(graphNode.name, graphNode.x, graphNode.y + 10)
+          const label = graphNode.name
+          const labelWidth = ctx.measureText(label).width
+          const labelPadding = 2
+          const labelX = graphNode.x - labelWidth / 2 - labelPadding
+          const labelY = graphNode.y + 9
+          const labelHeight = 12
+          ctx.fillStyle = "rgba(248, 250, 252, 0.96)"
+          ctx.strokeStyle = "rgba(148, 163, 184, 0.7)"
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.rect(labelX, labelY, labelWidth + labelPadding * 2, labelHeight)
+          ctx.fill()
+          ctx.stroke()
+          ctx.fillStyle = "#0f172a"
+          ctx.fillText(label, graphNode.x, graphNode.y + 10)
           ctx.restore()
         }}
         linkColor={(link) =>
           getRelationColor((link as CharacterGraphLink).relation_type)
         }
         linkWidth={(link) =>
-          pathRelations.includes(link as CharacterGraphLink) ? 3 : 1.8
+          pathRelations.includes(link as CharacterGraphLink) ? 2.4 : 1.2
         }
         linkDirectionalParticles={0}
         linkCanvasObject={drawLinkLabel}
@@ -600,9 +737,19 @@ export function CharacterGraph() {
         onBackgroundClick={handleBackgroundClick}
         cooldownTicks={100}
       />
+      {graphData.nodes.length > 0 && graphDataMemo.nodes.length === 0 ? (
+        <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-slate-500">
+          当前筛选条件下无可视节点
+        </div>
+      ) : null}
+      {graphDataMemo.nodes.length > 0 && (graphSize.width === 0 || graphSize.height === 0) ? (
+        <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-slate-500">
+          正在加载画布...
+        </div>
+      ) : null}
       {contextMenu ? (
         <div
-          className="absolute z-20 w-40 rounded-md border bg-white p-2 text-xs shadow"
+          className="absolute z-20 w-40 rounded-md border border-white/70 bg-white/95 p-2 text-xs shadow-lg backdrop-blur"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           <div className="mb-2 text-[11px] font-semibold text-slate-500">
@@ -675,24 +822,28 @@ export function CharacterGraph() {
           </button>
         </div>
       ) : null}
-      <div className="absolute left-4 top-4 z-10 w-[280px] space-y-3 rounded-xl border bg-white/95 p-3 text-xs shadow">
+      <div className="absolute left-4 top-4 z-10 w-[280px] space-y-3 rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
         <div>
           <div className="text-[11px] font-semibold text-slate-500">搜索实体</div>
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="输入名称或别名"
-            className="mt-1 w-full rounded-md border px-2 py-1 text-xs"
+            className="mt-1 w-full rounded-md border border-slate-200/80 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
         </div>
         <div>
           <div className="text-[11px] font-semibold text-slate-500">实体类型筛选</div>
           <div className="mt-1 grid grid-cols-2 gap-1">
             {Object.keys(filterTypes).map((type) => (
-              <label key={type} className="flex items-center gap-1">
+              <label
+                key={type}
+                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-slate-600 transition hover:border-slate-200 hover:bg-white/80"
+              >
                 <input
                   type="checkbox"
                   checked={filterTypes[type]}
+                  className="accent-slate-800"
                   onChange={(event) =>
                     setFilterTypes((prev) => ({
                       ...prev,
@@ -700,7 +851,11 @@ export function CharacterGraph() {
                     }))
                   }
                 />
-                {type}
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: ENTITY_COLORS[type] ?? "#94a3b8" }}
+                />
+                {ENTITY_TYPE_LABELS[type] ?? type}
               </label>
             ))}
           </div>
@@ -709,16 +864,24 @@ export function CharacterGraph() {
           <div className="text-[11px] font-semibold text-slate-500">关系类型筛选</div>
           <div className="mt-1 grid grid-cols-2 gap-1">
             {relationTypes.map((type) => (
-              <label key={type} className="flex items-center gap-1">
+              <label
+                key={type}
+                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-slate-600 transition hover:border-slate-200 hover:bg-white/80"
+              >
                 <input
                   type="checkbox"
                   checked={filterRelations[type] ?? true}
+                  className="accent-slate-800"
                   onChange={(event) =>
                     setFilterRelations((prev) => ({
                       ...prev,
                       [type]: event.target.checked,
                     }))
                   }
+                />
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: getRelationColor(type) }}
                 />
                 {type}
               </label>
@@ -729,7 +892,7 @@ export function CharacterGraph() {
           <div className="text-[11px] font-semibold text-slate-500">路径查找</div>
           <div className="mt-1 flex flex-col gap-1">
             <select
-              className="rounded border px-2 py-1"
+              className="rounded border border-slate-200/80 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
               value={pathEndpoints.startId}
               onChange={(event) =>
                 setPathEndpoints((prev) => ({
@@ -746,7 +909,7 @@ export function CharacterGraph() {
               ))}
             </select>
             <select
-              className="rounded border px-2 py-1"
+              className="rounded border border-slate-200/80 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
               value={pathEndpoints.endId}
               onChange={(event) =>
                 setPathEndpoints((prev) => ({
@@ -764,7 +927,7 @@ export function CharacterGraph() {
             </select>
             <button
               type="button"
-              className="rounded bg-slate-900 px-2 py-1 text-white"
+              className="rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow transition hover:bg-slate-800"
               onClick={handlePathFind}
             >
               查找路径
@@ -792,12 +955,12 @@ export function CharacterGraph() {
         </div>
       </div>
       {selectedEntity ? (
-        <div className="absolute right-4 top-4 z-10 w-[280px] rounded-xl border bg-white/95 p-3 text-xs shadow">
+        <div className="absolute right-4 top-4 z-10 w-[280px] rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
           <div className="text-sm font-semibold text-slate-900">
             {selectedEntity.name}
           </div>
           <div className="mt-1 text-[11px] text-slate-500">
-            类型：{selectedEntity.type ?? "unknown"}
+            类型：{ENTITY_TYPE_LABELS[normalizeEntityType(selectedEntity.type)]}
           </div>
           <div className="mt-2 text-[11px] text-slate-600">
             {selectedEntity.description || "暂无描述"}
@@ -813,7 +976,7 @@ export function CharacterGraph() {
         </div>
       ) : null}
       {selectedRelation ? (
-        <div className="absolute right-4 bottom-4 z-10 w-[280px] rounded-xl border bg-white/95 p-3 text-xs shadow">
+        <div className="absolute right-4 bottom-4 z-10 w-[280px] rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
           <div className="text-sm font-semibold text-slate-900">
             {selectedRelation.relation_name ?? "关系"}
           </div>
@@ -840,7 +1003,7 @@ export function CharacterGraph() {
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`rounded-md border px-3 py-2 text-xs shadow ${
+              className={`rounded-md border px-3 py-2 text-xs shadow-lg ${
                 toast.type === "success"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "border-red-200 bg-red-50 text-red-700"
