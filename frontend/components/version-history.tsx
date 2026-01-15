@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { IndexSnapshot, SnapshotType, VersionDiff as VersionDiffModel } from "@/src/types/models"
 import {
@@ -42,6 +42,8 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
   }>>([])
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [baseVersion, setBaseVersion] = useState<number | null>(null)
+  const [selectedVersions, setSelectedVersions] = useState<Set<number>>(new Set())
+  const selectAllRef = useRef<HTMLInputElement | null>(null)
   const [snapshotCache, setSnapshotCache] = useState<Record<number, IndexSnapshot>>({})
   const [diff, setDiff] = useState<VersionDiffModel | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -82,6 +84,7 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
       setDiff(null)
       setSelectedVersion(null)
       setBaseVersion(null)
+      setSelectedVersions(new Set())
     }
   }, [open])
 
@@ -120,6 +123,16 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
 
   const selectedSnapshot = selectedVersion ? snapshotCache[selectedVersion] ?? null : null
   const baseSnapshot = baseVersion ? snapshotCache[baseVersion] ?? null : null
+
+  const visibleVersions = useMemo(() => versions.map((item) => item.version), [versions])
+  const allSelected = visibleVersions.length > 0 && visibleVersions.every((v) => selectedVersions.has(v))
+  const someSelected = visibleVersions.some((v) => selectedVersions.has(v)) && !allSelected
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected
+    }
+  }, [someSelected])
 
   const handleCreateSnapshot = async () => {
     if (!currentProject) {
@@ -190,6 +203,52 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
     }
   }
 
+  const toggleBatchSelection = (version: number) => {
+    setSelectedVersions((prev) => {
+      const next = new Set(prev)
+      if (next.has(version)) {
+        next.delete(version)
+      } else {
+        next.add(version)
+      }
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    setSelectedVersions((prev) => {
+      if (allSelected) {
+        return new Set()
+      }
+      return new Set(visibleVersions)
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    if (!currentProject || selectedVersions.size === 0) {
+      return
+    }
+    const confirmed = window.confirm(`确认删除选中的 ${selectedVersions.size} 个版本吗？`)
+    if (!confirmed) {
+      return
+    }
+    try {
+      await Promise.all(
+        Array.from(selectedVersions).map((version) => deleteVersion(currentProject.id, version))
+      )
+      if (selectedVersion && selectedVersions.has(selectedVersion)) {
+        setSelectedVersion(null)
+        setBaseVersion(null)
+        setDiff(null)
+      }
+      setSelectedVersions(new Set())
+      loadVersions()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除版本失败"
+      setError(message)
+    }
+  }
+
   if (!open) {
     return null
   }
@@ -211,8 +270,25 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
         </div>
         <div className="grid h-[calc(100%-56px)] gap-4 p-4 lg:grid-cols-[300px_1fr]">
           <div className="flex flex-col overflow-hidden rounded-xl border bg-white">
-            <div className="border-b px-4 py-3 text-xs font-semibold text-slate-600">
-              版本列表
+            <div className="flex items-center justify-between border-b px-4 py-3 text-xs font-semibold text-slate-600">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  className="accent-slate-800"
+                  checked={allSelected}
+                  onChange={handleSelectAll}
+                />
+                版本列表
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleBulkDelete}
+                disabled={selectedVersions.size === 0}
+              >
+                批量删除
+              </Button>
             </div>
             <div className="flex-1 overflow-y-auto">
               {isLoading ? (
@@ -234,9 +310,18 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
                       }`}
                       onClick={() => handleSelect(item.version)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">
-                          v{item.version} {item.name ?? ""}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="accent-slate-800"
+                            checked={selectedVersions.has(item.version)}
+                            onChange={() => toggleBatchSelection(item.version)}
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                          <div className="text-sm font-semibold">
+                            v{item.version} {item.name ?? ""}
+                          </div>
                         </div>
                         <span className={`rounded-full px-2 py-0.5 text-[11px] ${TYPE_STYLES[item.snapshot_type]}`}>
                           {item.snapshot_type}

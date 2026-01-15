@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type {
   ForceGraphMethods,
   LinkObject,
@@ -153,6 +153,7 @@ export function CharacterGraph() {
       >
     | undefined
   >(undefined)
+  const [graphInstanceKey, setGraphInstanceKey] = useState(0)
   const [selectedEntity, setSelectedEntity] = useState<CharacterGraphNode | null>(null)
   const [selectedRelation, setSelectedRelation] = useState<CharacterGraphLink | null>(null)
   const [contextMenu, setContextMenu] = useState<{
@@ -183,6 +184,7 @@ export function CharacterGraph() {
     endId: "",
   })
   const [pathRelations, setPathRelations] = useState<CharacterGraphLink[]>([])
+  const fitOnceRef = useRef(false)
 
   const measureContainer = useCallback(() => {
     const container = containerRef.current
@@ -194,6 +196,47 @@ export function CharacterGraph() {
       setGraphSize({ width: Math.floor(rect.width), height: Math.floor(rect.height) })
     }
   }, [])
+
+  useLayoutEffect(() => {
+    let cancelled = false
+    let attempt = 0
+    const tick = () => {
+      if (cancelled) {
+        return
+      }
+      measureContainer()
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (rect && rect.width > 0 && rect.height > 0) {
+        return
+      }
+      attempt += 1
+      if (attempt < 6) {
+        window.requestAnimationFrame(tick)
+      }
+    }
+    const id = window.requestAnimationFrame(tick)
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(id)
+    }
+  }, [measureContainer])
+
+  const handleGraphRef = useCallback(
+    (
+      instance:
+        | ForceGraphMethods<
+            NodeObject<CharacterGraphNode>,
+            LinkObject<CharacterGraphNode, CharacterGraphLink>
+          >
+        | null
+    ) => {
+      graphRef.current = instance ?? undefined
+      if (instance) {
+        setGraphInstanceKey((prev) => prev + 1)
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     const container = containerRef.current
@@ -359,6 +402,8 @@ export function CharacterGraph() {
     }
   }, [filterTypes, filterRelations, graphData.links, graphData.nodes])
 
+  const isGraphReady = graphSize.width > 0 && graphSize.height > 0
+
   useEffect(() => {
     if (graphDataMemo.nodes.length === 0) {
       return
@@ -381,23 +426,35 @@ export function CharacterGraph() {
     if (!graphRef.current || graphDataMemo.nodes.length === 0) {
       return
     }
-    if (graphSize.width === 0 || graphSize.height === 0) {
+    if (!isGraphReady) {
       return
     }
+    fitOnceRef.current = false
     const id = window.requestAnimationFrame(() => {
       graphRef.current?.zoomToFit(500, 60)
     })
     return () => window.cancelAnimationFrame(id)
-  }, [graphDataMemo.nodes.length, graphSize.height, graphSize.width])
+  }, [graphDataMemo.nodes.length, graphInstanceKey, isGraphReady])
 
-  useEffect(() => {
-    if (!graphRef.current || graphDataMemo.nodes.length === 0) {
+  const handleEngineStop = useCallback(() => {
+    if (!graphRef.current || !isGraphReady || fitOnceRef.current) {
       return
     }
-    graphRef.current.d3Force("charge")?.strength(-900)
-    graphRef.current.d3Force("link")?.distance(200)
-    graphRef.current.d3Force("collide")?.radius(68).strength(0.98)
-  }, [graphDataMemo.nodes.length])
+    fitOnceRef.current = true
+    graphRef.current.zoomToFit(500, 60)
+  }, [isGraphReady])
+
+  useEffect(() => {
+    if (!graphRef.current || graphDataMemo.nodes.length === 0 || !isGraphReady) {
+      return
+    }
+    const id = window.requestAnimationFrame(() => {
+      graphRef.current?.d3Force("charge")?.strength(-450)
+      graphRef.current?.d3Force("link")?.distance(100)
+      graphRef.current?.d3Force("collide")?.radius(34).strength(0.98)
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [graphDataMemo.nodes.length, graphInstanceKey, isGraphReady])
 
   const searchMatches = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -418,8 +475,10 @@ export function CharacterGraph() {
   const pathNodeIds = useMemo(() => {
     const ids = new Set<string>()
     pathRelations.forEach((link) => {
-      ids.add(String(link.source))
-      ids.add(String(link.target))
+      const source = typeof link.source === "string" ? link.source : link.source.id
+      const target = typeof link.target === "string" ? link.target : link.target.id
+      ids.add(source)
+      ids.add(target)
     })
     return ids
   }, [pathRelations])
@@ -429,10 +488,12 @@ export function CharacterGraph() {
       setPathRelations([])
       return
     }
+    const getNodeId = (value: string | CharacterGraphNode) =>
+      typeof value === "string" ? value : value.id
     const adjacency = new Map<string, CharacterGraphLink[]>()
     graphData.links.forEach((link) => {
-      const source = String(link.source)
-      const target = String(link.target)
+      const source = getNodeId(link.source)
+      const target = getNodeId(link.target)
       adjacency.set(source, [...(adjacency.get(source) ?? []), link])
       adjacency.set(target, [...(adjacency.get(target) ?? []), link])
     })
@@ -451,9 +512,9 @@ export function CharacterGraph() {
       }
       for (const relation of adjacency.get(current.id) ?? []) {
         const nextId =
-          String(relation.source) === current.id
-            ? String(relation.target)
-            : String(relation.source)
+          getNodeId(relation.source) === current.id
+            ? getNodeId(relation.target)
+            : getNodeId(relation.source)
         if (visited.has(nextId)) {
           continue
         }
@@ -664,7 +725,7 @@ export function CharacterGraph() {
         </div>
       ) : null}
       <ForceGraph2D
-        ref={graphRef}
+        ref={handleGraphRef}
         graphData={graphDataMemo}
         width={graphSize.width}
         height={graphSize.height}
@@ -715,9 +776,7 @@ export function CharacterGraph() {
           ctx.fillText(label, graphNode.x, graphNode.y + 10)
           ctx.restore()
         }}
-        linkColor={(link) =>
-          getRelationColor((link as CharacterGraphLink).relation_type)
-        }
+        linkColor={(link) => getRelationColor((link as CharacterGraphLink).relation_type)}
         linkWidth={(link) =>
           pathRelations.includes(link as CharacterGraphLink) ? 2.4 : 1.2
         }
@@ -735,6 +794,7 @@ export function CharacterGraph() {
         }
         onLinkClick={(link) => handleLinkClick(link as CharacterGraphLink)}
         onBackgroundClick={handleBackgroundClick}
+        onEngineStop={handleEngineStop}
         cooldownTicks={100}
       />
       {graphData.nodes.length > 0 && graphDataMemo.nodes.length === 0 ? (
@@ -742,8 +802,8 @@ export function CharacterGraph() {
           当前筛选条件下无可视节点
         </div>
       ) : null}
-      {graphDataMemo.nodes.length > 0 && (graphSize.width === 0 || graphSize.height === 0) ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-slate-500">
+      {graphDataMemo.nodes.length > 0 && !isGraphReady ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm text-slate-500">
           正在加载画布...
         </div>
       ) : null}

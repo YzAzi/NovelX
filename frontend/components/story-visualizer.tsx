@@ -2,7 +2,7 @@
 
 import "@xyflow/react/dist/style.css"
 
-import { useMemo, useCallback, useEffect, useRef } from "react"
+import { useMemo, useCallback, useEffect, useRef, useState } from "react"
 import {
   ReactFlow,
   Background,
@@ -163,6 +163,11 @@ export function StoryVisualizer() {
   const storyNodes = currentProject?.nodes ?? []
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const flowInstanceRef = useRef<ReactFlowInstance | null>(null)
+  const sceneItemRefs = useRef(new Map<string, HTMLButtonElement>())
+  const moveFrameRef = useRef<number | null>(null)
+  const activeSceneRef = useRef<string | null>(null)
+  const [sceneSearch, setSceneSearch] = useState("")
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null)
   const lanes = useMemo(() => {
     const seen = new Set<string>()
     const result: string[] = []
@@ -178,6 +183,31 @@ export function StoryVisualizer() {
 
   const { nodes, edges } = useMemo(() => buildLayout(storyNodes, lanes), [storyNodes, lanes])
 
+  const orderedStoryNodes = useMemo(
+    () => [...storyNodes].sort((a, b) => a.narrative_order - b.narrative_order),
+    [storyNodes]
+  )
+
+  const filteredStoryNodes = useMemo(() => {
+    const keyword = sceneSearch.trim().toLowerCase()
+    if (!keyword) {
+      return orderedStoryNodes
+    }
+    return orderedStoryNodes.filter((node) => {
+      const title = node.title?.toLowerCase() ?? ""
+      const tag = getLocationTag(node).toLowerCase()
+      return title.includes(keyword) || tag.includes(keyword)
+    })
+  }, [orderedStoryNodes, sceneSearch])
+
+  const nodeById = useMemo(() => {
+    const map = new Map<string, StoryFlowNode>()
+    nodes.forEach((node) => {
+      map.set(node.id, node)
+    })
+    return map
+  }, [nodes])
+
   const flowNodes = useMemo(() => {
     const highlighted = new Set(highlightedNodeIds)
     return nodes.map((node) => ({
@@ -189,6 +219,22 @@ export function StoryVisualizer() {
       },
     }))
   }, [nodes, highlightedNodeIds, selectedNodeId])
+
+  useEffect(() => {
+    activeSceneRef.current = activeSceneId
+  }, [activeSceneId])
+
+  useEffect(() => {
+    if (!activeSceneId && orderedStoryNodes.length > 0) {
+      setActiveSceneId(orderedStoryNodes[0].id)
+    }
+  }, [activeSceneId, orderedStoryNodes])
+
+  useEffect(() => {
+    if (selectedNodeId) {
+      setActiveSceneId(selectedNodeId)
+    }
+  }, [selectedNodeId])
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -207,6 +253,59 @@ export function StoryVisualizer() {
   )
 
   const nodeTypes = useMemo(() => ({ storyNode: StoryNodeCard }), [])
+
+  const focusScene = useCallback(
+    (id: string) => {
+      const instance = flowInstanceRef.current
+      const node = nodeById.get(id)
+      if (!instance || !node) {
+        return
+      }
+      const viewport = instance.getViewport()
+      instance.setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
+        zoom: viewport.zoom,
+        duration: 250,
+      })
+      setActiveSceneId(id)
+    },
+    [nodeById]
+  )
+
+  const updateActiveSceneFromViewport = useCallback(() => {
+    const instance = flowInstanceRef.current
+    const wrapper = wrapperRef.current
+    if (!instance || !wrapper || flowNodes.length === 0) {
+      return
+    }
+    const viewport = instance.getViewport()
+    const rect = wrapper.getBoundingClientRect()
+    const centerX = -viewport.x / viewport.zoom + rect.width / 2 / viewport.zoom
+    const centerY = -viewport.y / viewport.zoom + rect.height / 2 / viewport.zoom
+    let closestId: string | null = null
+    let closestDistance = Number.POSITIVE_INFINITY
+    flowNodes.forEach((node) => {
+      const nodeCenterX = node.position.x + NODE_WIDTH / 2
+      const nodeCenterY = node.position.y + NODE_HEIGHT / 2
+      const distance = (nodeCenterX - centerX) ** 2 + (nodeCenterY - centerY) ** 2
+      if (distance < closestDistance) {
+        closestDistance = distance
+        closestId = node.id
+      }
+    })
+    if (closestId && closestId !== activeSceneRef.current) {
+      setActiveSceneId(closestId)
+    }
+  }, [flowNodes])
+
+  const handleMove = useCallback(() => {
+    if (moveFrameRef.current) {
+      return
+    }
+    moveFrameRef.current = window.requestAnimationFrame(() => {
+      moveFrameRef.current = null
+      updateActiveSceneFromViewport()
+    })
+  }, [updateActiveSceneFromViewport])
 
   useEffect(() => {
     const instance = flowInstanceRef.current
@@ -239,6 +338,17 @@ export function StoryVisualizer() {
     return () => observer.disconnect()
   }, [flowNodes.length])
 
+  useEffect(() => {
+    if (!activeSceneId) {
+      return
+    }
+    const nodeEl = sceneItemRefs.current.get(activeSceneId)
+    if (!nodeEl) {
+      return
+    }
+    nodeEl.scrollIntoView({ block: "center", behavior: "smooth" })
+  }, [activeSceneId, filteredStoryNodes])
+
   if (!currentProject) {
     return (
       <div className="surface-card flex h-full items-center justify-center border-dashed text-sm text-muted-foreground">
@@ -249,18 +359,47 @@ export function StoryVisualizer() {
 
   return (
     <div ref={wrapperRef} className="surface-card flex h-full overflow-hidden">
-      <div className="flex w-[140px] shrink-0 flex-col border-r border-white/60 bg-white/60">
-        <div className="px-3 py-3 text-xs font-semibold text-slate-500">场景泳道</div>
-        <div className="flex flex-1 flex-col">
-          {lanes.map((lane, index) => (
-            <div
-              key={`${lane}-${index}`}
-              className="flex items-center px-3 text-xs font-medium text-slate-600"
-              style={{ height: LANE_HEIGHT }}
-            >
-              {lane}
-            </div>
-          ))}
+      <div className="flex w-[240px] shrink-0 flex-col border-r border-white/60 bg-white/60">
+        <div className="px-3 pb-2 pt-3 text-xs font-semibold text-slate-500">场景目录</div>
+        <div className="px-3 pb-2">
+          <input
+            className="h-8 w-full rounded-md border border-slate-200/80 bg-white/80 px-2 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            placeholder="搜索场景或地点..."
+            value={sceneSearch}
+            onChange={(event) => setSceneSearch(event.target.value)}
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto pb-3">
+          {filteredStoryNodes.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">暂无匹配场景</div>
+          ) : (
+            filteredStoryNodes.map((node) => {
+              const isActive = node.id === activeSceneId
+              return (
+                <button
+                  key={node.id}
+                  ref={(el) => {
+                    if (el) {
+                      sceneItemRefs.current.set(node.id, el)
+                    } else {
+                      sceneItemRefs.current.delete(node.id)
+                    }
+                  }}
+                  className={cn(
+                    "flex w-full flex-col gap-1 px-3 py-2 text-left text-xs transition",
+                    isActive
+                      ? "bg-white/80 text-slate-900 shadow-sm"
+                      : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                  )}
+                  onClick={() => focusScene(node.id)}
+                  type="button"
+                >
+                  <span className="font-semibold">{node.title || "未命名节点"}</span>
+                  <span className="text-[11px] text-slate-500">{getLocationTag(node)}</span>
+                </button>
+              )
+            })
+          )}
         </div>
       </div>
       <div className="flex-1">
@@ -272,6 +411,7 @@ export function StoryVisualizer() {
           defaultEdgeOptions={defaultEdgeOptions}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
+          onMove={handleMove}
           onInit={(instance) => {
             flowInstanceRef.current = instance
           }}

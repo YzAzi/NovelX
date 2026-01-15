@@ -92,7 +92,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup() -> None:
     await init_db()
-    asyncio.create_task(version_manager.auto_snapshot_loop())
+    # Auto snapshots disabled: only user-triggered manual snapshots are allowed.
 
 
 @app.middleware("http")
@@ -167,12 +167,6 @@ async def sync_node(
     old_node = next(
         (node for node in project.nodes if node.id == payload.node.id),
         None,
-    )
-
-    await version_manager.create_pre_sync_snapshot_if_needed(
-        project=project,
-        old_node=old_node,
-        new_node=payload.node,
     )
     updated_project = await run_sync_workflow(project, payload.node)
     await update_project(session, updated_project.id, updated_project)
@@ -767,12 +761,12 @@ async def create_project_version(
     project = await get_project(session, project_id)
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if payload.type and payload.type != SnapshotType.MANUAL.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only manual snapshots are supported",
+        )
     snapshot_type = SnapshotType.MANUAL
-    if payload.type:
-        try:
-            snapshot_type = SnapshotType(payload.type)
-        except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid snapshot type")
     graph = load_graph(project_id)
     return await version_manager.create_snapshot(
         project=project,
