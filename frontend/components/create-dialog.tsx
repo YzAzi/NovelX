@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { createOutline } from "@/src/lib/api"
+import { WebSocketClient } from "@/src/lib/websocket"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,7 +33,15 @@ type FormValues = z.infer<typeof formSchema>
 
 export function CreateDialog() {
   const [open, setOpen] = useState(false)
-  const { isLoading, loadProjects, projects, setProject } = useProjectStore()
+  const {
+    isLoading,
+    loadProjects,
+    projects,
+    setOutlineProgressStage,
+    setProject,
+  } = useProjectStore()
+  const wsRef = useRef<WebSocketClient | null>(null)
+  const outlineProgressUnsubRef = useRef<(() => void) | null>(null)
   const {
     register,
     handleSubmit,
@@ -55,6 +64,7 @@ export function CreateDialog() {
   }, [loadProjects, open])
 
   const onSubmit = async (values: FormValues) => {
+    const requestId = `outline-${crypto.randomUUID()}`
     const tags = values.styleTags
       ? values.styleTags
           .split(",")
@@ -67,9 +77,26 @@ export function CreateDialog() {
       style_tags: tags,
       initial_prompt: values.initialPrompt?.trim() ?? "",
       base_project_id: values.baseProjectId?.trim() || undefined,
+      request_id: requestId,
     }
 
     try {
+      const wsClient = new WebSocketClient()
+      wsRef.current = wsClient
+      outlineProgressUnsubRef.current = wsClient.on(
+        "outline_progress",
+        (progress) => {
+          if (!progress || typeof progress !== "object") {
+            return
+          }
+          const stage = (progress as { stage?: string }).stage
+          if (stage) {
+            setOutlineProgressStage(stage)
+          }
+        }
+      )
+      wsClient.connect(requestId)
+
       const project = await createOutline(payload)
       setProject(project)
       await loadProjects()
@@ -77,6 +104,12 @@ export function CreateDialog() {
       reset()
     } catch {
       // Error state is handled in the store and surfaced by the page shell.
+    } finally {
+      outlineProgressUnsubRef.current?.()
+      outlineProgressUnsubRef.current = null
+      wsRef.current?.disconnect()
+      wsRef.current = null
+      setOutlineProgressStage(null)
     }
   }
 

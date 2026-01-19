@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .crud import create_project, delete_project, get_project, list_projects, update_project
@@ -23,6 +23,7 @@ from .config import (
     settings,
 )
 from .graph import run_drafting_workflow, run_sync_workflow
+from langchain_openai import ChatOpenAI
 from .knowledge_graph import delete_graph, load_graph, save_graph
 from .models import (
     CreateOutlineRequest,
@@ -30,16 +31,19 @@ from .models import (
     CharacterGraphNode,
     CharacterGraphResponse,
     HealthResponse,
+    OutlineAnalysisRequest,
     KnowledgeDocumentRequest,
     KnowledgeImportRequest,
     KnowledgeSearchRequest,
     KnowledgeUpdateRequest,
+    InsertNodeRequest,
     ProjectStatsResponse,
     ProjectSummary,
     ProjectUpdateRequest,
     ProjectExportData,
     ModelConfigResponse,
     ModelConfigUpdateRequest,
+    StoryNode,
     StoryProject,
     SyncNodeRequest,
     VersionCreateRequest,
@@ -72,6 +76,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+ANALYSIS_PROMPT_PATH = Path(__file__).parent / "prompts" / "outline_analysis_prompt.txt"
+ANALYSIS_PROMPT_TEMPLATE = ANALYSIS_PROMPT_PATH.read_text(encoding="utf-8")
+
 
 def _count_words(text: str) -> int:
     if not text:
@@ -79,6 +86,52 @@ def _count_words(text: str) -> int:
     cjk_chars = re.findall(r"[\u4e00-\u9fff]", text)
     tokens = re.findall(r"[A-Za-z0-9]+", text)
     return len(cjk_chars) + len(tokens)
+
+
+def _format_outline(project: StoryProject) -> str:
+    character_names = {character.id: character.name for character in project.characters}
+    nodes = sorted(project.nodes, key=lambda node: node.narrative_order)
+    lines: list[str] = [
+        f"标题：{project.title}",
+        f"世界观：{project.world_view}",
+        f"风格标签：{', '.join(project.style_tags) if project.style_tags else '无'}",
+        "节点列表：",
+    ]
+    for node in nodes:
+        characters = [character_names.get(cid, cid) for cid in node.characters]
+        lines.append(
+            " - "
+            f"[叙事{node.narrative_order}/时间轴{node.timeline_order}] "
+            f"{node.title}（{node.location_tag}）"
+        )
+        if node.content:
+            lines.append(f"   内容：{node.content}")
+        if characters:
+            lines.append(f"   角色：{', '.join(characters)}")
+    return "\n".join(lines)
+
+
+def _format_conversation(messages: list[dict]) -> str:
+    if not messages:
+        return "无"
+    lines: list[str] = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        lines.append(f"{role.upper()}: {content}")
+    return "\n".join(lines)
+
+
+def _format_conflicts(conflicts: list) -> str:
+    if not conflicts:
+        return "无"
+    lines: list[str] = []
+    for conflict in conflicts:
+        lines.append(
+            f"- {conflict.type}: {conflict.description}"
+            + (f"（建议：{conflict.suggestion}）" if conflict.suggestion else "")
+        )
+    return "\n".join(lines)
 
 app.add_middleware(
     CORSMiddleware,
@@ -136,7 +189,29 @@ async def create_outline(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Base project not found",
             )
-    project = await run_drafting_workflow(payload)
+    request_id = payload.request_id
+
+    async def report_progress(stage: str, details: dict | None = None) -> None:
+        if not request_id:
+            return
+        await notifier.notify_outline_progress(
+            request_id, stage, details or {}
+        )
+
+    if request_id:
+        await notifier.notify_outline_progress(
+            request_id, "queued", {}
+        )
+
+    try:
+        project = await run_drafting_workflow(payload, report_progress if request_id else None)
+    except Exception as exc:
+        if request_id:
+            await notifier.notify_outline_progress(
+                request_id, "failed", {"error": str(exc)}
+            )
+        raise
+
     await create_project(session, project)
     return project
 
@@ -318,6 +393,288 @@ async def sync_node(
         sync_result=sync_result,
         conflicts=conflicts,
         sync_status=sync_status,
+    )
+
+
+@app.post(
+    "/api/insert_node",
+    response_model=SyncNodeResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def insert_node(
+    payload: InsertNodeRequest,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, payload.project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    if any(node.id == payload.node.id for node in project.nodes):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Node id already exists"
+        )
+
+    insert_narrative = payload.node.narrative_order
+    insert_timeline = payload.node.timeline_order
+    shifted_nodes: dict[str, StoryNode] = {}
+    for node in project.nodes:
+        shifted = False
+        if node.narrative_order >= insert_narrative:
+            node.narrative_order += 1
+            shifted = True
+        if node.timeline_order >= insert_timeline:
+            node.timeline_order += 1
+            shifted = True
+        if shifted:
+            shifted_nodes[node.id] = node
+
+    request_id = payload.request_id
+    await notifier.notify_sync_progress(
+        payload.project_id,
+        "started",
+        {"node_id": payload.node.id, "request_id": request_id},
+    )
+
+    updated_project = await run_sync_workflow(project, payload.node)
+    await update_project(session, updated_project.id, updated_project)
+
+    updated_node = next(
+        (node for node in updated_project.nodes if node.id == payload.node.id),
+        payload.node,
+    )
+    await notifier.notify_node_updated(
+        payload.project_id,
+        updated_node.model_dump(),
+        updated_by="user",
+    )
+    for node in shifted_nodes.values():
+        await notifier.notify_node_updated(
+            payload.project_id,
+            node.model_dump(),
+            updated_by="system",
+        )
+
+    sync_result = SyncResult(success=True, vector_updated=False, graph_updated=False)
+    sync_status = "pending"
+    old_node = None
+
+    async def _load_latest_project() -> StoryProject | None:
+        async with AsyncSessionLocal() as session:
+            return await get_project(session, payload.project_id)
+
+    async def sync_graph_background() -> None:
+        nonlocal sync_result
+        try:
+            async def sync_vector_with_delay(delay: int) -> None:
+                await asyncio.sleep(delay)
+                await index_sync_manager.node_indexer.index_node(
+                    payload.project_id, updated_node
+                )
+                sync_result.vector_updated = True
+
+            if DEFAULT_SYNC_CONFIG.graph_sync_mode == SyncMode.MANUAL:
+                if DEFAULT_SYNC_CONFIG.vector_sync_mode == SyncMode.IMMEDIATE:
+                    await index_sync_manager.node_indexer.index_node(
+                        payload.project_id, updated_node
+                    )
+                    sync_result.vector_updated = True
+                elif DEFAULT_SYNC_CONFIG.vector_sync_mode in (
+                    SyncMode.DEBOUNCED,
+                    SyncMode.BATCH,
+                ):
+                    delay = (
+                        DEFAULT_SYNC_CONFIG.debounce_seconds
+                        if DEFAULT_SYNC_CONFIG.vector_sync_mode == SyncMode.DEBOUNCED
+                        else DEFAULT_SYNC_CONFIG.batch_timeout_seconds
+                    )
+                    await sync_vector_with_delay(delay)
+            else:
+                if DEFAULT_SYNC_CONFIG.vector_sync_mode == SyncMode.IMMEDIATE:
+                    await index_sync_manager.node_indexer.index_node(
+                        payload.project_id, updated_node
+                    )
+                    sync_result.vector_updated = True
+                if DEFAULT_SYNC_CONFIG.graph_sync_mode in (
+                    SyncMode.DEBOUNCED,
+                    SyncMode.BATCH,
+                ):
+                    await sync_queue.enqueue(
+                        payload.project_id,
+                        updated_node,
+                        old_node=old_node,
+                    )
+                    results = await sync_queue.process_ready(payload.project_id)
+                    if not results:
+                        delay = (
+                            DEFAULT_SYNC_CONFIG.debounce_seconds
+                            if DEFAULT_SYNC_CONFIG.graph_sync_mode == SyncMode.DEBOUNCED
+                            else DEFAULT_SYNC_CONFIG.batch_timeout_seconds
+                        )
+                        await asyncio.sleep(delay)
+                        results = await sync_queue.process_ready(payload.project_id)
+                    if results:
+                        await notifier.notify_graph_updated(
+                            payload.project_id,
+                            {"updates": [result.model_dump() for result in results]},
+                        )
+                        latest_project = await _load_latest_project()
+                        if latest_project:
+                            graph_snapshot = load_graph(payload.project_id)
+                            conflicts = await conflict_detector.detect_conflicts(
+                                project=latest_project,
+                                graph=graph_snapshot,
+                                modified_node=updated_node,
+                            )
+                            if conflicts:
+                                await notifier.notify_conflict_detected(
+                                    payload.project_id,
+                                    [conflict.model_dump() for conflict in conflicts],
+                                )
+            await notifier.notify_sync_progress(
+                payload.project_id,
+                "completed",
+                {"node_id": updated_node.id, "request_id": request_id},
+            )
+        except Exception as exc:
+            await notifier.notify_sync_progress(
+                payload.project_id,
+                "failed",
+                {"error": str(exc), "node_id": updated_node.id, "request_id": request_id},
+            )
+
+    conflicts: list = []
+    if DEFAULT_SYNC_CONFIG.graph_sync_mode == SyncMode.IMMEDIATE:
+        try:
+            current_graph = load_graph(payload.project_id)
+            sync_result = await index_sync_manager.sync_node_update(
+                project_id=payload.project_id,
+                old_node=old_node,
+                new_node=updated_node,
+                current_graph=current_graph,
+            )
+            save_graph(current_graph)
+            await notifier.notify_graph_updated(
+                payload.project_id, sync_result.model_dump()
+            )
+            graph_snapshot = current_graph
+            conflicts = await conflict_detector.detect_conflicts(
+                project=updated_project,
+                graph=graph_snapshot,
+                modified_node=updated_node,
+            )
+            if conflicts:
+                await notifier.notify_conflict_detected(
+                    payload.project_id,
+                    [conflict.model_dump() for conflict in conflicts],
+                )
+            sync_status = "completed"
+            await notifier.notify_sync_progress(
+                payload.project_id,
+                "completed",
+                {"node_id": updated_node.id, "request_id": request_id},
+            )
+        except Exception as exc:
+            sync_result.success = False
+            sync_status = "failed"
+            await notifier.notify_sync_progress(
+                payload.project_id,
+                "failed",
+                {"error": str(exc), "node_id": updated_node.id, "request_id": request_id},
+            )
+    else:
+        def schedule_background_task() -> None:
+            asyncio.create_task(sync_graph_background())
+
+        background_tasks.add_task(schedule_background_task)
+
+    return SyncNodeResponse(
+        project=updated_project,
+        sync_result=sync_result,
+        conflicts=conflicts,
+        sync_status=sync_status,
+    )
+
+
+@app.post("/api/outline_analysis_stream")
+async def outline_analysis_stream(
+    payload: OutlineAnalysisRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, payload.project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    api_key = get_api_key("sync")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OPENAI_API_KEY is not configured",
+        )
+
+    graph = load_graph(payload.project_id)
+    modified_node = (
+        project.nodes[0]
+        if project.nodes
+        else StoryNode(
+            title="占位",
+            content="",
+            narrative_order=1,
+            timeline_order=1.0,
+            location_tag="未标记",
+            characters=[],
+        )
+    )
+    conflicts = await conflict_detector.detect_conflicts(
+        project=project,
+        graph=graph,
+        modified_node=modified_node,
+    )
+
+    outline_text = _format_outline(project)
+    conflicts_text = _format_conflicts(conflicts)
+    conversation_text = _format_conversation(
+        [message.model_dump() for message in payload.messages]
+    )
+    prompt_text = ANALYSIS_PROMPT_TEMPLATE.format(
+        outline=outline_text,
+        conflicts=conflicts_text,
+        conversation=conversation_text,
+    )
+
+    model_name = get_model_name("sync")
+    llm = ChatOpenAI(
+        api_key=api_key,
+        base_url=get_base_url(),
+        model=model_name,
+        streaming=True,
+    )
+
+    async def event_stream():
+        yield "event: start\ndata: {}\n\n"
+        try:
+            async for chunk in llm.astream(prompt_text):
+                content = getattr(chunk, "content", None)
+                if content is None and hasattr(chunk, "message"):
+                    content = chunk.message.content
+                if not content:
+                    continue
+                for line in content.split("\n"):
+                    yield f"data: {line}\n"
+                yield "\n"
+        except Exception as exc:
+            yield f"event: error\ndata: {str(exc)}\n\n"
+        finally:
+            yield "event: done\ndata: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

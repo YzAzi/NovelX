@@ -11,6 +11,7 @@ class WSMessageType(str, Enum):
     NODE_DELETED = "node_deleted"
     GRAPH_UPDATED = "graph_updated"
     CONFLICT_DETECTED = "conflict_detected"
+    OUTLINE_PROGRESS = "outline_progress"
     SYNC_STARTED = "sync_started"
     SYNC_COMPLETED = "sync_completed"
     SYNC_FAILED = "sync_failed"

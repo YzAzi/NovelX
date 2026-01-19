@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 from pathlib import Path
-from typing import TypedDict
+from typing import Awaitable, Callable, TypedDict
 
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
@@ -50,6 +50,22 @@ class AgentState(TypedDict):
     retrieved_context: RetrievalContext | None
     knowledge_graph: KnowledgeGraph | None
     error: str | None
+    progress_reporter: "ProgressReporter | None"
+
+
+ProgressReporter = Callable[[str, dict | None], Awaitable[None]]
+
+
+async def report_progress(
+    state: AgentState, stage: str, details: dict | None = None
+) -> None:
+    reporter = state.get("progress_reporter")
+    if not reporter:
+        return
+    try:
+        await reporter(stage, details)
+    except Exception:
+        logger.warning("Failed to report outline progress: %s", stage)
 
 
 class LLMGenerationError(Exception):
@@ -67,6 +83,7 @@ class WorkflowError(Exception):
 async def retrieval_node(state: AgentState) -> AgentState:
     print("[retrieval_node] start")
     try:
+        await report_progress(state, "retrieval", {"status": "started"})
         project = state.get("current_project")
         base_project_id = state.get("base_project_id")
         if project is None and not base_project_id:
@@ -103,6 +120,7 @@ async def retrieval_node(state: AgentState) -> AgentState:
 async def graph_update_node(state: AgentState) -> AgentState:
     print("[graph_update_node] start")
     try:
+        await report_progress(state, "graph_update", {"status": "started"})
         project = state.get("current_project")
         if project is None:
             return state
@@ -144,6 +162,7 @@ def _route_on_error(state: AgentState) -> str:
 async def drafting_node(state: AgentState) -> AgentState:
     print("[drafting_node] start")
     try:
+        await report_progress(state, "drafting", {"status": "started"})
         api_key = get_api_key("drafting")
         if not api_key:
             raise ValidationError("OPENAI_API_KEY is not configured")
@@ -200,9 +219,10 @@ async def drafting_node(state: AgentState) -> AgentState:
         return state
 
 
-def validation_node(state: AgentState) -> AgentState:
+async def validation_node(state: AgentState) -> AgentState:
     print("[validation_node] start")
     try:
+        await report_progress(state, "validation", {"status": "started"})
         project = state.get("current_project")
         if project is None:
             raise ValidationError("Drafting failed: project is missing")
@@ -366,7 +386,10 @@ sync_graph.add_edge("error_handler_node", END)
 compiled_sync_graph = sync_graph.compile()
 
 
-async def run_drafting_workflow(input: CreateOutlineRequest) -> StoryProject:
+async def run_drafting_workflow(
+    input: CreateOutlineRequest,
+    progress_reporter: ProgressReporter | None = None,
+) -> StoryProject:
     initial_state: AgentState = {
         "user_input": input.initial_prompt,
         "world_view": input.world_view,
@@ -378,12 +401,16 @@ async def run_drafting_workflow(input: CreateOutlineRequest) -> StoryProject:
         "retrieved_context": None,
         "knowledge_graph": None,
         "error": None,
+        "progress_reporter": progress_reporter,
     }
     result = await compiled_graph.ainvoke(initial_state)
     if result.get("error"):
+        await report_progress(result, "failed", {"error": result["error"]})
         raise WorkflowError(result["error"])
     if result.get("current_project") is None:
+        await report_progress(result, "failed", {"error": "Drafting failed"})
         raise WorkflowError("Drafting failed: no project generated")
+    await report_progress(result, "completed", {})
     return result["current_project"]
 
 
@@ -399,6 +426,7 @@ async def run_sync_workflow(project: StoryProject, modified_node: StoryNode) -> 
         "retrieved_context": None,
         "knowledge_graph": None,
         "error": None,
+        "progress_reporter": None,
     }
     result = await compiled_sync_graph.ainvoke(initial_state)
     if result.get("error"):

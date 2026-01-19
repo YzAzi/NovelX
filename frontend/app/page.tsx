@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 
 import { CreateDialog } from "@/components/create-dialog"
 import { CharacterGraph } from "@/components/character-graph"
@@ -33,6 +34,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useProjectStore } from "@/src/stores/project-store"
 
 const DEFAULT_TITLE = "未命名项目"
+const OUTLINE_STEPS = [
+  { key: "retrieval", title: "解析需求", detail: "整理世界观与写作风格" },
+  { key: "drafting", title: "构建框架", detail: "搭建主线结构与冲突" },
+  { key: "validation", title: "填充节点", detail: "生成章节与情节推进" },
+  { key: "graph_update", title: "润色检查", detail: "统一节奏与逻辑" },
+]
 
 export default function Home() {
   const {
@@ -42,6 +49,7 @@ export default function Home() {
     loadProjects,
     saveStatus,
     setError,
+    outlineProgressStage,
     setProject,
     setProjectTitle,
     selectNode,
@@ -64,6 +72,7 @@ export default function Home() {
   } | null>(null)
   const [modelDialogOpen, setModelDialogOpen] = useState(false)
   const [isSavingModels, setIsSavingModels] = useState(false)
+  const [outlineStepIndex, setOutlineStepIndex] = useState(0)
   const [modelForm, setModelForm] = useState({
     baseUrl: "",
     defaultKey: "",
@@ -152,6 +161,33 @@ export default function Home() {
       setNodeEditorOpen(false)
     }
   }, [activeTab, selectNode, setNodeEditorOpen])
+
+  useEffect(() => {
+    if (!isLoading) {
+      setOutlineStepIndex(0)
+      return
+    }
+    if (outlineProgressStage) {
+      const nextIndex = OUTLINE_STEPS.findIndex(
+        (step) => step.key === outlineProgressStage
+      )
+      if (nextIndex >= 0) {
+        setOutlineStepIndex(nextIndex)
+      } else if (outlineProgressStage === "queued") {
+        setOutlineStepIndex(0)
+      } else if (outlineProgressStage === "completed") {
+        setOutlineStepIndex(OUTLINE_STEPS.length - 1)
+      }
+      return
+    }
+    setOutlineStepIndex(0)
+    const interval = window.setInterval(() => {
+      setOutlineStepIndex((prev) =>
+        prev < OUTLINE_STEPS.length - 1 ? prev + 1 : prev
+      )
+    }, 1800)
+    return () => window.clearInterval(interval)
+  }, [isLoading, outlineProgressStage])
 
 
   const handleTitleChange = (value: string) => {
@@ -291,6 +327,9 @@ export default function Home() {
                 <TabsTrigger value="knowledge">世界观设定</TabsTrigger>
               </TabsList>
             </Tabs>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/analysis">分析大纲</Link>
+            </Button>
             <Dialog open={modelDialogOpen} onOpenChange={setModelDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -447,8 +486,65 @@ export default function Home() {
 
       {isLoading ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-          <div className="rounded-full bg-white/80 px-4 py-2 text-sm font-medium shadow">
-            正在生成大纲...
+          <div className="relative w-[min(92vw,420px)] overflow-hidden rounded-3xl border border-white/70 bg-white/85 p-6 shadow-2xl">
+            <div className="pointer-events-none absolute -left-20 -top-24 h-40 w-40 rounded-full bg-sky-200/40 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-24 right-0 h-48 w-48 rounded-full bg-amber-100/60 blur-2xl" />
+            <div className="relative flex items-center gap-4">
+              <div className="relative h-12 w-12">
+                <div className="absolute inset-0 rounded-full border-2 border-slate-200/80" />
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-sky-500 border-r-sky-500 animate-spin" />
+                <div className="absolute inset-2 rounded-full bg-sky-100/70" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-slate-800">
+                  正在生成大纲
+                </div>
+                <div className="text-xs text-slate-500">
+                  请稍候，系统正在逐步完成
+                </div>
+              </div>
+            </div>
+            <div className="relative mt-4 space-y-3">
+              <div className="h-1 overflow-hidden rounded-full bg-slate-200/80">
+                <div
+                  className="h-full rounded-full bg-sky-500 transition-all duration-500"
+                  style={{
+                    width: `${((outlineStepIndex + 1) / OUTLINE_STEPS.length) * 100}%`,
+                  }}
+                />
+              </div>
+              {OUTLINE_STEPS.map((step, index) => {
+                const isActive = index === outlineStepIndex
+                const isDone = index < outlineStepIndex
+                return (
+                  <div
+                    key={step.title}
+                    className="flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={[
+                          "flex h-2.5 w-2.5 items-center justify-center rounded-full border",
+                          isDone
+                            ? "border-emerald-500 bg-emerald-500"
+                            : isActive
+                              ? "border-sky-500 bg-sky-500 animate-pulse"
+                              : "border-slate-300 bg-white",
+                        ].join(" ")}
+                      />
+                      <span className="text-slate-700">{step.title}</span>
+                    </div>
+                    <span
+                      className={
+                        isActive ? "text-slate-600" : "text-slate-400"
+                      }
+                    >
+                      {step.detail}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       ) : null}

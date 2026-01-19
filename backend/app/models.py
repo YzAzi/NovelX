@@ -126,6 +126,7 @@ class CreateOutlineRequest(BaseModel):
     style_tags: list[str] = Field(default_factory=list)
     initial_prompt: str
     base_project_id: str | None = None
+    request_id: str | None = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -168,6 +169,39 @@ class SyncNodeRequest(BaseModel):
             }
         }
     )
+
+
+class InsertNodeRequest(BaseModel):
+    project_id: str
+    node: StoryNode
+    request_id: str | None = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "project_id": "p-001",
+                "node": {
+                    "title": "新的插入节点",
+                    "content": "插入到特定叙事顺序的位置。",
+                    "narrative_order": 3,
+                    "timeline_order": 3.0,
+                    "location_tag": "主线",
+                    "characters": [],
+                },
+                "request_id": "req-123",
+            }
+        }
+    )
+
+
+class AnalysisMessage(BaseModel):
+    role: str
+    content: str
+
+
+class OutlineAnalysisRequest(BaseModel):
+    project_id: str
+    messages: list[AnalysisMessage] = Field(default_factory=list)
 
 
 class KnowledgeDocumentRequest(BaseModel):

@@ -13,6 +13,6 @@
 {retrieved_context}
 
 请生成：
-- 5 个故事节点 (StoryNode)，包含不同的 location_tag 来体现多线叙事
-- 3 个主要角色 (CharacterProfile)
+- 根据小说篇幅大小生成多个故事节点 (StoryNode)，包含不同的 location_tag 来体现多线叙事
+- 根据小说篇幅大小生成多个主要角色 (CharacterProfile)
 - 确保 timeline_order 体现真实时间顺序，narrative_order 体现叙述顺序（可以不同）

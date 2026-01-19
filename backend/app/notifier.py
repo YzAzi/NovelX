@@ -49,3 +49,12 @@ class EventNotifier:
             message_type,
             {"status": status, "details": details or {}},
         )
+
+    async def notify_outline_progress(
+        self, channel_id: str, stage: str, details: dict | None = None
+    ) -> None:
+        await self._manager.broadcast_to_project(
+            channel_id,
+            WSMessageType.OUTLINE_PROGRESS,
+            {"stage": stage, "details": details or {}},
+        )

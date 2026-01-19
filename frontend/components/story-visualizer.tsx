@@ -2,7 +2,7 @@
 
 import "@xyflow/react/dist/style.css"
 
-import { useMemo, useCallback, useEffect, useRef, useState } from "react"
+import { useMemo, useCallback, useEffect, useRef, useState, type ChangeEvent } from "react"
 import {
   ReactFlow,
   Background,
@@ -18,8 +18,20 @@ import {
 import dagre from "dagre"
 
 import type { StoryNode } from "@/src/types/models"
+import { insertNode } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 120
@@ -158,6 +170,7 @@ export function StoryVisualizer() {
     selectedNodeId,
     highlightedNodeIds,
     selectNode,
+    setProject,
     setNodeEditorOpen,
   } = useProjectStore()
   const storyNodes = currentProject?.nodes ?? []
@@ -168,6 +181,16 @@ export function StoryVisualizer() {
   const activeSceneRef = useRef<string | null>(null)
   const [sceneSearch, setSceneSearch] = useState("")
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createForm, setCreateForm] = useState({
+    title: "",
+    content: "",
+    narrativeOrder: "",
+    timelineOrder: "",
+    locationTag: "",
+  })
   const lanes = useMemo(() => {
     const seen = new Set<string>()
     const result: string[] = []
@@ -179,6 +202,18 @@ export function StoryVisualizer() {
       }
     })
     return result.length > 0 ? result : ["未标记"]
+  }, [storyNodes])
+  const nextNarrativeOrder = useMemo(() => {
+    if (storyNodes.length === 0) {
+      return 1
+    }
+    return Math.max(...storyNodes.map((node) => node.narrative_order ?? 0)) + 1
+  }, [storyNodes])
+  const nextTimelineOrder = useMemo(() => {
+    if (storyNodes.length === 0) {
+      return 1
+    }
+    return Math.max(...storyNodes.map((node) => node.timeline_order ?? 0)) + 1
   }, [storyNodes])
 
   const { nodes, edges } = useMemo(() => buildLayout(storyNodes, lanes), [storyNodes, lanes])
@@ -235,6 +270,75 @@ export function StoryVisualizer() {
       setActiveSceneId(selectedNodeId)
     }
   }, [selectedNodeId])
+
+  useEffect(() => {
+    if (!createOpen) {
+      setCreateError(null)
+      return
+    }
+    const orderValue = String(nextNarrativeOrder)
+    const timelineValue = String(nextTimelineOrder)
+    setCreateForm({
+      title: "",
+      content: "",
+      narrativeOrder: orderValue,
+      timelineOrder: timelineValue,
+      locationTag: "",
+    })
+  }, [createOpen, nextNarrativeOrder, nextTimelineOrder])
+
+  const handleCreateFieldChange =
+    (field: keyof typeof createForm) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setCreateForm((prev) => ({ ...prev, [field]: event.target.value }))
+    }
+
+  const handleCreateNode = useCallback(async () => {
+    if (!currentProject) {
+      return
+    }
+    const narrativeValue = Number.parseInt(createForm.narrativeOrder, 10)
+    if (!Number.isFinite(narrativeValue) || narrativeValue < 1) {
+      setCreateError("叙事顺序必须是大于等于 1 的整数")
+      return
+    }
+    const timelineValue = createForm.timelineOrder.trim()
+      ? Number.parseFloat(createForm.timelineOrder)
+      : narrativeValue
+    if (!Number.isFinite(timelineValue) || timelineValue <= 0) {
+      setCreateError("时间轴位置必须是大于 0 的数字")
+      return
+    }
+
+    const newId = `node-${crypto.randomUUID()}`
+    const payload = {
+      project_id: currentProject.id,
+      node: {
+        id: newId,
+        title: createForm.title.trim() || "未命名节点",
+        content: createForm.content,
+        narrative_order: narrativeValue,
+        timeline_order: timelineValue,
+        location_tag: createForm.locationTag.trim() || "未标记",
+        characters: [],
+      },
+    }
+
+    setIsCreating(true)
+    setCreateError(null)
+    try {
+      const response = await insertNode(payload)
+      setProject(response.project)
+      setCreateOpen(false)
+      selectNode(newId)
+      setNodeEditorOpen(true)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "新增节点失败"
+      setCreateError(message)
+    } finally {
+      setIsCreating(false)
+    }
+  }, [createForm, currentProject, selectNode, setNodeEditorOpen, setProject])
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -360,7 +464,17 @@ export function StoryVisualizer() {
   return (
     <div ref={wrapperRef} className="surface-card flex h-full overflow-hidden">
       <div className="flex w-[240px] shrink-0 flex-col border-r border-white/60 bg-white/60">
-        <div className="px-3 pb-2 pt-3 text-xs font-semibold text-slate-500">场景目录</div>
+        <div className="flex items-center justify-between px-3 pb-2 pt-3">
+          <div className="text-xs font-semibold text-slate-500">场景目录</div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-[11px]"
+            onClick={() => setCreateOpen(true)}
+          >
+            新增节点
+          </Button>
+        </div>
         <div className="px-3 pb-2">
           <input
             className="h-8 w-full rounded-md border border-slate-200/80 bg-white/80 px-2 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
@@ -427,6 +541,88 @@ export function StoryVisualizer() {
           <MiniMap pannable zoomable />
         </ReactFlow>
       </div>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>新增节点</DialogTitle>
+            <DialogDescription>填写叙事顺序与时间轴位置，系统会自动后移对应顺序。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="new-node-title">
+                标题
+              </label>
+              <Input
+                id="new-node-title"
+                value={createForm.title}
+                onChange={handleCreateFieldChange("title")}
+                placeholder="例如：新的转折"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="new-node-content">
+                内容梗概
+              </label>
+              <Textarea
+                id="new-node-content"
+                rows={4}
+                value={createForm.content}
+                onChange={handleCreateFieldChange("content")}
+                placeholder="简单描述该节点的剧情"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium" htmlFor="new-node-order">
+                  叙事顺序
+                </label>
+                <Input
+                  id="new-node-order"
+                  type="number"
+                  value={createForm.narrativeOrder}
+                  onChange={handleCreateFieldChange("narrativeOrder")}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium" htmlFor="new-node-timeline">
+                  时间轴位置
+                </label>
+                <Input
+                  id="new-node-timeline"
+                  type="number"
+                  step="0.1"
+                  value={createForm.timelineOrder}
+                  onChange={handleCreateFieldChange("timelineOrder")}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="new-node-location">
+                泳道标签
+              </label>
+              <Input
+                id="new-node-location"
+                value={createForm.locationTag}
+                onChange={handleCreateFieldChange("locationTag")}
+                placeholder="例如：港口、旧城区"
+              />
+            </div>
+            {createError ? (
+              <div className="rounded-lg border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
+                {createError}
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreateNode} disabled={isCreating}>
+              {isCreating ? "新增中..." : "确认新增"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

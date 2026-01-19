@@ -138,6 +138,13 @@ export interface CreateOutlineRequest {
   style_tags: string[]
   initial_prompt: string
   base_project_id?: string | null
+  request_id?: string | null
+}
+
+export interface InsertNodeRequest {
+  project_id: string
+  node: StoryNode
+  request_id?: string | null
 }
 
 export interface ProjectExportData {

@@ -16,6 +16,7 @@ interface ProjectStore {
   saveStatus: "idle" | "saving" | "saved"
   syncStatus: "idle" | "syncing" | "completed" | "failed"
   syncRequestId: string | null
+  outlineProgressStage: string | null
   conflicts: Array<Conflict & { _id: string }>
   graphUpdateVersion: number
   nodeEditorOpen: boolean
@@ -30,6 +31,7 @@ interface ProjectStore {
   setSaveStatus: (status: "idle" | "saving" | "saved") => void
   setSyncStatus: (status: "idle" | "syncing" | "completed" | "failed") => void
   setSyncRequestId: (requestId: string | null) => void
+  setOutlineProgressStage: (stage: string | null) => void
   setNodeEditorOpen: (open: boolean) => void
   loadProjects: () => Promise<void>
   loadProject: (projectId: string) => Promise<void>
@@ -54,6 +56,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   saveStatus: "idle",
   syncStatus: "idle",
   syncRequestId: null,
+  outlineProgressStage: null,
   conflicts: [],
   graphUpdateVersion: 0,
   nodeEditorOpen: false,
@@ -106,6 +109,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setSaveStatus: (status) => set({ saveStatus: status }),
   setSyncStatus: (status) => set({ syncStatus: status }),
   setSyncRequestId: (requestId) => set({ syncRequestId: requestId }),
+  setOutlineProgressStage: (stage) => set({ outlineProgressStage: stage }),
   setNodeEditorOpen: (open) => set({ nodeEditorOpen: open }),
   loadProjects: async () => {
     const { setError } = get()

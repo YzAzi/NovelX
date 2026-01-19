@@ -1,6 +1,7 @@
 import type { CharacterGraphResponse } from "@/src/types/character-graph"
 import type {
   CreateOutlineRequest,
+  InsertNodeRequest,
   ProjectExportData,
   ProjectSummary,
   ProjectStatsResponse,
@@ -86,6 +87,21 @@ export async function syncNode(
     {
       method: "POST",
       body: JSON.stringify({ project_id: projectId, node, request_id: requestId }),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function insertNode(
+  payload: InsertNodeRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<SyncNodeResponse> {
+  return request<SyncNodeResponse>(
+    "/api/insert_node",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
       signal: options.signal,
     },
     { showLoading: false },
