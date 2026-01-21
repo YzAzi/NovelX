@@ -22,6 +22,7 @@ export interface StoryProject {
   style_tags: string[]
   nodes: StoryNode[]
   characters: CharacterProfile[]
+  analysis_profile?: "auto" | "short" | "medium" | "long"
   created_at: string
   updated_at: string
 }
@@ -145,6 +146,27 @@ export interface InsertNodeRequest {
   project_id: string
   node: StoryNode
   request_id?: string | null
+}
+
+export interface AnalysisMessage {
+  role: "user" | "assistant"
+  content: string
+}
+
+export interface AnalysisHistoryMessage {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  created_at: string
+}
+
+export interface AnalysisHistoryResponse {
+  messages: AnalysisHistoryMessage[]
+}
+
+export interface AnalysisHistoryRequest {
+  project_id: string
+  messages: AnalysisMessage[]
 }
 
 export interface ProjectExportData {

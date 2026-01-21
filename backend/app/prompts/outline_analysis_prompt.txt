@@ -9,8 +9,14 @@
 大纲信息：
 {outline}
 
+检索到的相关上下文（当大纲较长时）：
+{retrieval_context}
+
 系统检测到的冲突提示：
 {conflicts}
+
+历史对话记忆（与当前问题相关）：
+{history}
 
 对话历史（供参考）：
 {conversation}

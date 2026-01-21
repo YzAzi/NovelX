@@ -1,19 +1,19 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
+import type { AnalysisMessage } from "@/src/types/models"
+import { getAnalysisHistory, saveAnalysisHistory, updateProjectSettings } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-
-type ChatMessage = { role: "user" | "assistant"; content: string }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 const QUICK_PROMPT = "请分析当前大纲的一致性问题，并给出修改与扩写建议。"
 
 export default function OutlineAnalysisPage() {
-  const { currentProject } = useProjectStore()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const { currentProject, setProject } = useProjectStore()
+  const [messages, setMessages] = useState<AnalysisMessage[]>([])
   const [input, setInput] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,6 +21,7 @@ export default function OutlineAnalysisPage() {
   const outputRef = useRef<HTMLDivElement | null>(null)
 
   const canSend = Boolean(input.trim()) && !isStreaming && currentProject
+  const selectedProfile = currentProject?.analysis_profile ?? "auto"
 
   const scrollToBottom = () => {
     const target = outputRef.current
@@ -34,7 +35,7 @@ export default function OutlineAnalysisPage() {
     if (!currentProject || isStreaming) {
       return
     }
-    const userMessage: ChatMessage = { role: "user", content }
+    const userMessage: AnalysisMessage = { role: "user", content }
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
     setInput("")
@@ -117,6 +118,19 @@ export default function OutlineAnalysisPage() {
       setError(message)
       setMessages((prev) => prev.filter((_, index) => index !== prev.length - 1))
     } finally {
+      if (assistantBuffer.trim()) {
+        try {
+          await saveAnalysisHistory({
+            project_id: currentProject.id,
+            messages: [
+              { role: "user", content },
+              { role: "assistant", content: assistantBuffer },
+            ],
+          })
+        } catch {
+          // ignore persistence errors
+        }
+      }
       setIsStreaming(false)
       abortRef.current = null
     }
@@ -130,6 +144,44 @@ export default function OutlineAnalysisPage() {
   }
 
   const orderedMessages = useMemo(() => messages, [messages])
+
+  const handleProfileChange = async (value: "auto" | "short" | "medium" | "long") => {
+    if (!currentProject) {
+      return
+    }
+    try {
+      const updated = await updateProjectSettings(currentProject.id, { analysis_profile: value })
+      setProject(updated)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "保存设置失败"
+      setError(message)
+    }
+  }
+
+  useEffect(() => {
+    if (!currentProject) {
+      setMessages([])
+      return
+    }
+    const controller = new AbortController()
+    getAnalysisHistory(currentProject.id, { signal: controller.signal })
+      .then((response) => {
+        const nextMessages = response.messages.map((item) => ({
+          role: item.role,
+          content: item.content,
+        }))
+        setMessages(nextMessages)
+        setError(null)
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return
+        }
+        const message = err instanceof Error ? err.message : "加载对话失败"
+        setError(message)
+      })
+    return () => controller.abort()
+  }, [currentProject?.id])
 
   if (!currentProject) {
     return (
@@ -152,6 +204,21 @@ export default function OutlineAnalysisPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <select
+              className="h-8 rounded-md border border-slate-200/80 bg-white/80 px-2 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              value={selectedProfile}
+              onChange={(event) =>
+                handleProfileChange(
+                  event.target.value as "auto" | "short" | "medium" | "long"
+                )
+              }
+              disabled={isStreaming}
+            >
+              <option value="auto">自动选择</option>
+              <option value="short">短篇（全量大纲）</option>
+              <option value="medium">中篇（检索优先）</option>
+              <option value="long">长篇（检索优先）</option>
+            </select>
             <Button variant="outline" size="sm" onClick={handleQuickAnalyze} disabled={isStreaming}>
               分析当前大纲
             </Button>

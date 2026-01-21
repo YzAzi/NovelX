@@ -1,6 +1,8 @@
 import type { CharacterGraphResponse } from "@/src/types/character-graph"
 import type {
   CreateOutlineRequest,
+  AnalysisHistoryRequest,
+  AnalysisHistoryResponse,
   InsertNodeRequest,
   ProjectExportData,
   ProjectSummary,
@@ -108,6 +110,32 @@ export async function insertNode(
   )
 }
 
+export async function getAnalysisHistory(
+  projectId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<AnalysisHistoryResponse> {
+  return request<AnalysisHistoryResponse>(
+    `/api/analysis_history/${encodeURIComponent(projectId)}`,
+    { method: "GET", signal: options.signal },
+    { showLoading: false },
+  )
+}
+
+export async function saveAnalysisHistory(
+  payload: AnalysisHistoryRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<AnalysisHistoryResponse> {
+  return request<AnalysisHistoryResponse>(
+    "/api/analysis_history/save",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
 export async function getCharacterGraph(
   projectId?: string,
   options: { signal?: AbortSignal } = {},
@@ -153,6 +181,22 @@ export async function getProject(
 export async function updateProjectTitle(
   projectId: string,
   payload: { title: string },
+  options: { signal?: AbortSignal } = {},
+): Promise<StoryProject> {
+  return request<StoryProject>(
+    `/api/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function updateProjectSettings(
+  projectId: string,
+  payload: { analysis_profile?: "auto" | "short" | "medium" | "long" },
   options: { signal?: AbortSignal } = {},
 ): Promise<StoryProject> {
   return request<StoryProject>(
@@ -505,6 +549,22 @@ export async function updateGraphEntity(
     {
       method: "PUT",
       body: JSON.stringify(updates),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function createGraphEntity(
+  projectId: string,
+  payload: Partial<CharacterGraphNode>,
+  options: { signal?: AbortSignal } = {},
+): Promise<CharacterGraphNode> {
+  return request<CharacterGraphNode>(
+    `/api/projects/${encodeURIComponent(projectId)}/graph/entities`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
       signal: options.signal,
     },
     { showLoading: false },

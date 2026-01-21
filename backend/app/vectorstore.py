@@ -47,6 +47,10 @@ _collections = {
         name="story_nodes",
         embedding_function=_embedding_fn,
     ),
+    "analysis_history": _client.get_or_create_collection(
+        name="analysis_history",
+        embedding_function=_embedding_fn,
+    ),
 }
 
 

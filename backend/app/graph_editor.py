@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from .knowledge_graph import Entity, EntityType, KnowledgeGraph, Relation
+from .knowledge_graph import Entity, EntityType, KnowledgeGraph, Relation, new_entity_id
 
 
 class GraphEditor:
@@ -81,6 +81,33 @@ class GraphEditor:
             self._dedupe_relations()
             self._touch_graph()
             return target
+        except Exception:
+            self.graph.entities = snapshot.entities
+            self.graph.relations = snapshot.relations
+            self.graph.last_updated = snapshot.last_updated
+            raise
+
+    async def create_entity(self, payload: dict) -> Entity:
+        snapshot = deepcopy(self.graph)
+        try:
+            normalized = self._normalize_entity_updates(payload)
+            name = normalized.get("name")
+            if not name:
+                raise ValueError("Entity name is required")
+            entity_type = normalized.get("type", EntityType.CHARACTER)
+            description = normalized.get("description", "")
+            entity = Entity(
+                id=new_entity_id(),
+                name=name,
+                type=entity_type,
+                description=description,
+                aliases=normalized.get("aliases", []),
+                properties=normalized.get("properties", {}),
+                source_refs=normalized.get("source_refs", []),
+            )
+            self.graph.entities.append(entity)
+            self._touch_graph()
+            return entity
         except Exception:
             self.graph.entities = snapshot.entities
             self.graph.relations = snapshot.relations

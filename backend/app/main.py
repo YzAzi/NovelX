@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .crud import create_project, delete_project, get_project, list_projects, update_project
 from .database import AsyncSessionLocal, get_session, init_db
+from .analysis_history import append_messages, load_history, search_history
+from .graph_retriever import GraphRetriever
 from .conflict_detector import ConflictDetector, SyncNodeResponse
 from .config import (
     get_api_key,
@@ -30,6 +32,8 @@ from .models import (
     CharacterGraphLink,
     CharacterGraphNode,
     CharacterGraphResponse,
+    AnalysisHistoryRequest,
+    AnalysisHistoryResponse,
     HealthResponse,
     OutlineAnalysisRequest,
     KnowledgeDocumentRequest,
@@ -52,7 +56,7 @@ from .models import (
 from .index_sync import SyncResult
 from .node_indexer import NodeIndexer
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode, SyncQueue, build_default_sync_manager
-from .vectorstore import SearchResult
+from .vectorstore import SearchResult, add_documents
 from .world_knowledge import WorldKnowledgeBase, WorldDocument, WorldKnowledgeManager
 from .graph_editor import GraphEditor
 from .notifier import EventNotifier
@@ -133,12 +137,45 @@ def _format_conflicts(conflicts: list) -> str:
         )
     return "\n".join(lines)
 
+
+def _format_history_snippets(history: list[dict]) -> str:
+    if not history:
+        return "无"
+    lines: list[str] = []
+    for item in history:
+        role = item.get("role", "user")
+        content = item.get("content", "")
+        lines.append(f"- {role}: {content}")
+    return "\n".join(lines)
+
+
+def _estimate_outline_words(project: StoryProject) -> int:
+    total = _count_words(project.world_view)
+    for node in project.nodes:
+        total += _count_words(node.title)
+        total += _count_words(node.content)
+    return total
+
+
+def _choose_analysis_scope(project: StoryProject) -> str:
+    preference = (project.analysis_profile or "auto").lower()
+    total_nodes = len(project.nodes)
+    total_words = _estimate_outline_words(project)
+    is_short = total_nodes <= 20 and total_words <= 6000
+
+    if preference == "short":
+        return "full" if is_short else "retrieval"
+    if preference in ("medium", "long"):
+        return "retrieval"
+    return "full" if is_short else "retrieval"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_allow_origins_list(),
+    allow_origin_regex=settings.cors_allow_origin_regex,
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=settings.cors_allow_methods_list(),
+    allow_headers=settings.cors_allow_headers_list(),
 )
 
 
@@ -635,14 +672,43 @@ async def outline_analysis_stream(
         modified_node=modified_node,
     )
 
-    outline_text = _format_outline(project)
+    scope = _choose_analysis_scope(project)
+    outline_text = _format_outline(project) if scope == "full" else "已启用检索摘要。"
     conflicts_text = _format_conflicts(conflicts)
     conversation_text = _format_conversation(
         [message.model_dump() for message in payload.messages]
     )
+    user_query = ""
+    for message in reversed(payload.messages):
+        if message.role == "user":
+            user_query = message.content
+            break
+    if not user_query:
+        user_query = "大纲一致性分析"
+    history_hits = await search_history(
+        project_id=payload.project_id,
+        query=user_query,
+        top_k=6,
+    )
+    history_text = _format_history_snippets(history_hits)
+    retrieval_text = "无"
+    if scope == "retrieval":
+        retriever = GraphRetriever(
+            knowledge_graph=graph,
+            node_indexer=NodeIndexer(),
+            world_knowledge=world_knowledge_manager,
+        )
+        retrieval_context = await retriever.retrieve_context(
+            query=user_query,
+            project_id=payload.project_id,
+            max_tokens=3200,
+        )
+        retrieval_text = retrieval_context.to_prompt_text()
     prompt_text = ANALYSIS_PROMPT_TEMPLATE.format(
         outline=outline_text,
+        retrieval_context=retrieval_text,
         conflicts=conflicts_text,
+        history=history_text,
         conversation=conversation_text,
     )
 
@@ -676,6 +742,44 @@ async def outline_analysis_stream(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get(
+    "/api/analysis_history/{project_id}",
+    response_model=AnalysisHistoryResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_analysis_history(project_id: str):
+    messages = load_history(project_id)
+    return AnalysisHistoryResponse(messages=messages)
+
+
+@app.post(
+    "/api/analysis_history/save",
+    response_model=AnalysisHistoryResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def save_analysis_history(payload: AnalysisHistoryRequest):
+    stored = append_messages(
+        payload.project_id,
+        [message.model_dump() for message in payload.messages],
+    )
+    if stored:
+        await add_documents(
+            collection_name="analysis_history",
+            documents=[f"{item['role']}: {item['content']}" for item in stored],
+            metadatas=[
+                {
+                    "project_id": payload.project_id,
+                    "role": item["role"],
+                    "created_at": item["created_at"],
+                    "source": "outline_analysis",
+                }
+                for item in stored
+            ],
+            ids=[item["id"] for item in stored],
+        )
+    return AnalysisHistoryResponse(messages=stored)
 
 
 @app.get(
@@ -753,12 +857,15 @@ async def update_project_record(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
         )
-    title = payload.title.strip()
-    if not title:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Title cannot be empty"
-        )
-    project.title = title
+    if payload.title is not None:
+        title = payload.title.strip()
+        if not title:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Title cannot be empty"
+            )
+        project.title = title
+    if payload.analysis_profile is not None:
+        project.analysis_profile = payload.analysis_profile
     project.updated_at = datetime.utcnow()
     await update_project(session, project_id, project)
     return project
@@ -1268,6 +1375,37 @@ async def update_graph_entity(
             status.HTTP_404_NOT_FOUND
             if detail == "Entity not found"
             else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=detail)
+    save_graph(graph)
+    return entity.model_dump()
+
+
+@app.post(
+    "/api/projects/{project_id}/graph/entities",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+)
+async def create_graph_entity(
+    project_id: str,
+    payload: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    graph = load_graph(project_id)
+    editor = GraphEditor(graph)
+    try:
+        entity = await editor.create_entity(payload)
+    except ValueError as exc:
+        detail = str(exc) or "Invalid entity create"
+        status_code = (
+            status.HTTP_400_BAD_REQUEST
+            if detail != "Entity not found"
+            else status.HTTP_404_NOT_FOUND
         )
         raise HTTPException(status_code=status_code, detail=detail)
     save_graph(graph)

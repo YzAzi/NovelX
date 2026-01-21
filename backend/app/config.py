@@ -19,6 +19,34 @@ class Settings(BaseSettings):
     chroma_persist_path: str = str(
         Path(__file__).resolve().parent.parent / "data" / "chroma_db"
     )
+    cors_allow_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173"
+    )
+    cors_allow_origin_regex: str | None = None
+    cors_allow_credentials: bool = True
+    cors_allow_methods: str = "*"
+    cors_allow_headers: str = "*"
+
+    def cors_allow_origins_list(self) -> list[str]:
+        return _split_csv(self.cors_allow_origins)
+
+    def cors_allow_methods_list(self) -> list[str]:
+        return _split_csv(self.cors_allow_methods)
+
+    def cors_allow_headers_list(self) -> list[str]:
+        return _split_csv(self.cors_allow_headers)
+
+
+def _split_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    stripped = value.strip()
+    if not stripped:
+        return []
+    return [item.strip() for item in stripped.split(",") if item.strip()]
 
 
 settings = Settings()

@@ -79,6 +79,7 @@ class StoryProject(BaseModel):
     style_tags: list[str] = Field(default_factory=list)
     nodes: list[StoryNode] = Field(default_factory=list)
     characters: list[CharacterProfile] = Field(default_factory=list)
+    analysis_profile: str = "auto"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -204,6 +205,22 @@ class OutlineAnalysisRequest(BaseModel):
     messages: list[AnalysisMessage] = Field(default_factory=list)
 
 
+class AnalysisHistoryRequest(BaseModel):
+    project_id: str
+    messages: list[AnalysisMessage] = Field(default_factory=list)
+
+
+class AnalysisHistoryMessage(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: str
+
+
+class AnalysisHistoryResponse(BaseModel):
+    messages: list[AnalysisHistoryMessage] = Field(default_factory=list)
+
+
 class KnowledgeDocumentRequest(BaseModel):
     title: str
     category: str
@@ -259,7 +276,8 @@ class ProjectStatsResponse(BaseModel):
 
 
 class ProjectUpdateRequest(BaseModel):
-    title: str
+    title: str | None = None
+    analysis_profile: str | None = None
 
 
 class ProjectExportData(BaseModel):

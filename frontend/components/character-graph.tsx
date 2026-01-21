@@ -9,6 +9,7 @@ import type {
 } from "react-force-graph-2d"
 
 import {
+  createGraphEntity,
   deleteGraphEntity,
   getCharacterGraph,
   mergeGraphEntities,
@@ -21,6 +22,16 @@ import type {
   CharacterGraphResponse,
   EntityType,
 } from "@/src/types/character-graph"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -168,6 +179,13 @@ export function CharacterGraph() {
   const [toasts, setToasts] = useState<
     Array<{ id: string; type: "success" | "error"; message: string }>
   >([])
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    description: "",
+    type: "character" as EntityType,
+  })
+  const [createError, setCreateError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTypes, setFilterTypes] = useState<Record<string, boolean>>({
     character: true,
@@ -571,6 +589,38 @@ export function CharacterGraph() {
     }
   }, [contextMenu, currentProject, loadGraph, pushToast])
 
+  const handleCreateEntity = useCallback(async () => {
+    if (!currentProject) {
+      return
+    }
+    const name = createForm.name.trim()
+    if (!name) {
+      setCreateError("请填写角色名称")
+      return
+    }
+    setIsMutating(true)
+    setCreateError(null)
+    try {
+      const entity = await createGraphEntity(currentProject.id, {
+        name,
+        description: createForm.description.trim(),
+        type: createForm.type,
+      })
+      await loadGraph()
+      setSelectedEntity(entity)
+      pushToast("success", "角色已创建")
+      setCreateOpen(false)
+      setCreateForm({ name: "", description: "", type: "character" })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "角色创建失败"
+      setCreateError(message)
+      pushToast("error", message)
+    } finally {
+      setIsMutating(false)
+    }
+  }, [createForm, currentProject, loadGraph, pushToast])
+
   const handleMergeEntity = useCallback(async () => {
     if (!currentProject || !contextMenu) {
       return
@@ -882,7 +932,74 @@ export function CharacterGraph() {
           </button>
         </div>
       ) : null}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>新增角色</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="entity-name">
+                角色名称
+              </label>
+              <Input
+                id="entity-name"
+                value={createForm.name}
+                onChange={(event) =>
+                  setCreateForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                placeholder="例如：林澄"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="entity-description">
+                角色描述
+              </label>
+              <Textarea
+                id="entity-description"
+                rows={3}
+                value={createForm.description}
+                onChange={(event) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    description: event.target.value,
+                  }))
+                }
+                placeholder="简单描述角色背景或特征"
+              />
+            </div>
+            {createError ? (
+              <div className="rounded-lg border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
+                {createError}
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreateEntity} disabled={isMutating}>
+              {isMutating ? "创建中..." : "确认创建"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="absolute left-4 top-4 z-10 w-[280px] space-y-3 rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] font-semibold text-slate-500">角色关系</div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px]"
+            onClick={() => {
+              setCreateError(null)
+              setCreateForm({ name: "", description: "", type: "character" })
+              setCreateOpen(true)
+            }}
+          >
+            新增角色
+          </Button>
+        </div>
         <div>
           <div className="text-[11px] font-semibold text-slate-500">搜索实体</div>
           <input

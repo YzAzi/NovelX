@@ -36,6 +36,9 @@ import { Textarea } from "@/components/ui/textarea"
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 120
 const LANE_HEIGHT = 180
+const ZOOM_MIN = 0.4
+const ZOOM_MAX = 1.4
+const ZOOM_STEP = 0.1
 const TAG_COLORS = [
   "bg-amber-100/80 text-amber-900",
   "bg-sky-100/80 text-sky-900",
@@ -57,6 +60,14 @@ type StoryNodeData = {
 }
 
 type StoryFlowNode = Node<StoryNodeData, "storyNode">
+type FlowApi = {
+  zoomTo?: (zoom: number, options?: { duration?: number }) => void
+  setViewport?: (
+    viewport: { x: number; y: number; zoom: number },
+    options?: { duration?: number }
+  ) => void
+  getViewport?: () => { x: number; y: number; zoom: number }
+}
 
 function StoryNodeCard({ data, selected }: NodeProps<StoryFlowNode>) {
   return (
@@ -184,6 +195,7 @@ export function StoryVisualizer() {
   const [createOpen, setCreateOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [zoomLevel, setZoomLevel] = useState(1)
   const [createForm, setCreateForm] = useState({
     title: "",
     content: "",
@@ -382,6 +394,7 @@ export function StoryVisualizer() {
       return
     }
     const viewport = instance.getViewport()
+    setZoomLevel(viewport.zoom)
     const rect = wrapper.getBoundingClientRect()
     const centerX = -viewport.x / viewport.zoom + rect.width / 2 / viewport.zoom
     const centerY = -viewport.y / viewport.zoom + rect.height / 2 / viewport.zoom
@@ -410,6 +423,18 @@ export function StoryVisualizer() {
       updateActiveSceneFromViewport()
     })
   }, [updateActiveSceneFromViewport])
+
+  const applyZoom = useCallback((nextZoom: number) => {
+    const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextZoom))
+    const instance = flowInstanceRef.current as unknown as FlowApi | null
+    if (instance?.zoomTo) {
+      instance.zoomTo(clamped, { duration: 150 })
+    } else if (instance?.setViewport && instance?.getViewport) {
+      const viewport = instance.getViewport()
+      instance.setViewport({ ...viewport, zoom: clamped }, { duration: 150 })
+    }
+    setZoomLevel(clamped)
+  }, [])
 
   useEffect(() => {
     const instance = flowInstanceRef.current
@@ -516,7 +541,7 @@ export function StoryVisualizer() {
           )}
         </div>
       </div>
-      <div className="flex-1">
+      <div className="relative flex-1">
         <ReactFlow
           nodes={flowNodes}
           edges={edges}
@@ -532,14 +557,44 @@ export function StoryVisualizer() {
           panOnScroll
           zoomOnScroll
           fitView
-          minZoom={0.4}
-          maxZoom={1.4}
+          minZoom={ZOOM_MIN}
+          maxZoom={ZOOM_MAX}
           nodesDraggable={false}
         >
           <Background gap={24} size={1} />
           <Controls position="bottom-right" />
           <MiniMap pannable zoomable />
         </ReactFlow>
+        <div className="glass-panel absolute right-4 top-4 flex items-center gap-2 rounded-full px-3 py-2 text-xs text-slate-700 shadow-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => applyZoom(zoomLevel - ZOOM_STEP)}
+          >
+            −
+          </Button>
+          <input
+            type="range"
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            step={ZOOM_STEP}
+            value={zoomLevel}
+            onChange={(event) => applyZoom(Number(event.target.value))}
+            className="h-2 w-28 accent-sky-500"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => applyZoom(zoomLevel + ZOOM_STEP)}
+          >
+            +
+          </Button>
+          <div className="w-12 text-right text-[11px] text-slate-500">
+            {Math.round(zoomLevel * 100)}%
+          </div>
+        </div>
       </div>
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">
