@@ -15,6 +15,20 @@ export interface CharacterProfile {
   bio: string
 }
 
+export interface WriterConfig {
+  prompt?: string | null
+  model?: string | null
+  api_key?: string | null
+  base_url?: string | null
+}
+
+export interface PromptOverrides {
+  drafting?: string | null
+  sync?: string | null
+  extraction?: string | null
+  analysis?: string | null
+}
+
 export interface StoryProject {
   id: string
   title: string
@@ -23,6 +37,8 @@ export interface StoryProject {
   nodes: StoryNode[]
   characters: CharacterProfile[]
   analysis_profile?: "auto" | "short" | "medium" | "long"
+  prompt_overrides?: PromptOverrides
+  writer_config?: WriterConfig
   created_at: string
   updated_at: string
 }
@@ -196,4 +212,11 @@ export interface ModelConfigUpdateRequest {
   drafting_model?: string | null
   sync_model?: string | null
   extraction_model?: string | null
+}
+
+export interface WritingAssistantRequest {
+  project_id: string
+  text: string
+  instruction: string
+  stream?: boolean
 }

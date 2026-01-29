@@ -14,7 +14,7 @@ from .config import get_api_key, get_base_url, get_model_name, settings
 from .graph_extractor import GraphExtractor
 from .graph_retriever import RetrievalContext, GraphRetriever
 from .knowledge_graph import KnowledgeGraph, load_graph, save_graph
-from .models import CreateOutlineRequest, StoryNode, StoryProject, SyncAnalysisResult
+from .models import CreateOutlineRequest, PromptOverrides, StoryNode, StoryProject, SyncAnalysisResult
 from .node_indexer import NodeIndexer
 from .schema_utils import pydantic_to_openai_function_inline
 from .world_knowledge import WorldKnowledgeManager
@@ -43,6 +43,7 @@ class AgentState(TypedDict):
     user_input: str
     world_view: str
     style_tags: list[str]
+    drafting_prompt: str | None
     base_project_id: str | None
     current_project: StoryProject | None
     modified_node: StoryNode | None
@@ -128,7 +129,14 @@ async def graph_update_node(state: AgentState) -> AgentState:
         if state.get("modified_node") and DEFAULT_SYNC_CONFIG.graph_sync_mode != SyncMode.IMMEDIATE:
             return state
 
-        extractor = GraphExtractor()
+        project_prompt = project.prompt_overrides if project else PromptOverrides()
+        extraction_prompt = project_prompt.extraction
+        prompt_template = (
+            PromptTemplate.from_template(extraction_prompt)
+            if extraction_prompt
+            else None
+        )
+        extractor = GraphExtractor(prompt_template=prompt_template)
         node_indexer = NodeIndexer()
         knowledge_graph = state.get("knowledge_graph") or load_graph(project.id)
 
@@ -187,12 +195,18 @@ async def drafting_node(state: AgentState) -> AgentState:
             "user_input": state["user_input"],
             "retrieved_context": retrieved_text,
         }
+        custom_prompt = state.get("drafting_prompt")
+        prompt_template = (
+            PromptTemplate.from_template(custom_prompt)
+            if custom_prompt
+            else DRAFT_PROMPT_TEMPLATE
+        )
 
         last_error: Exception | None = None
         for attempt in range(1, 4):
             print(f"[drafting_node] attempt {attempt}")
             try:
-                prompt_text = DRAFT_PROMPT_TEMPLATE.format(**base_inputs)
+                prompt_text = prompt_template.format(**base_inputs)
                 if attempt > 1:
                     prompt_text = f"{prompt_text}\n\n请严格按照要求的格式输出"
                 result = await llm.ainvoke(prompt_text)
@@ -215,7 +229,10 @@ async def drafting_node(state: AgentState) -> AgentState:
         raise LLMGenerationError(f"LLM drafting failed after 3 attempts: {last_error}")
     except Exception as exc:
         state["current_project"] = None
-        state["error"] = str(exc)
+        if isinstance(exc, KeyError):
+            state["error"] = "自定义 Prompt 缺少必要变量：world_view、style_tags、user_input、retrieved_context"
+        else:
+            state["error"] = str(exc)
         return state
 
 
@@ -264,12 +281,18 @@ async def reverse_sync_node(state: AgentState) -> AgentState:
             "modified_node": modified_node.model_dump_json(indent=2),
             "retrieved_context": retrieved_text,
         }
+        prompt_override = project.prompt_overrides.sync
+        prompt_template = (
+            PromptTemplate.from_template(prompt_override)
+            if prompt_override
+            else REVERSE_SYNC_PROMPT_TEMPLATE
+        )
 
         last_error: Exception | None = None
         for attempt in range(1, 4):
             print(f"[reverse_sync_node] attempt {attempt}")
             try:
-                prompt_text = REVERSE_SYNC_PROMPT_TEMPLATE.format(**base_inputs)
+                prompt_text = prompt_template.format(**base_inputs)
                 if attempt > 1:
                     prompt_text = f"{prompt_text}\n\n请严格按照要求的格式输出"
                 result = await llm.ainvoke(prompt_text)
@@ -284,7 +307,10 @@ async def reverse_sync_node(state: AgentState) -> AgentState:
         raise LLMGenerationError(f"LLM sync analysis failed after 3 attempts: {last_error}")
     except Exception as exc:
         state["sync_result"] = None
-        state["error"] = str(exc)
+        if isinstance(exc, KeyError):
+            state["error"] = "自定义 Prompt 缺少必要变量：modified_node、retrieved_context"
+        else:
+            state["error"] = str(exc)
         return state
 
 
@@ -394,6 +420,7 @@ async def run_drafting_workflow(
         "user_input": input.initial_prompt,
         "world_view": input.world_view,
         "style_tags": input.style_tags,
+        "drafting_prompt": input.drafting_prompt,
         "base_project_id": input.base_project_id,
         "current_project": None,
         "modified_node": None,
@@ -410,6 +437,10 @@ async def run_drafting_workflow(
     if result.get("current_project") is None:
         await report_progress(result, "failed", {"error": "Drafting failed"})
         raise WorkflowError("Drafting failed: no project generated")
+    if input.drafting_prompt:
+        project = result["current_project"]
+        project.prompt_overrides.drafting = input.drafting_prompt
+        result["current_project"] = project
     await report_progress(result, "completed", {})
     return result["current_project"]
 

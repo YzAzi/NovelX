@@ -51,6 +51,7 @@ from .models import (
     StoryProject,
     SyncNodeRequest,
     ReorderNodesRequest,
+    WritingAssistantRequest,
     VersionCreateRequest,
     VersionUpdateRequest,
 )
@@ -58,6 +59,7 @@ from .index_sync import SyncResult
 from .node_indexer import NodeIndexer
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode, SyncQueue, build_default_sync_manager
 from .vectorstore import SearchResult, add_documents
+from langchain.prompts import PromptTemplate
 from .world_knowledge import WorldKnowledgeBase, WorldDocument, WorldKnowledgeManager
 from .graph_editor import GraphEditor
 from .notifier import EventNotifier
@@ -705,13 +707,25 @@ async def outline_analysis_stream(
             max_tokens=3200,
         )
         retrieval_text = retrieval_context.to_prompt_text()
-    prompt_text = ANALYSIS_PROMPT_TEMPLATE.format(
-        outline=outline_text,
-        retrieval_context=retrieval_text,
-        conflicts=conflicts_text,
-        history=history_text,
-        conversation=conversation_text,
+    prompt_override = project.prompt_overrides.analysis if project.prompt_overrides else None
+    prompt_template = (
+        PromptTemplate.from_template(prompt_override)
+        if prompt_override
+        else PromptTemplate.from_template(ANALYSIS_PROMPT_TEMPLATE)
     )
+    try:
+        prompt_text = prompt_template.format(
+            outline=outline_text,
+            retrieval_context=retrieval_text,
+            conflicts=conflicts_text,
+            history=history_text,
+            conversation=conversation_text,
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="自定义 Prompt 缺少必要变量：outline、retrieval_context、conflicts、history、conversation",
+        ) from exc
 
     model_name = get_model_name("sync")
     llm = ChatOpenAI(
@@ -725,6 +739,69 @@ async def outline_analysis_stream(
         yield "event: start\ndata: {}\n\n"
         try:
             async for chunk in llm.astream(prompt_text):
+                content = getattr(chunk, "content", None)
+                if content is None and hasattr(chunk, "message"):
+                    content = chunk.message.content
+                if not content:
+                    continue
+                for line in content.split("\n"):
+                    yield f"data: {line}\n"
+                yield "\n"
+        except Exception as exc:
+            yield f"event: error\ndata: {str(exc)}\n\n"
+        finally:
+            yield "event: done\ndata: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/writing_assistant")
+async def writing_assistant(
+    payload: WritingAssistantRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, payload.project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    # Resolve configuration
+    # Priority: Project Writer Config -> Global Default Key -> Error
+    
+    config = project.writer_config
+    
+    api_key = config.api_key or get_api_key("default") or get_api_key("drafting")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No API Key configured. Please set it in Writing Settings.",
+        )
+    
+    base_url = config.base_url or get_base_url()
+    model = config.model or "gpt-4o"
+    system_prompt = config.prompt or "You are a professional novel editor. Polish the text to be more immersive and vivid."
+
+    llm = ChatOpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        streaming=True,
+    )
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"{payload.instruction}\n\n[Text Start]\n{payload.text}\n[Text End]"}
+    ]
+
+    async def event_stream():
+        yield "event: start\ndata: {}\n\n"
+        try:
+            async for chunk in llm.astream(messages):
                 content = getattr(chunk, "content", None)
                 if content is None and hasattr(chunk, "message"):
                     content = chunk.message.content
@@ -867,6 +944,13 @@ async def update_project_record(
         project.title = title
     if payload.analysis_profile is not None:
         project.analysis_profile = payload.analysis_profile
+    if payload.prompt_overrides is not None:
+        for field_name in payload.prompt_overrides.model_fields_set:
+            setattr(
+                project.prompt_overrides,
+                field_name,
+                getattr(payload.prompt_overrides, field_name),
+            )
     project.updated_at = datetime.utcnow()
     await update_project(session, project_id, project)
     return project

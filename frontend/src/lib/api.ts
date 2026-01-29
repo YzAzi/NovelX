@@ -12,11 +12,14 @@ import type {
   VersionDiff,
   StoryNode,
   StoryProject,
+  PromptOverrides,
   SyncNodeResponse,
   WorldDocument,
   WorldKnowledgeBase,
   ModelConfigResponse,
   ModelConfigUpdateRequest,
+  WriterConfig,
+  WritingAssistantRequest,
 } from "@/src/types/models"
 import type { CharacterGraphNode, CharacterGraphLink } from "@/src/types/character-graph"
 import { useProjectStore } from "@/src/stores/project-store"
@@ -196,7 +199,11 @@ export async function updateProjectTitle(
 
 export async function updateProjectSettings(
   projectId: string,
-  payload: { analysis_profile?: "auto" | "short" | "medium" | "long" },
+  payload: {
+    analysis_profile?: "auto" | "short" | "medium" | "long"
+    prompt_overrides?: PromptOverrides
+    writer_config?: WriterConfig
+  },
   options: { signal?: AbortSignal } = {},
 ): Promise<StoryProject> {
   return request<StoryProject>(

@@ -26,6 +26,7 @@ const formSchema = z.object({
   worldView: z.string().trim().min(1, "请填写世界观设定"),
   styleTags: z.string().trim().optional(),
   initialPrompt: z.string().trim().optional(),
+  draftingPrompt: z.string().trim().optional(),
   baseProjectId: z.string().optional(),
 })
 
@@ -53,6 +54,7 @@ export function CreateDialog() {
       worldView: "",
       styleTags: "",
       initialPrompt: "",
+      draftingPrompt: "",
       baseProjectId: "",
     },
   })
@@ -76,6 +78,7 @@ export function CreateDialog() {
       world_view: values.worldView.trim(),
       style_tags: tags,
       initial_prompt: values.initialPrompt?.trim() ?? "",
+      drafting_prompt: values.draftingPrompt?.trim() || undefined,
       base_project_id: values.baseProjectId?.trim() || undefined,
       request_id: requestId,
     }
@@ -187,6 +190,22 @@ export function CreateDialog() {
               rows={3}
               {...register("initialPrompt")}
             />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium" htmlFor="draftingPrompt">
+              自定义大纲 Prompt（可选）
+            </label>
+            <Textarea
+              id="draftingPrompt"
+              placeholder={
+                "可使用变量：{world_view} {style_tags} {user_input} {retrieved_context}\n留空则使用默认模板"
+              }
+              rows={5}
+              {...register("draftingPrompt")}
+            />
+            <p className="text-xs text-muted-foreground">
+              用于控制大纲生成风格与结构，支持上述变量占位符。
+            </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <DialogClose asChild>

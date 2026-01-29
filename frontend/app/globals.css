@@ -144,6 +144,9 @@
   body {
     height: 100%;
   }
+  html {
+    overflow-y: scroll; /* Force scrollbar to prevent layout shift */
+  }
   body {
     @apply bg-background text-foreground;
     background-image:

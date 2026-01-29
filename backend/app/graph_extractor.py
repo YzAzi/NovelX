@@ -55,6 +55,9 @@ def _ensure_entity_ids(entities: list[Entity]) -> list[Entity]:
 
 
 class GraphExtractor:
+    def __init__(self, prompt_template: PromptTemplate | None = None) -> None:
+        self.prompt_template = prompt_template or PROMPT_TEMPLATE
+
     async def extract_from_text(
         self,
         text: str,
@@ -75,13 +78,18 @@ class GraphExtractor:
             model=model_name,
         ).with_structured_output(schema)
 
-        prompt = PROMPT_TEMPLATE.format(
-            text=text,
-            existing_entities=_serialize_entities(existing_graph.entities),
-            output_schema=json.dumps(
-                prompt_schema, ensure_ascii=False, indent=2
-            ),
-        )
+        try:
+            prompt = self.prompt_template.format(
+                text=text,
+                existing_entities=_serialize_entities(existing_graph.entities),
+                output_schema=json.dumps(
+                    prompt_schema, ensure_ascii=False, indent=2
+                ),
+            )
+        except KeyError as exc:
+            raise ValueError(
+                "自定义 Prompt 缺少必要变量：text、existing_entities、output_schema"
+            ) from exc
 
         raw_result = await asyncio.to_thread(llm.invoke, prompt)
         if raw_result is None:

@@ -14,6 +14,8 @@ def _serialize_project(project: StoryProject) -> dict:
         "nodes": [node.model_dump() for node in project.nodes],
         "characters": [character.model_dump() for character in project.characters],
         "analysis_profile": project.analysis_profile,
+        "prompt_overrides": project.prompt_overrides.model_dump(),
+        "writer_config": project.writer_config.model_dump(),
     }
 
 
@@ -22,6 +24,8 @@ def _deserialize_project(row: ProjectTable) -> StoryProject:
     nodes_data: Iterable[dict] = data.get("nodes", [])
     characters_data: Iterable[dict] = data.get("characters", [])
     analysis_profile = data.get("analysis_profile", "auto")
+    prompt_overrides = data.get("prompt_overrides", {})
+    writer_config = data.get("writer_config", {})
     nodes = [StoryNode(**node) for node in nodes_data]
     characters = [CharacterProfile(**character) for character in characters_data]
     return StoryProject(
@@ -32,6 +36,8 @@ def _deserialize_project(row: ProjectTable) -> StoryProject:
         nodes=nodes,
         characters=characters,
         analysis_profile=analysis_profile,
+        prompt_overrides=prompt_overrides,
+        writer_config=writer_config,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

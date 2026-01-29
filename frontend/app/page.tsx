@@ -13,10 +13,12 @@ import { StoryVisualizer } from "@/components/story-visualizer"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VersionHistory } from "@/components/version-history"
 import { ChatSidebar } from "@/components/chat-sidebar"
+import { WritingWorkspace } from "@/components/writing-workspace"
 import {
   createVersion,
   getModelConfig,
   updateModelConfig,
+  updateProjectSettings,
   updateProjectTitle,
 } from "@/src/lib/api"
 import { useWebsocket } from "@/src/hooks/use-websocket"
@@ -31,6 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useProjectStore } from "@/src/stores/project-store"
 
@@ -74,6 +77,8 @@ export default function Home() {
   const [modelDialogOpen, setModelDialogOpen] = useState(false)
   const [isSavingModels, setIsSavingModels] = useState(false)
   const [outlineStepIndex, setOutlineStepIndex] = useState(0)
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false)
+  const [isSavingPrompts, setIsSavingPrompts] = useState(false)
   const [modelForm, setModelForm] = useState({
     baseUrl: "",
     defaultKey: "",
@@ -84,12 +89,37 @@ export default function Home() {
     extraction: "",
     extractionKey: "",
   })
+  const [promptForm, setPromptForm] = useState({
+    drafting: "",
+    sync: "",
+    extraction: "",
+    analysis: "",
+  })
 
   useWebsocket(currentProject?.id ?? null)
 
   useEffect(() => {
     setTitle(currentProject?.title ?? DEFAULT_TITLE)
   }, [currentProject])
+
+  useEffect(() => {
+    if (!currentProject) {
+      setPromptForm({
+        drafting: "",
+        sync: "",
+        extraction: "",
+        analysis: "",
+      })
+      return
+    }
+    const overrides = currentProject.prompt_overrides ?? {}
+    setPromptForm({
+      drafting: overrides.drafting ?? "",
+      sync: overrides.sync ?? "",
+      extraction: overrides.extraction ?? "",
+      analysis: overrides.analysis ?? "",
+    })
+  }, [currentProject?.id])
 
   useEffect(() => {
     const handleKeyDown = async (event: KeyboardEvent) => {
@@ -233,6 +263,13 @@ export default function Home() {
     setModelForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const handlePromptFieldChange = (
+    key: "drafting" | "sync" | "extraction" | "analysis",
+    value: string
+  ) => {
+    setPromptForm((prev) => ({ ...prev, [key]: value }))
+  }
+
   const handleSaveModels = async () => {
     setIsSavingModels(true)
     try {
@@ -274,6 +311,30 @@ export default function Home() {
       setError(message)
     } finally {
       setIsSavingModels(false)
+    }
+  }
+
+  const handleSavePrompts = async () => {
+    if (!currentProject) {
+      return
+    }
+    setIsSavingPrompts(true)
+    try {
+      const updated = await updateProjectSettings(currentProject.id, {
+        prompt_overrides: {
+          drafting: promptForm.drafting.trim() || null,
+          sync: promptForm.sync.trim() || null,
+          extraction: promptForm.extraction.trim() || null,
+          analysis: promptForm.analysis.trim() || null,
+        },
+      })
+      setProject(updated)
+      setPromptDialogOpen(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存 Prompt 失败"
+      setError(message)
+    } finally {
+      setIsSavingPrompts(false)
     }
   }
 
@@ -324,6 +385,7 @@ export default function Home() {
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList>
                 <TabsTrigger value="outline">大纲视图</TabsTrigger>
+                <TabsTrigger value="writing">正文写作</TabsTrigger>
                 <TabsTrigger value="relations">角色关系</TabsTrigger>
                 <TabsTrigger value="knowledge">世界观设定</TabsTrigger>
               </TabsList>
@@ -457,6 +519,86 @@ export default function Home() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!currentProject}>
+                  Prompt 设置
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Prompt 设置（按项目保存）</DialogTitle>
+                  <DialogDescription>
+                    留空表示使用默认模板。变量占位符需与说明一致。
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4">
+                  <div>
+                    <div className="text-xs text-slate-500">大纲生成</div>
+                    <Textarea
+                      value={promptForm.drafting}
+                      onChange={(event) =>
+                        handlePromptFieldChange("drafting", event.target.value)
+                      }
+                      rows={5}
+                      placeholder="变量：{world_view} {style_tags} {user_input} {retrieved_context}"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">同步分析</div>
+                    <Textarea
+                      value={promptForm.sync}
+                      onChange={(event) =>
+                        handlePromptFieldChange("sync", event.target.value)
+                      }
+                      rows={4}
+                      placeholder="变量：{modified_node} {retrieved_context}"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">实体抽取</div>
+                    <Textarea
+                      value={promptForm.extraction}
+                      onChange={(event) =>
+                        handlePromptFieldChange("extraction", event.target.value)
+                      }
+                      rows={4}
+                      placeholder="变量：{text} {existing_entities} {output_schema}"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">大纲分析</div>
+                    <Textarea
+                      value={promptForm.analysis}
+                      onChange={(event) =>
+                        handlePromptFieldChange("analysis", event.target.value)
+                      }
+                      rows={5}
+                      placeholder="变量：{outline} {retrieval_context} {conflicts} {history} {conversation}"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setPromptForm({
+                        drafting: "",
+                        sync: "",
+                        extraction: "",
+                        analysis: "",
+                      })
+                    }
+                    disabled={isSavingPrompts}
+                  >
+                    清空
+                  </Button>
+                  <Button onClick={handleSavePrompts} disabled={isSavingPrompts}>
+                    {isSavingPrompts ? "保存中..." : "保存"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <Button
               variant="outline"
               size="sm"
@@ -474,6 +616,8 @@ export default function Home() {
           <div className="h-full w-full min-h-0">
             {activeTab === "outline" ? (
               <StoryVisualizer />
+            ) : activeTab === "writing" ? (
+              <WritingWorkspace />
             ) : activeTab === "relations" ? (
               <CharacterGraph />
             ) : (

@@ -80,6 +80,7 @@ class StoryProject(BaseModel):
     nodes: list[StoryNode] = Field(default_factory=list)
     characters: list[CharacterProfile] = Field(default_factory=list)
     analysis_profile: str = "auto"
+    prompt_overrides: "PromptOverrides" = Field(default_factory=lambda: PromptOverrides())
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -126,6 +127,7 @@ class CreateOutlineRequest(BaseModel):
     world_view: str
     style_tags: list[str] = Field(default_factory=list)
     initial_prompt: str
+    drafting_prompt: str | None = None
     base_project_id: str | None = None
     request_id: str | None = None
 
@@ -146,6 +148,33 @@ class CreateOutlineRequest(BaseModel):
             return []
         if isinstance(value, str):
             return [tag.strip() for tag in value.split(",") if tag.strip()]
+        return value
+
+    @field_validator("drafting_prompt", mode="before")
+    @classmethod
+    def normalize_drafting_prompt(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+
+class PromptOverrides(BaseModel):
+    drafting: str | None = None
+    sync: str | None = None
+    extraction: str | None = None
+    analysis: str | None = None
+
+    @field_validator("drafting", "sync", "extraction", "analysis", mode="before")
+    @classmethod
+    def normalize_prompt_value(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
         return value
 
 
@@ -257,6 +286,13 @@ class KnowledgeSearchRequest(BaseModel):
     top_k: int | None = None
 
 
+class WritingAssistantRequest(BaseModel):
+    project_id: str
+    text: str
+    instruction: str
+    stream: bool = True
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str
@@ -291,9 +327,30 @@ class ProjectStatsResponse(BaseModel):
     graph_relations: int
 
 
+class PromptOverridesUpdate(BaseModel):
+    drafting: str | None = None
+    sync: str | None = None
+    extraction: str | None = None
+    analysis: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("drafting", "sync", "extraction", "analysis", mode="before")
+    @classmethod
+    def normalize_prompt_value(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+
 class ProjectUpdateRequest(BaseModel):
     title: str | None = None
     analysis_profile: str | None = None
+    prompt_overrides: PromptOverridesUpdate | None = None
+    writer_config: WriterConfig | None = None
 
 
 class ProjectExportData(BaseModel):
