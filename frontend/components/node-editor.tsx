@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
+import { Maximize2, Minimize2 } from "lucide-react"
 
 import type { Conflict, StoryNode } from "@/src/types/models"
 import { syncNode } from "@/src/lib/api"
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 
 export function NodeEditor() {
   const {
@@ -33,6 +35,7 @@ export function NodeEditor() {
     setProject,
     syncStatus,
   } = useProjectStore()
+  const [isZenMode, setIsZenMode] = useState(false)
   const selectedNode = useMemo(() => {
     if (!currentProject || !selectedNodeId) {
       return null
@@ -292,14 +295,29 @@ export function NodeEditor() {
 
   return (
     <Dialog open={nodeEditorOpen} onOpenChange={setNodeEditorOpen}>
-      <DialogContent className="max-h-[80vh] max-w-2xl overflow-hidden p-0">
+      <DialogContent
+        className={cn(
+          "overflow-hidden p-0 transition-all duration-300 ease-in-out",
+          isZenMode
+            ? "h-screen w-screen max-w-none rounded-none border-0"
+            : "max-h-[80vh] max-w-2xl"
+        )}
+      >
         <Card
           id="node-editor"
           tabIndex={-1}
-          className="flex h-full flex-col border-0 shadow-none"
+          className={cn(
+            "flex h-full flex-col border-0 shadow-none outline-none",
+            isZenMode && "bg-zinc-50 dark:bg-zinc-950"
+          )}
         >
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardHeader
+            className={cn(
+              "flex flex-row items-center justify-between space-y-0 pb-2",
+              isZenMode && "absolute right-0 top-0 z-10 w-full bg-transparent px-6 py-4"
+            )}
+          >
+            <div className={cn("flex flex-wrap items-center gap-2", isZenMode && "hidden")}>
               <DialogTitle className="text-lg font-semibold">节点编辑</DialogTitle>
               <div className="text-xs text-muted-foreground">
                 {saveStatus === "saving"
@@ -317,138 +335,216 @@ export function NodeEditor() {
                             : null}
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="flex-1 min-h-0 space-y-4 overflow-y-auto px-6 pb-2">
-        {newCharacterNotice ? (
-          <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
-            {newCharacterNotice}
-          </div>
-        ) : null}
-        {validationError ? (
-          <div className="rounded-xl border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
-            {validationError}
-          </div>
-        ) : null}
-        {conflicts.length > 0 ? (
-          <div className="space-y-2">
-            {conflicts.map((conflict, index) => {
-              const isExpanded = expandedConflict === index
-              const severityClass =
-                conflict.severity === "error"
-                  ? "border-red-200/70 bg-red-50/70 text-red-700"
-                  : conflict.severity === "warning"
-                    ? "border-amber-200/70 bg-amber-50/70 text-amber-700"
-                    : "border-blue-200/70 bg-blue-50/70 text-blue-700"
-
-              return (
-                <button
-                  type="button"
-                  key={conflict._id}
-                  className={`w-full rounded-xl border px-3 py-2 text-left text-xs ${severityClass}`}
-                  onClick={() =>
-                    setExpandedConflict(isExpanded ? null : index)
-                  }
-                >
-                  <div className="font-semibold">{conflict.description}</div>
-                  {isExpanded ? (
-                    <div className="mt-2 space-y-1 text-[11px]">
-                      <div>涉及节点：{conflict.node_ids.join("、") || "无"}</div>
-                      <div>涉及实体：{conflict.entity_ids.join("、") || "无"}</div>
-                      {conflict.suggestion ? (
-                        <div>建议：{conflict.suggestion}</div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="mt-1 text-[11px] text-slate-600">点击查看详情</div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        ) : null}
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="node-title">
-            标题
-          </label>
-          <Input id="node-title" value={title} onChange={handleChange(setTitle)} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="node-content">
-            内容梗概
-          </label>
-          <Textarea
-            id="node-content"
-            rows={8}
-            value={content}
-            onChange={handleChange(setContent)}
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="narrative-order">
-              叙事顺序
-            </label>
-            <Input
-              id="narrative-order"
-              type="number"
-              value={narrativeOrder}
-              onChange={handleChange(setNarrativeOrder)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="timeline-order">
-              时间轴位置
-            </label>
-            <Input
-              id="timeline-order"
-              type="number"
-              step="0.1"
-              value={timelineOrder}
-              onChange={handleChange(setTimelineOrder)}
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="location-tag">
-            泳道标签
-          </label>
-          <Input
-            id="location-tag"
-            value={locationTag}
-            onChange={handleChange(setLocationTag)}
-            placeholder="例如：港口、旧城区"
-          />
-        </div>
-        <div className="space-y-2">
-          <p className="text-sm font-medium">涉及角色</p>
-          {characterOptions.length === 0 ? (
-            <p className="text-xs text-muted-foreground">暂无角色可选</p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {characterOptions.map((character) => (
-                <label key={character.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={characters.includes(character.id)}
-                    onChange={() => handleCharacterToggle(character.id)}
-                  />
-                  {character.name}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-          </CardContent>
-          <DialogFooter className="px-6 pb-6">
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                取消
+            <div className={cn("flex items-center gap-2", isZenMode && "ml-auto")}>
+              {isZenMode && (
+                <div className="mr-4 text-xs text-muted-foreground/60">
+                  {saveStatus === "saving" ? "保存中..." : isDirty ? "未保存" : "已保存"}
+                </div>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsZenMode(!isZenMode)}
+                title={isZenMode ? "退出沉浸模式" : "进入沉浸模式"}
+              >
+                {isZenMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               </Button>
-            </DialogClose>
-            <Button type="button" onClick={handleManualSave} disabled={!isDirty}>
-              保存并更新 (Ctrl+S)
-            </Button>
-          </DialogFooter>
+              {!isZenMode && (
+                <DialogClose asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-4 w-4"
+                    >
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </Button>
+                </DialogClose>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent
+            className={cn(
+              "flex-1 min-h-0 overflow-y-auto",
+              isZenMode ? "mx-auto w-full max-w-3xl pt-16 pb-12 px-8" : "space-y-4 px-6 pb-2"
+            )}
+          >
+            {isZenMode ? (
+              <div className="flex h-full flex-col gap-6">
+                <input
+                  value={title}
+                  onChange={handleChange(setTitle)}
+                  placeholder="未命名节点"
+                  className="bg-transparent text-4xl font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                />
+                <textarea
+                  value={content}
+                  onChange={handleChange(setContent)}
+                  placeholder="在此输入内容..."
+                  className="flex-1 resize-none bg-transparent text-lg leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                />
+              </div>
+            ) : (
+              <>
+                {newCharacterNotice ? (
+                  <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
+                    {newCharacterNotice}
+                  </div>
+                ) : null}
+                {validationError ? (
+                  <div className="rounded-xl border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
+                    {validationError}
+                  </div>
+                ) : null}
+                {conflicts.length > 0 ? (
+                  <div className="space-y-2">
+                    {conflicts.map((conflict, index) => {
+                      const isExpanded = expandedConflict === index
+                      const severityClass =
+                        conflict.severity === "error"
+                          ? "border-red-200/70 bg-red-50/70 text-red-700"
+                          : conflict.severity === "warning"
+                            ? "border-amber-200/70 bg-amber-50/70 text-amber-700"
+                            : "border-blue-200/70 bg-blue-50/70 text-blue-700"
+
+                      return (
+                        <button
+                          type="button"
+                          key={conflict._id}
+                          className={`w-full rounded-xl border px-3 py-2 text-left text-xs ${severityClass}`}
+                          onClick={() =>
+                            setExpandedConflict(isExpanded ? null : index)
+                          }
+                        >
+                          <div className="font-semibold">{conflict.description}</div>
+                          {isExpanded ? (
+                            <div className="mt-2 space-y-1 text-[11px]">
+                              <div>涉及节点：{conflict.node_ids.join("、") || "无"}</div>
+                              <div>涉及实体：{conflict.entity_ids.join("、") || "无"}</div>
+                              {conflict.suggestion ? (
+                                <div>建议：{conflict.suggestion}</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-[11px] text-slate-600">点击查看详情</div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="node-title">
+                    标题
+                  </label>
+                  <Input id="node-title" value={title} onChange={handleChange(setTitle)} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="node-content">
+                    内容梗概
+                  </label>
+                  <Textarea
+                    id="node-content"
+                    rows={8}
+                    value={content}
+                    onChange={handleChange(setContent)}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="narrative-order">
+                      叙事顺序
+                    </label>
+                    <Input
+                      id="narrative-order"
+                      type="number"
+                      value={narrativeOrder}
+                      onChange={handleChange(setNarrativeOrder)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="timeline-order">
+                      时间轴位置
+                    </label>
+                    <Input
+                      id="timeline-order"
+                      type="number"
+                      step="0.1"
+                      value={timelineOrder}
+                      onChange={handleChange(setTimelineOrder)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="location-tag">
+                    泳道标签
+                  </label>
+                  <Input
+                    id="location-tag"
+                    value={locationTag}
+                    onChange={handleChange(setLocationTag)}
+                    placeholder="例如：港口、旧城区"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">涉及角色</p>
+                  {characterOptions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">暂无角色可选</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {characterOptions.map((character) => {
+                        const isSelected = characters.includes(character.id)
+                        return (
+                          <button
+                            type="button"
+                            key={character.id}
+                            onClick={() => handleCharacterToggle(character.id)}
+                            className={`
+                              inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
+                              ${
+                                isSelected
+                                  ? "border-transparent bg-primary text-primary-foreground hover:bg-primary/80"
+                                  : "border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
+                              }
+                            `}
+                          >
+                            {character.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+          {!isZenMode && (
+            <DialogFooter className="px-6 pb-6">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  取消
+                </Button>
+              </DialogClose>
+              <Button type="button" onClick={handleManualSave} disabled={!isDirty}>
+                保存并更新 (Ctrl+S)
+              </Button>
+            </DialogFooter>
+          )}
         </Card>
       </DialogContent>
     </Dialog>

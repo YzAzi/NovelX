@@ -178,10 +178,46 @@ class GraphEditor:
                 continue
             keep = self._pick_relation(existing, relation)
             unique[key] = keep
-        self.graph.relations = list(unique.values())
-
-    def _pick_relation(self, first: Relation, second: Relation) -> Relation:
-        first_score = self._relation_score(first)
+                    self.graph.relations = list(unique.values())
+        
+            def update_relation(self, relation_id: str, updates: dict) -> Relation:
+                snapshot = deepcopy(self.graph)
+                try:
+                    relation = next((r for r in self.graph.relations if r.id == relation_id), None)
+                    if relation is None:
+                        raise ValueError("Relation not found")
+                    
+                    if "relation_type" in updates:
+                        relation.relation_type = updates["relation_type"]
+                    if "relation_name" in updates:
+                        relation.relation_name = updates["relation_name"]
+                    if "description" in updates:
+                        relation.description = updates["description"]
+                    
+                    self._touch_graph()
+                    return relation
+                except Exception:
+                    self.graph.entities = snapshot.entities
+                    self.graph.relations = snapshot.relations
+                    self.graph.last_updated = snapshot.last_updated
+                    raise
+        
+            def delete_relation(self, relation_id: str) -> dict:
+                snapshot = deepcopy(self.graph)
+                try:
+                    original_count = len(self.graph.relations)
+                    self.graph.relations = [r for r in self.graph.relations if r.id != relation_id]
+                    if len(self.graph.relations) == original_count:
+                        raise ValueError("Relation not found")
+                    self._touch_graph()
+                    return {"success": True}
+                except Exception:
+                    self.graph.entities = snapshot.entities
+                    self.graph.relations = snapshot.relations
+                    self.graph.last_updated = snapshot.last_updated
+                    raise
+        
+            def _pick_relation(self, first: Relation, second: Relation) -> Relation:        first_score = self._relation_score(first)
         second_score = self._relation_score(second)
         if second_score > first_score:
             return second

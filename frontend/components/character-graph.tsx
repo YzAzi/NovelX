@@ -11,9 +11,11 @@ import type {
 import {
   createGraphEntity,
   deleteGraphEntity,
+  deleteGraphRelation,
   getCharacterGraph,
   mergeGraphEntities,
   updateGraphEntity,
+  updateGraphRelation,
 } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import type {
@@ -184,6 +186,8 @@ export function CharacterGraph() {
     name: "",
     description: "",
     type: "character" as EntityType,
+    aliases: "",
+    properties: "",
   })
   const [createError, setCreateError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -202,6 +206,20 @@ export function CharacterGraph() {
     endId: "",
   })
   const [pathRelations, setPathRelations] = useState<CharacterGraphLink[]>([])
+  
+  const [editRelationOpen, setEditRelationOpen] = useState(false)
+  const [editRelationForm, setEditRelationForm] = useState<{
+    id: string
+    relation_type: string
+    relation_name: string
+    description: string
+  }>({
+    id: "",
+    relation_type: "",
+    relation_name: "",
+    description: "",
+  })
+
   const fitOnceRef = useRef(false)
 
   const measureContainer = useCallback(() => {
@@ -589,6 +607,28 @@ export function CharacterGraph() {
     }
   }, [contextMenu, currentProject, loadGraph, pushToast])
 
+  const [propertyRows, setPropertyRows] = useState<
+    Array<{ key: string; value: string }>
+  >([])
+
+  const handleAddPropertyRow = () => {
+    setPropertyRows((prev) => [...prev, { key: "", value: "" }])
+  }
+
+  const handleRemovePropertyRow = (index: number) => {
+    setPropertyRows((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handlePropertyChange = (
+    index: number,
+    field: "key" | "value",
+    value: string
+  ) => {
+    setPropertyRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    )
+  }
+
   const handleCreateEntity = useCallback(async () => {
     if (!currentProject) {
       return
@@ -598,6 +638,24 @@ export function CharacterGraph() {
       setCreateError("请填写角色名称")
       return
     }
+    
+    const properties: Record<string, unknown> = {}
+    for (const row of propertyRows) {
+      const key = row.key.trim()
+      const value = row.value.trim()
+      if (key) {
+        // Try to parse number or boolean if possible, otherwise string
+        if (value === "true") properties[key] = true
+        else if (value === "false") properties[key] = false
+        else if (!Number.isNaN(Number(value)) && value !== "") properties[key] = Number(value)
+        else properties[key] = value
+      }
+    }
+
+    const aliases = createForm.aliases
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
     setIsMutating(true)
     setCreateError(null)
     try {
@@ -605,12 +663,21 @@ export function CharacterGraph() {
         name,
         description: createForm.description.trim(),
         type: createForm.type,
+        aliases,
+        properties: Object.keys(properties).length > 0 ? properties : undefined,
       })
       await loadGraph()
       setSelectedEntity(entity)
       pushToast("success", "角色已创建")
       setCreateOpen(false)
-      setCreateForm({ name: "", description: "", type: "character" })
+      setCreateForm({
+        name: "",
+        description: "",
+        type: "character",
+        aliases: "",
+        properties: "",
+      })
+      setPropertyRows([])
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "角色创建失败"
@@ -619,7 +686,7 @@ export function CharacterGraph() {
     } finally {
       setIsMutating(false)
     }
-  }, [createForm, currentProject, loadGraph, pushToast])
+  }, [createForm, currentProject, loadGraph, propertyRows, pushToast])
 
   const handleMergeEntity = useCallback(async () => {
     if (!currentProject || !contextMenu) {
@@ -681,6 +748,57 @@ export function CharacterGraph() {
       setContextMenu(null)
     }
   }, [contextMenu, currentProject, loadGraph, pushToast])
+
+  const handleEditRelation = useCallback(() => {
+    if (!selectedRelation || !selectedRelation.id) return
+    setEditRelationForm({
+      id: selectedRelation.id,
+      relation_type: selectedRelation.relation_type ?? "related_to",
+      relation_name: selectedRelation.relation_name ?? "",
+      description: selectedRelation.description ?? "",
+    })
+    setEditRelationOpen(true)
+  }, [selectedRelation])
+
+  const handleUpdateRelation = useCallback(async () => {
+    if (!currentProject || !editRelationForm.id) return
+    setIsMutating(true)
+    try {
+      await updateGraphRelation(currentProject.id, editRelationForm.id, {
+        relation_type: editRelationForm.relation_type,
+        relation_name: editRelationForm.relation_name,
+        description: editRelationForm.description,
+      })
+      await loadGraph()
+      setEditRelationOpen(false)
+      setSelectedRelation(null)
+      pushToast("success", "关系已更新")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "更新关系失败"
+      pushToast("error", message)
+    } finally {
+      setIsMutating(false)
+    }
+  }, [currentProject, editRelationForm, loadGraph, pushToast])
+
+  const handleDeleteRelation = useCallback(async () => {
+    if (!currentProject || !selectedRelation || !selectedRelation.id) return
+    const confirmed = window.confirm("确认删除这条关系吗？")
+    if (!confirmed) return
+
+    setIsMutating(true)
+    try {
+      await deleteGraphRelation(currentProject.id, selectedRelation.id)
+      await loadGraph()
+      setSelectedRelation(null)
+      pushToast("success", "关系已删除")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除关系失败"
+      pushToast("error", message)
+    } finally {
+      setIsMutating(false)
+    }
+  }, [currentProject, selectedRelation, loadGraph, pushToast])
 
   const mergeOptions = useMemo(() => {
     if (!contextMenu) {
@@ -766,16 +884,23 @@ export function CharacterGraph() {
   return (
     <div
       ref={containerRef}
-      className="relative h-full min-h-[420px] overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/80 shadow-[0_20px_60px_rgba(15,23,42,0.08)]"
+      className="relative h-full min-h-[420px] overflow-hidden surface-card"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_45%),radial-gradient(circle_at_bottom,_rgba(16,185,129,0.12),_transparent_42%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-20"
+           style={{
+             background: `
+               radial-gradient(circle at 50% 0%, var(--primary) 0%, transparent 40%),
+               radial-gradient(circle at 80% 80%, var(--accent) 0%, transparent 40%)
+             `
+           }}
+      />
       {isRefreshing ? (
-        <div className="absolute right-4 top-4 z-10 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-xs text-slate-500 shadow">
+        <div className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-white/60 px-3 py-1 text-xs text-muted-foreground shadow backdrop-blur-md">
           更新中...
         </div>
       ) : null}
       <ForceGraph2D
-        ref={handleGraphRef}
+        ref={handleGraphRef as any}
         graphData={graphDataMemo}
         width={graphSize.width}
         height={graphSize.height}
@@ -968,6 +1093,85 @@ export function CharacterGraph() {
                 placeholder="简单描述角色背景或特征"
               />
             </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="entity-type">
+                角色类型
+              </label>
+              <select
+                id="entity-type"
+                className="w-full rounded-md border border-slate-200/80 bg-white/95 px-2 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                value={createForm.type}
+                onChange={(event) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    type: event.target.value as EntityType,
+                  }))
+                }
+              >
+                {Object.keys(ENTITY_TYPE_LABELS).map((type) => (
+                  <option key={type} value={type}>
+                    {ENTITY_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="entity-aliases">
+                角色别名
+              </label>
+              <Input
+                id="entity-aliases"
+                value={createForm.aliases}
+                onChange={(event) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    aliases: event.target.value,
+                  }))
+                }
+                placeholder="使用英文逗号分隔，例如：阿澄, 林小姐"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">角色属性</label>
+              <div className="space-y-2">
+                {propertyRows.map((row, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      placeholder="属性名 (如: age)"
+                      value={row.key}
+                      onChange={(e) =>
+                        handlePropertyChange(index, "key", e.target.value)
+                      }
+                      className="flex-1"
+                    />
+                    <Input
+                      placeholder="属性值 (如: 28)"
+                      value={row.value}
+                      onChange={(e) =>
+                        handlePropertyChange(index, "value", e.target.value)
+                      }
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-red-500 hover:text-red-700"
+                      onClick={() => handleRemovePropertyRow(index)}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={handleAddPropertyRow}
+                >
+                  + 添加属性
+                </Button>
+              </div>
+            </div>
             {createError ? (
               <div className="rounded-lg border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
                 {createError}
@@ -984,6 +1188,69 @@ export function CharacterGraph() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={editRelationOpen} onOpenChange={setEditRelationOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>编辑关系</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">关系名称</label>
+              <Input
+                value={editRelationForm.relation_name}
+                onChange={(e) =>
+                  setEditRelationForm((prev) => ({
+                    ...prev,
+                    relation_name: e.target.value,
+                  }))
+                }
+                placeholder="例如：师徒"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">关系类型</label>
+              <select
+                className="w-full rounded-md border border-slate-200/80 bg-white/95 px-2 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                value={editRelationForm.relation_type}
+                onChange={(e) =>
+                  setEditRelationForm((prev) => ({
+                    ...prev,
+                    relation_type: e.target.value,
+                  }))
+                }
+              >
+                {Object.keys(RELATION_COLORS).map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">描述</label>
+              <Textarea
+                rows={3}
+                value={editRelationForm.description}
+                onChange={(e) =>
+                  setEditRelationForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="关系的详细描述"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditRelationOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleUpdateRelation} disabled={isMutating}>
+              {isMutating ? "更新中..." : "确认更新"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="absolute left-4 top-4 z-10 w-[280px] space-y-3 rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-semibold text-slate-500">角色关系</div>
@@ -993,7 +1260,13 @@ export function CharacterGraph() {
             className="h-7 px-2 text-[11px]"
             onClick={() => {
               setCreateError(null)
-              setCreateForm({ name: "", description: "", type: "character" })
+              setCreateForm({
+                name: "",
+                description: "",
+                type: "character",
+                aliases: "",
+                properties: "",
+              })
               setCreateOpen(true)
             }}
           >
@@ -1172,6 +1445,26 @@ export function CharacterGraph() {
             {typeof selectedRelation.target === "string"
               ? selectedRelation.target
               : selectedRelation.target?.name ?? selectedRelation.target?.id ?? "?"}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 flex-1 text-[10px]"
+              onClick={handleEditRelation}
+              disabled={isMutating || !selectedRelation.id}
+            >
+              编辑
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-6 flex-1 text-[10px]"
+              onClick={handleDeleteRelation}
+              disabled={isMutating || !selectedRelation.id}
+            >
+              删除
+            </Button>
           </div>
         </div>
       ) : null}

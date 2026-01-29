@@ -195,6 +195,22 @@ class InsertNodeRequest(BaseModel):
     )
 
 
+class ReorderNodesRequest(BaseModel):
+    node_ids: list[str] = Field(description="Ordered list of node IDs")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "node_ids": [
+                    "node-1-id",
+                    "node-2-id",
+                    "node-3-id"
+                ]
+            }
+        }
+    )
+
+
 class AnalysisMessage(BaseModel):
     role: str
     content: str
@@ -320,6 +336,7 @@ class CharacterGraphNode(BaseModel):
 
 
 class CharacterGraphLink(BaseModel):
+    id: str | None = None
     source: str
     target: str
     relation_type: str | None = None

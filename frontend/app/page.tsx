@@ -12,6 +12,7 @@ import { NodeEditor } from "@/components/node-editor"
 import { StoryVisualizer } from "@/components/story-visualizer"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VersionHistory } from "@/components/version-history"
+import { ChatSidebar } from "@/components/chat-sidebar"
 import {
   createVersion,
   getModelConfig,
@@ -558,6 +559,7 @@ export default function Home() {
         </div>
       ) : null}
 
+      <ChatSidebar />
       <ConflictAlert />
       <VersionHistory open={versionOpen} onClose={() => setVersionOpen(false)} />
 

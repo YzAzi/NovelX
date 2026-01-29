@@ -18,7 +18,7 @@ import type {
   ModelConfigResponse,
   ModelConfigUpdateRequest,
 } from "@/src/types/models"
-import type { CharacterGraphNode } from "@/src/types/character-graph"
+import type { CharacterGraphNode, CharacterGraphLink } from "@/src/types/character-graph"
 import { useProjectStore } from "@/src/stores/project-store"
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -603,6 +603,38 @@ export async function mergeGraphEntities(
   )
 }
 
+export async function updateGraphRelation(
+  projectId: string,
+  relationId: string,
+  updates: Partial<CharacterGraphLink>,
+  options: { signal?: AbortSignal } = {},
+): Promise<CharacterGraphLink> {
+  return request<CharacterGraphLink>(
+    `/api/projects/${encodeURIComponent(projectId)}/graph/relations/${encodeURIComponent(relationId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function deleteGraphRelation(
+  projectId: string,
+  relationId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(
+    `/api/projects/${encodeURIComponent(projectId)}/graph/relations/${encodeURIComponent(relationId)}`,
+    {
+      method: "DELETE",
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
 export async function getModelConfig(
   options: { signal?: AbortSignal } = {},
 ): Promise<ModelConfigResponse> {
@@ -625,6 +657,22 @@ export async function updateModelConfig(
     {
       method: "POST",
       body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function reorderNodes(
+  projectId: string,
+  nodeIds: string[],
+  options: { signal?: AbortSignal } = {},
+): Promise<StoryProject> {
+  return request<StoryProject>(
+    `/api/projects/${encodeURIComponent(projectId)}/nodes/reorder`,
+    {
+      method: "POST",
+      body: JSON.stringify({ node_ids: nodeIds }),
       signal: options.signal,
     },
     { showLoading: false },

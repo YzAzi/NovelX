@@ -19,6 +19,7 @@ export interface CharacterGraphNode {
 }
 
 export interface CharacterGraphLink {
+  id?: string
   source: string | CharacterGraphNode
   target: string | CharacterGraphNode
   relation_type?: string

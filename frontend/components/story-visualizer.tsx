@@ -18,7 +18,7 @@ import {
 import dagre from "dagre"
 
 import type { StoryNode } from "@/src/types/models"
-import { insertNode } from "@/src/lib/api"
+import { insertNode, reorderNodes } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -73,12 +73,12 @@ function StoryNodeCard({ data, selected }: NodeProps<StoryFlowNode>) {
   return (
     <div
       className={cn(
-        "w-[220px] rounded-xl border border-white/70 bg-white/80 p-3 shadow-sm backdrop-blur transition",
+        "w-[220px] rounded-xl border border-border/60 bg-card/90 p-3 shadow-sm backdrop-blur-md transition hover:shadow-md hover:-translate-y-0.5",
         selected
-          ? "ring-2 ring-primary/60"
+          ? "ring-2 ring-primary/60 border-primary/30"
           : data.highlight
             ? "ring-2 ring-amber-300"
-            : "hover:border-slate-300/70"
+            : "hover:border-primary/30"
       )}
     >
       <Handle type="target" position={Position.Left} isConnectable={false} />
@@ -478,6 +478,33 @@ export function StoryVisualizer() {
     nodeEl.scrollIntoView({ block: "center", behavior: "smooth" })
   }, [activeSceneId, filteredStoryNodes])
 
+  const handleNodeDragStop = useCallback(async () => {
+    if (!currentProject || !flowInstanceRef.current) {
+      return
+    }
+
+    const currentFlowNodes = flowInstanceRef.current.getNodes()
+    const sortedFlowNodes = [...currentFlowNodes].sort((a, b) => a.position.x - b.position.x)
+    const sortedIds = sortedFlowNodes.map((n) => n.id)
+
+    // Check if order actually changed to avoid unnecessary API calls
+    const currentOrderIds = [...currentProject.nodes]
+      .sort((a, b) => a.narrative_order - b.narrative_order)
+      .map((n) => n.id)
+    
+    const hasChanged = sortedIds.some((id, index) => id !== currentOrderIds[index])
+    if (!hasChanged) {
+      return
+    }
+
+    try {
+      const updatedProject = await reorderNodes(currentProject.id, sortedIds)
+      setProject(updatedProject)
+    } catch (error) {
+      console.error("Failed to reorder nodes:", error)
+    }
+  }, [currentProject, setProject])
+
   if (!currentProject) {
     return (
       <div className="surface-card flex h-full items-center justify-center border-dashed text-sm text-muted-foreground">
@@ -488,7 +515,7 @@ export function StoryVisualizer() {
 
   return (
     <div ref={wrapperRef} className="surface-card flex h-full overflow-hidden">
-      <div className="flex w-[240px] shrink-0 flex-col border-r border-white/60 bg-white/60">
+      <div className="flex w-[240px] shrink-0 flex-col border-r border-border/40 bg-white/40 backdrop-blur-sm">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
           <div className="text-xs font-semibold text-slate-500">场景目录</div>
           <Button
@@ -550,16 +577,17 @@ export function StoryVisualizer() {
           defaultEdgeOptions={defaultEdgeOptions}
           onNodeClick={handleNodeClick}
           onNodeDoubleClick={handleNodeDoubleClick}
+          onNodeDragStop={handleNodeDragStop}
           onMove={handleMove}
           onInit={(instance) => {
-            flowInstanceRef.current = instance
+            flowInstanceRef.current = instance as any
           }}
           panOnScroll
           zoomOnScroll
           fitView
           minZoom={ZOOM_MIN}
           maxZoom={ZOOM_MAX}
-          nodesDraggable={false}
+          nodesDraggable={true}
         >
           <Background gap={24} size={1} />
           <Controls position="bottom-right" />

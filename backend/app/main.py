@@ -50,6 +50,7 @@ from .models import (
     StoryNode,
     StoryProject,
     SyncNodeRequest,
+    ReorderNodesRequest,
     VersionCreateRequest,
     VersionUpdateRequest,
 )
@@ -872,6 +873,74 @@ async def update_project_record(
 
 
 @app.post(
+    "/api/projects/{project_id}/nodes/reorder",
+    response_model=StoryProject,
+    status_code=status.HTTP_200_OK,
+)
+async def reorder_project_nodes(
+    project_id: str,
+    payload: ReorderNodesRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    
+    node_map = {node.id: node for node in project.nodes}
+    if len(payload.node_ids) != len(project.nodes):
+         # If the list length doesn't match, we only reorder the subset provided? 
+         # Or strictly require full list? 
+         # Strict is safer to avoid accidents, but let's allow partial reorder if needed?
+         # No, for drag and drop it's usually safer to expect the full list of IDs in the current view.
+         # But maybe the view is filtered. 
+         # Let's assume the client sends the list of IDs it knows about, and we update those.
+         pass
+
+    # Validate IDs
+    for nid in payload.node_ids:
+        if nid not in node_map:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=f"Node {nid} not found in project"
+            )
+
+    # Update narrative_order
+    # We assign order starting from 1 for the first ID in the list.
+    # What about nodes NOT in the list? They might conflict.
+    # Strategy:
+    # 1. We update the nodes in the list to have order 1..N
+    # 2. Nodes not in the list (if any) are appended after N? Or kept as is?
+    # Better to assume this is a "reorder all" operation for simplicity.
+    
+    current_max_order = len(payload.node_ids)
+    
+    # Create a set for fast lookup
+    reordered_ids = set(payload.node_ids)
+    
+    # Update reordered nodes
+    for index, nid in enumerate(payload.node_ids):
+        node = node_map[nid]
+        node.narrative_order = index + 1
+        
+    # Handle remaining nodes (if any)
+    # We push them after the reordered ones to avoid duplicates
+    remaining_nodes = [n for n in project.nodes if n.id not in reordered_ids]
+    remaining_nodes.sort(key=lambda x: x.narrative_order)
+    
+    for i, node in enumerate(remaining_nodes):
+        node.narrative_order = current_max_order + i + 1
+
+    project.updated_at = datetime.utcnow()
+    await update_project(session, project_id, project)
+    
+    # Also notify via websocket if needed? 
+    # For now, just return the project.
+    return project
+
+
+@app.post(
     "/api/projects/import",
     response_model=StoryProject,
     status_code=status.HTTP_200_OK,
@@ -1534,6 +1603,61 @@ def update_model_config(payload: ModelConfigUpdateRequest):
     )
 
 
+@app.put(
+    "/api/projects/{project_id}/graph/relations/{relation_id}",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+)
+async def update_graph_relation(
+    project_id: str,
+    relation_id: str,
+    payload: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    graph = load_graph(project_id)
+    editor = GraphEditor(graph)
+    try:
+        relation = editor.update_relation(relation_id, payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        )
+    save_graph(graph)
+    return relation.model_dump()
+
+
+@app.delete(
+    "/api/projects/{project_id}/graph/relations/{relation_id}",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_graph_relation(
+    project_id: str,
+    relation_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    graph = load_graph(project_id)
+    editor = GraphEditor(graph)
+    try:
+        result = editor.delete_relation(relation_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        )
+    save_graph(graph)
+    return result
+
+
 @app.get(
     "/api/character_graph",
     response_model=CharacterGraphResponse,
@@ -1567,6 +1691,7 @@ async def get_character_graph(
     ]
     links = [
         CharacterGraphLink(
+            id=relation.id,
             source=relation.source_id,
             target=relation.target_id,
             relation_type=relation.relation_type.value
