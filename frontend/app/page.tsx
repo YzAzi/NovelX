@@ -2,6 +2,20 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import {
+  Layout,
+  PenTool,
+  Network,
+  Book,
+  Settings,
+  History,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  FolderOpen,
+  PanelRightClose,
+  PanelRightOpen,
+} from "lucide-react"
 
 import { CreateDialog } from "@/components/create-dialog"
 import { CharacterGraph } from "@/components/character-graph"
@@ -34,8 +48,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useProjectStore } from "@/src/stores/project-store"
+import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 
 const DEFAULT_TITLE = "未命名项目"
 const OUTLINE_STEPS = [
@@ -61,7 +77,7 @@ export default function Home() {
   } = useProjectStore()
   const [activeTab, setActiveTab] = useState("outline")
   const [title, setTitle] = useState(DEFAULT_TITLE)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [projectSidebarOpen, setProjectSidebarOpen] = useState(true)
   const [versionOpen, setVersionOpen] = useState(false)
   const [isSavingTitle, setIsSavingTitle] = useState(false)
   const [modelConfig, setModelConfig] = useState<{
@@ -94,6 +110,7 @@ export default function Home() {
     sync: "",
     extraction: "",
     analysis: "",
+    outline_import: "",
   })
 
   useWebsocket(currentProject?.id ?? null)
@@ -109,6 +126,7 @@ export default function Home() {
         sync: "",
         extraction: "",
         analysis: "",
+        outline_import: "",
       })
       return
     }
@@ -118,6 +136,7 @@ export default function Home() {
       sync: overrides.sync ?? "",
       extraction: overrides.extraction ?? "",
       analysis: overrides.analysis ?? "",
+      outline_import: overrides.outline_import ?? "",
     })
   }, [currentProject?.id])
 
@@ -264,7 +283,7 @@ export default function Home() {
   }
 
   const handlePromptFieldChange = (
-    key: "drafting" | "sync" | "extraction" | "analysis",
+    key: "drafting" | "sync" | "extraction" | "analysis" | "outline_import",
     value: string
   ) => {
     setPromptForm((prev) => ({ ...prev, [key]: value }))
@@ -326,6 +345,7 @@ export default function Home() {
           sync: promptForm.sync.trim() || null,
           extraction: promptForm.extraction.trim() || null,
           analysis: promptForm.analysis.trim() || null,
+          outline_import: promptForm.outline_import.trim() || null,
         },
       })
       setProject(updated)
@@ -339,282 +359,232 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen min-h-screen flex-col">
-      <header className="glass-panel border-b border-white/40">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-4 py-5 lg:flex-nowrap">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-full"
-            onClick={() => setDrawerOpen(true)}
-          >
-            ☰
-          </Button>
-          <div className="flex min-w-[220px] flex-1 flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <Input
-                value={title}
-                onChange={(event) => handleTitleChange(event.target.value)}
-                className="text-lg font-semibold"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSaveTitle}
-                disabled={isSavingTitle}
-              >
-                {isSavingTitle ? "保存中..." : "保存"}
-              </Button>
-              <div className="text-xs text-muted-foreground">
-                {saveStatus === "saving"
-                  ? "保存中..."
-                  : saveStatus === "saved"
-                    ? "已保存"
-                    : null}
-              </div>
-              <SyncIndicator />
-            </div>
-            {modelConfig ? (
-              <div className="text-[11px] text-slate-500">
-                模型：大纲 {modelConfig.drafting} · 同步 {modelConfig.sync} · 抽取{" "}
-                {modelConfig.extraction}
-              </div>
-            ) : null}
+    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+      {/* 1. Left Navigation Sidebar */}
+      <aside className="flex w-16 flex-col items-center border-r border-border bg-muted/20 py-4 z-20">
+        <div className="mb-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+            <Sparkles size={20} />
           </div>
-          <div className="flex flex-1 items-center justify-between gap-3 lg:justify-end">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value="outline">大纲视图</TabsTrigger>
-                <TabsTrigger value="writing">正文写作</TabsTrigger>
-                <TabsTrigger value="relations">角色关系</TabsTrigger>
-                <TabsTrigger value="knowledge">世界观设定</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/analysis">分析大纲</Link>
-            </Button>
-            <Dialog open={modelDialogOpen} onOpenChange={setModelDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  模型设置
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
+        </div>
+        
+        <nav className="flex flex-1 flex-col items-center gap-4 w-full px-2">
+          <NavButton 
+            active={activeTab === "outline"} 
+            onClick={() => setActiveTab("outline")} 
+            icon={<Layout size={20} />} 
+            label="大纲" 
+          />
+          <NavButton 
+            active={activeTab === "writing"} 
+            onClick={() => setActiveTab("writing")} 
+            icon={<PenTool size={20} />} 
+            label="写作" 
+          />
+          <NavButton 
+            active={activeTab === "relations"} 
+            onClick={() => setActiveTab("relations")} 
+            icon={<Network size={20} />} 
+            label="关系" 
+          />
+          <NavButton 
+            active={activeTab === "knowledge"} 
+            onClick={() => setActiveTab("knowledge")} 
+            icon={<Book size={20} />} 
+            label="设定" 
+          />
+          
+          <Separator className="my-2 bg-border/50 w-8" />
+          
+          <Button asChild variant="ghost" size="icon" title="分析大纲" className="text-muted-foreground hover:text-primary">
+            <Link href="/analysis">
+              <Sparkles size={20} />
+            </Link>
+          </Button>
+
+          <Dialog open={modelDialogOpen} onOpenChange={setModelDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon" title="模型设置" className="text-muted-foreground hover:text-primary">
+                <Settings size={20} />
+              </Button>
+            </DialogTrigger>
+            {/* ... Model Dialog Content ... */}
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>模型设置</DialogTitle>
-                <DialogDescription>
-                    留空并保存可恢复为默认模型配置，API Key 不会回显。
-                </DialogDescription>
+                  <DialogTitle>模型配置</DialogTitle>
+                  <DialogDescription>
+                    配置项目使用的 LLM 模型及 API Key。
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-3">
-                  <div>
-                    <div className="text-xs text-slate-500">请求地址</div>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">API Base URL</label>
                     <Input
                       value={modelForm.baseUrl}
-                      onChange={(event) =>
-                        handleModelFieldChange("baseUrl", event.target.value)
-                      }
-                      placeholder="例如 https://api.openai.com/v1"
+                      onChange={(e) => handleModelFieldChange("baseUrl", e.target.value)}
+                      placeholder="https://api.openai.com/v1"
                     />
                   </div>
-                  <div>
-                    <div className="text-xs text-slate-500">默认 API Key</div>
+                   <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">Default API Key</label>
                     <Input
                       type="password"
                       value={modelForm.defaultKey}
-                      onChange={(event) =>
-                        handleModelFieldChange("defaultKey", event.target.value)
-                      }
-                      placeholder={
-                        modelConfig?.hasDefaultKey ? "已配置（不回显）" : "填写默认 Key"
-                      }
+                      onChange={(e) => handleModelFieldChange("defaultKey", e.target.value)}
+                      placeholder={modelConfig?.hasDefaultKey ? "已配置 (隐藏)" : "sk-..."}
                     />
                   </div>
-                  <div>
-                    <div className="text-xs text-slate-500">大纲生成</div>
-                    <Input
-                      value={modelForm.drafting}
-                      onChange={(event) =>
-                        handleModelFieldChange("drafting", event.target.value)
-                      }
-                      placeholder="例如 gpt-4o"
-                    />
-                    <Input
-                      className="mt-2"
-                      type="password"
-                      value={modelForm.draftingKey}
-                      onChange={(event) =>
-                        handleModelFieldChange("draftingKey", event.target.value)
-                      }
-                      placeholder={
-                        modelConfig?.hasDraftingKey ? "已配置 Key（不回显）" : "可选 Key 覆盖"
-                      }
-                    />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">同步分析</div>
-                    <Input
-                      value={modelForm.sync}
-                      onChange={(event) =>
-                        handleModelFieldChange("sync", event.target.value)
-                      }
-                      placeholder="例如 gpt-4o-mini"
-                    />
-                    <Input
-                      className="mt-2"
-                      type="password"
-                      value={modelForm.syncKey}
-                      onChange={(event) =>
-                        handleModelFieldChange("syncKey", event.target.value)
-                      }
-                      placeholder={
-                        modelConfig?.hasSyncKey ? "已配置 Key（不回显）" : "可选 Key 覆盖"
-                      }
-                    />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">实体抽取</div>
-                    <Input
-                      value={modelForm.extraction}
-                      onChange={(event) =>
-                        handleModelFieldChange("extraction", event.target.value)
-                      }
-                      placeholder="例如 gpt-4o-mini"
-                    />
-                    <Input
-                      className="mt-2"
-                      type="password"
-                      value={modelForm.extractionKey}
-                      onChange={(event) =>
-                        handleModelFieldChange("extractionKey", event.target.value)
-                      }
-                      placeholder={
-                        modelConfig?.hasExtractionKey ? "已配置 Key（不回显）" : "可选 Key 覆盖"
-                      }
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Drafting Model</label>
+                        <Input
+                          value={modelForm.drafting}
+                          onChange={(e) => handleModelFieldChange("drafting", e.target.value)}
+                          placeholder="gpt-4o"
+                        />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Sync Model</label>
+                        <Input
+                          value={modelForm.sync}
+                          onChange={(e) => handleModelFieldChange("sync", e.target.value)}
+                          placeholder="gpt-4o-mini"
+                        />
+                     </div>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setModelForm({
-                        baseUrl: "",
-                        defaultKey: "",
-                        drafting: "",
-                        draftingKey: "",
-                        sync: "",
-                        syncKey: "",
-                        extraction: "",
-                        extractionKey: "",
-                      })
-                    }}
-                    disabled={isSavingModels}
-                  >
-                    清空
-                  </Button>
-                  <Button onClick={handleSaveModels} disabled={isSavingModels}>
-                    {isSavingModels ? "保存中..." : "保存"}
-                  </Button>
+                  <Button variant="outline" onClick={() => setModelDialogOpen(false)}>取消</Button>
+                  <Button onClick={handleSaveModels} disabled={isSavingModels}>保存配置</Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
-            <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
+          </Dialog>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setVersionOpen(true)}
+            title="版本历史"
+            className="text-muted-foreground hover:text-primary"
+          >
+            <History size={20} />
+          </Button>
+        </nav>
+
+        <div className="mt-auto flex flex-col gap-4">
+           {/* Prompt Button reused logic */}
+           <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" disabled={!currentProject}>
-                  Prompt 设置
+                <Button variant="ghost" size="icon" disabled={!currentProject} title="Prompt 设置" className="text-muted-foreground hover:text-primary">
+                  <div className="font-serif text-lg font-bold">P</div>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Prompt 设置（按项目保存）</DialogTitle>
+              {/* ... Prompt Dialog Content ... */}
+              <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+                 <DialogHeader>
+                  <DialogTitle>Prompt 微调</DialogTitle>
                   <DialogDescription>
-                    留空表示使用默认模板。变量占位符需与说明一致。
+                     针对当前项目覆盖默认提示词。留空则使用系统默认设定。
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500">大纲生成</div>
+                 <div className="grid gap-6 py-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-baseline">
+                        <label className="text-xs font-medium text-foreground">大纲生成 (Drafting)</label>
+                        <span className="text-[10px] text-muted-foreground">可用变量: {"{world_view} {style_tags} {user_input}"}</span>
+                    </div>
                     <Textarea
                       value={promptForm.drafting}
-                      onChange={(event) =>
-                        handlePromptFieldChange("drafting", event.target.value)
-                      }
+                      onChange={(e) => handlePromptFieldChange("drafting", e.target.value)}
                       rows={5}
-                      placeholder="变量：{world_view} {style_tags} {user_input} {retrieved_context}"
+                      className="font-mono text-xs leading-relaxed"
+                      placeholder={`示例：
+你是一个擅长悬疑风格的小说家。请根据用户提供的核心创意 "{user_input}"，结合世界观 "{world_view}"，创作一份扣人心弦的大纲。
+风格要求：{style_tags}。
+请包含：
+1. 主要冲突
+2. 三幕式结构
+3. 核心角色动机`}
                     />
                   </div>
-                  <div>
-                    <div className="text-xs text-slate-500">同步分析</div>
+                   <div className="space-y-2">
+                    <div className="flex justify-between items-baseline">
+                        <label className="text-xs font-medium text-foreground">同步分析 (Sync)</label>
+                        <span className="text-[10px] text-muted-foreground">可用变量: {"{modified_node} {retrieved_context}"}</span>
+                    </div>
                     <Textarea
                       value={promptForm.sync}
-                      onChange={(event) =>
-                        handlePromptFieldChange("sync", event.target.value)
-                      }
-                      rows={4}
-                      placeholder="变量：{modified_node} {retrieved_context}"
+                      onChange={(e) => handlePromptFieldChange("sync", e.target.value)}
+                      rows={5}
+                      className="font-mono text-xs leading-relaxed"
+                      placeholder={`示例：
+你是一个严谨的连载小说编辑。用户刚刚更新了章节 "{modified_node}"。
+请分析这段新内容，并更新知识库中相关的角色状态和地点信息。
+参考上下文：
+{retrieved_context}`}
                     />
                   </div>
-                  <div>
-                    <div className="text-xs text-slate-500">实体抽取</div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-baseline">
+                        <label className="text-xs font-medium text-foreground">实体抽取 (Extraction)</label>
+                        <span className="text-[10px] text-muted-foreground">可用变量: {"{text} {existing_entities}"}</span>
+                    </div>
                     <Textarea
                       value={promptForm.extraction}
-                      onChange={(event) =>
-                        handlePromptFieldChange("extraction", event.target.value)
-                      }
+                      onChange={(e) => handlePromptFieldChange("extraction", e.target.value)}
                       rows={4}
-                      placeholder="变量：{text} {existing_entities} {output_schema}"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">大纲分析</div>
-                    <Textarea
-                      value={promptForm.analysis}
-                      onChange={(event) =>
-                        handlePromptFieldChange("analysis", event.target.value)
-                      }
-                      rows={5}
-                      placeholder="变量：{outline} {retrieval_context} {conflicts} {history} {conversation}"
+                      className="font-mono text-xs leading-relaxed"
+                      placeholder={`示例：
+阅读以下文本：
+"{text}"
+请从中提取所有新登场的角色、地点和关键道具。
+已知实体列表：{existing_entities}（请避免重复提取）`}
                     />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      setPromptForm({
-                        drafting: "",
-                        sync: "",
-                        extraction: "",
-                        analysis: "",
-                      })
-                    }
-                    disabled={isSavingPrompts}
-                  >
-                    清空
-                  </Button>
-                  <Button onClick={handleSavePrompts} disabled={isSavingPrompts}>
-                    {isSavingPrompts ? "保存中..." : "保存"}
-                  </Button>
-                </DialogFooter>
+                 <DialogFooter>
+                   <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>取消</Button>
+                   <Button onClick={handleSavePrompts} disabled={isSavingPrompts}>保存 Prompt</Button>
+                 </DialogFooter>
               </DialogContent>
-            </Dialog>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setVersionOpen(true)}
-            >
-              版本历史
-            </Button>
-            <CreateDialog />
-          </div>
+           </Dialog>
         </div>
-      </header>
+      </aside>
 
-      <main className="flex flex-1 min-h-0 flex-col px-4 py-6 animate-float-in">
-        <div className="mx-auto w-full max-w-6xl flex-1 min-h-0 min-w-0">
-          <div className="h-full w-full min-h-0">
-            {activeTab === "outline" ? (
+      {/* 2. Main Content Area */}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        {/* Minimal Header */}
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4">
+           <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Input
+                value={title}
+                onChange={(event) => handleTitleChange(event.target.value)}
+                className="h-8 max-w-[300px] border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-0 truncate"
+              />
+              <SyncIndicator />
+              {saveStatus !== "idle" && (
+                <span className="text-[10px] text-muted-foreground animate-fade-in">
+                  {saveStatus === "saving" ? "保存中..." : "已保存"}
+                </span>
+              )}
+           </div>
+           
+           <div className="flex items-center gap-2">
+              <CreateDialog />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setProjectSidebarOpen(!projectSidebarOpen)}
+                className={cn("text-muted-foreground transition-transform", projectSidebarOpen ? "bg-muted" : "")}
+              >
+                 {projectSidebarOpen ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
+              </Button>
+           </div>
+        </header>
+
+        {/* Workspace Content */}
+        <main className="flex-1 overflow-hidden relative">
+           {activeTab === "outline" ? (
               <StoryVisualizer />
             ) : activeTab === "writing" ? (
               <WritingWorkspace />
@@ -623,111 +593,112 @@ export default function Home() {
             ) : (
               <KnowledgeWorkspace />
             )}
-          </div>
-        </div>
-      </main>
+        </main>
+      </div>
 
+      {/* 3. Right Project Sidebar */}
+      <aside 
+        className={cn(
+          "flex flex-col border-l border-border bg-muted/10 transition-all duration-300 ease-in-out z-10",
+          projectSidebarOpen ? "w-64" : "w-0 overflow-hidden border-none"
+        )}
+      >
+         <div className="flex h-12 items-center justify-between border-b border-border px-4 bg-muted/20">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
+               <FolderOpen size={14} />
+               项目列表
+            </span>
+         </div>
+         <div className="flex-1 overflow-y-auto p-2">
+            <ProjectList />
+         </div>
+      </aside>
+
+      {/* Overlays */}
       <NodeEditor />
-
-      {isLoading ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-          <div className="relative w-[min(92vw,420px)] overflow-hidden rounded-3xl border border-white/70 bg-white/85 p-6 shadow-2xl">
-            <div className="pointer-events-none absolute -left-20 -top-24 h-40 w-40 rounded-full bg-sky-200/40 blur-2xl" />
-            <div className="pointer-events-none absolute -bottom-24 right-0 h-48 w-48 rounded-full bg-amber-100/60 blur-2xl" />
-            <div className="relative flex items-center gap-4">
-              <div className="relative h-12 w-12">
-                <div className="absolute inset-0 rounded-full border-2 border-slate-200/80" />
-                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-sky-500 border-r-sky-500 animate-spin" />
-                <div className="absolute inset-2 rounded-full bg-sky-100/70" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-slate-800">
-                  正在生成大纲
-                </div>
-                <div className="text-xs text-slate-500">
-                  请稍候，系统正在逐步完成
-                </div>
-              </div>
-            </div>
-            <div className="relative mt-4 space-y-3">
-              <div className="h-1 overflow-hidden rounded-full bg-slate-200/80">
-                <div
-                  className="h-full rounded-full bg-sky-500 transition-all duration-500"
-                  style={{
-                    width: `${((outlineStepIndex + 1) / OUTLINE_STEPS.length) * 100}%`,
-                  }}
-                />
-              </div>
-              {OUTLINE_STEPS.map((step, index) => {
-                const isActive = index === outlineStepIndex
-                const isDone = index < outlineStepIndex
-                return (
-                  <div
-                    key={step.title}
-                    className="flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={[
-                          "flex h-2.5 w-2.5 items-center justify-center rounded-full border",
-                          isDone
-                            ? "border-emerald-500 bg-emerald-500"
-                            : isActive
-                              ? "border-sky-500 bg-sky-500 animate-pulse"
-                              : "border-slate-300 bg-white",
-                        ].join(" ")}
-                      />
-                      <span className="text-slate-700">{step.title}</span>
-                    </div>
-                    <span
-                      className={
-                        isActive ? "text-slate-600" : "text-slate-400"
-                      }
-                    >
-                      {step.detail}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="glass-panel fixed right-4 top-4 z-50 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm">
-          <span className="text-red-600">{error}</span>
-          <Button variant="ghost" size="sm" onClick={() => setError(null)}>
-            关闭
-          </Button>
-        </div>
-      ) : null}
-
       <ChatSidebar />
       <ConflictAlert />
       <VersionHistory open={versionOpen} onClose={() => setVersionOpen(false)} />
 
-      {drawerOpen ? (
-        <div className="fixed inset-0 z-40">
-          <div
-            className="absolute inset-0 bg-slate-900/35 backdrop-blur-sm"
-            onClick={() => setDrawerOpen(false)}
-          />
-          <aside className="absolute left-0 top-0 h-full w-80 border-r border-white/60 bg-white/80 shadow-xl backdrop-blur-xl">
-            <div className="flex items-center justify-between border-b border-white/50 px-4 py-3">
-              <div className="text-sm font-semibold text-slate-800">项目列表</div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setDrawerOpen(false)}
-              >
-                关闭
-              </Button>
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-[380px] rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="relative h-10 w-10 shrink-0">
+                 <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
+                 <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary animate-spin" />
+              </div>
+              <div>
+                <h3 className="font-medium">正在生成内容</h3>
+                <p className="text-xs text-muted-foreground">AI 正在根据您的设定构建大纲...</p>
+              </div>
             </div>
-            <ProjectList />
-          </aside>
+            {/* Progress Bar */}
+            <div className="space-y-4">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                <div 
+                   className="h-full bg-primary transition-all duration-500 ease-out" 
+                   style={{ width: `${((outlineStepIndex + 1) / OUTLINE_STEPS.length) * 100}%` }}
+                />
+              </div>
+              <div className="space-y-2">
+                {OUTLINE_STEPS.map((step, index) => {
+                  const isDone = index < outlineStepIndex
+                  const isActive = index === outlineStepIndex
+                  return (
+                    <div key={step.key} className="flex items-center gap-3 text-xs">
+                      <div className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-full border transition-colors",
+                        isDone ? "border-primary bg-primary text-primary-foreground" :
+                        isActive ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground/30"
+                      )}>
+                        {isDone ? <CheckCircle2 className="h-3 w-3" /> : <div className={cn("h-1.5 w-1.5 rounded-full", isActive ? "bg-primary animate-pulse" : "bg-muted-foreground/30")} />}
+                      </div>
+                      <div className={cn("flex-1", isActive ? "text-foreground font-medium" : "text-muted-foreground")}>
+                        {step.title}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-      ) : null}
+      )}
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-lg animate-in slide-in-from-top-2">
+          <AlertCircle className="h-4 w-4" />
+          <span>{error}</span>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setError(null)}
+            className="h-auto p-0 text-destructive hover:text-destructive/80 hover:bg-transparent"
+          >
+            关闭
+          </Button>
+        </div>
+      )}
     </div>
+  )
+}
+
+function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "group flex w-full flex-col items-center justify-center gap-1 rounded-lg p-2 transition-all duration-200",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm"
+      )}
+    >
+      <div className={cn("transition-transform duration-200 group-hover:scale-110", active && "scale-110")}>{icon}</div>
+      <span className="text-[10px] font-medium">{label}</span>
+    </button>
   )
 }

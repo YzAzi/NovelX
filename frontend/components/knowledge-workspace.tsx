@@ -41,7 +41,7 @@ export function KnowledgeWorkspace() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid h-full gap-4 lg:grid-cols-[320px_1fr]">
         <div className="flex flex-col gap-4">
           <KnowledgeUpload onUploaded={handleUploaded} />
           <KnowledgeManager
@@ -50,7 +50,7 @@ export function KnowledgeWorkspace() {
             refreshSignal={refreshSignal}
           />
         </div>
-        <KnowledgeEditor document={selectedDocument} onSave={handleSave} />
+        <KnowledgeEditor doc={selectedDocument} onSave={handleSave} />
       </div>
     </div>
   )

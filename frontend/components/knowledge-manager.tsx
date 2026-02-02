@@ -33,7 +33,7 @@ function highlightText(text: string, query: string) {
     <>
       {parts.map((part, index) =>
         part.toLowerCase() === query.toLowerCase() ? (
-          <mark key={index} className="rounded bg-yellow-200 px-1">
+          <mark key={index} className="rounded bg-primary/10 px-1 text-primary">
             {part}
           </mark>
         ) : (
@@ -130,45 +130,48 @@ export function KnowledgeManager({
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="rounded-xl border bg-white p-4 shadow-sm">
-        <div className="text-sm font-semibold text-slate-900">知识库概览</div>
-        <div className="mt-2 grid grid-cols-3 gap-3 text-xs text-slate-500">
+      {/* Stats Summary */}
+      <div className="rounded-xl bg-muted/30 p-4 border border-transparent hover:border-border/40 transition-colors">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">知识库概览</div>
+        <div className="mt-3 grid grid-cols-3 gap-4">
           <div>
-            总字数
-            <div className="text-sm font-semibold text-slate-900">
+            <div className="text-xl font-bold text-foreground font-mono">
               {stats ? formatNumber(stats.total_words) : "--"}
             </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">总字数</div>
           </div>
           <div>
-            文档数
-            <div className="text-sm font-semibold text-slate-900">
+            <div className="text-xl font-bold text-foreground font-mono">
               {stats ? formatNumber(stats.total_knowledge_docs) : "--"}
             </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">文档数</div>
           </div>
           <div>
-            分块数
-            <div className="text-sm font-semibold text-slate-900">
+            <div className="text-xl font-bold text-foreground font-mono">
               {stats ? formatNumber(stats.total_chunks) : "--"}
             </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">片段数</div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-4 shadow-sm">
+      {/* Search Bar */}
+      <div className="rounded-xl bg-muted/30 p-3">
         <div className="flex items-center gap-2">
           <Input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="搜索世界观知识..."
+            placeholder="搜索设定与资料..."
+            className="h-9 border-transparent bg-background shadow-none focus-visible:ring-1 focus-visible:ring-primary/20"
           />
-          <Button size="sm" onClick={handleSearch} disabled={isSearching}>
-            {isSearching ? "搜索中..." : "搜索"}
+          <Button size="sm" variant="secondary" onClick={handleSearch} disabled={isSearching} className="h-9 px-3">
+            {isSearching ? "..." : "搜索"}
           </Button>
         </div>
         {searchResults ? (
           <div className="mt-3 space-y-2">
             {searchResults.length === 0 ? (
-              <div className="text-xs text-muted-foreground">暂无匹配结果</div>
+              <div className="text-xs text-muted-foreground px-1">无结果</div>
             ) : (
               searchResults.map((result) => {
                 const docId = (result.metadata as { document_id?: string })
@@ -177,25 +180,23 @@ export function KnowledgeManager({
                 return (
                   <div
                     key={result.id}
-                    className="rounded-md border border-dashed p-2 text-xs text-slate-600"
+                    className="rounded-lg bg-background p-3 text-xs text-muted-foreground shadow-sm ring-1 ring-border/50"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[11px] text-slate-500">
-                        {doc?.title ?? "未命名文档"}
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="font-medium text-foreground">
+                        {doc?.title ?? "未知来源"}
                       </div>
                       {doc ? (
                         <button
                           type="button"
-                          className="text-[11px] text-blue-600"
+                          className="text-[10px] text-primary hover:underline"
                           onClick={() => onSelectDocument(doc)}
                         >
-                          打开
+                          跳转
                         </button>
                       ) : null}
                     </div>
-                    <div className="mt-1">
-                      {highlightText(result.content, searchQuery)}
-                    </div>
+                    <div className="line-clamp-2 leading-relaxed">{highlightText(result.content, searchQuery)}</div>
                   </div>
                 )
               })
@@ -204,59 +205,77 @@ export function KnowledgeManager({
         ) : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto rounded-xl border bg-white shadow-sm">
-        <div className="border-b px-4 py-3 text-sm font-semibold text-slate-900">
-          世界观文档
+      {/* Document List */}
+      <div className="flex-1 overflow-y-auto rounded-xl border border-border/40 bg-card">
+        <div className="sticky top-0 z-10 border-b border-border/40 bg-card/95 px-4 py-3 text-xs font-medium text-muted-foreground backdrop-blur-sm">
+          文档列表
         </div>
         {isLoading ? (
-          <div className="px-4 py-6 text-xs text-muted-foreground">加载中...</div>
+          <div className="px-4 py-8 text-center text-xs text-muted-foreground">加载中...</div>
         ) : sortedDocs.length === 0 ? (
-          <div className="px-4 py-6 text-xs text-muted-foreground">
-            暂无世界观文档，请上传或新建。
+          <div className="px-4 py-12 text-center text-xs text-muted-foreground">
+            暂无文档，请点击上方上传或新建。
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="p-2 space-y-0.5">
             {sortedDocs.map((doc) => {
               const isExpanded = expandedDocs[doc.id]
               const isSelected = doc.id === selectedDocumentId
               return (
-                <div key={doc.id} className="px-4 py-3">
+                <div key={doc.id} className="group relative">
                   <button
                     type="button"
-                    className={`w-full text-left ${isSelected ? "text-blue-600" : "text-slate-900"}`}
+                    className={`w-full rounded-md px-3 py-2.5 text-left transition-all duration-200 ${
+                      isSelected
+                        ? "bg-primary/5 text-primary"
+                        : "text-foreground hover:bg-muted/60"
+                    }`}
                     onClick={() => onSelectDocument(doc)}
                   >
-                    <div className="text-sm font-semibold">{doc.title}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span>分类：{doc.category}</span>
-                      <span>字数：{doc.content.length}</span>
-                      <span>分块：{doc.chunks.length}</span>
+                    <div className={`text-sm font-medium ${isSelected ? "text-primary" : "text-foreground"}`}>
+                      {doc.title}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground/70">
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                        {doc.category}
+                      </span>
+                      <span>{formatNumber(doc.content.length)} 字</span>
                     </div>
                   </button>
-                  <div className="mt-2 flex items-center gap-2">
+                  
+                  {/* Hover Actions */}
+                  <div className={`absolute right-2 top-2 hidden items-center gap-1 group-hover:flex ${isSelected ? "flex" : ""}`}>
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
-                      onClick={() =>
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setExpandedDocs((prev) => ({
                           ...prev,
                           [doc.id]: !isExpanded,
                         }))
-                      }
+                      }}
                     >
-                      {isExpanded ? "收起内容" : "展开内容"}
+                      <span className="text-[10px]">{isExpanded ? "▲" : "▼"}</span>
                     </Button>
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
-                      onClick={() => handleDelete(doc)}
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(doc);
+                      }}
                     >
-                      删除
+                      <span className="text-xs">×</span>
                     </Button>
                   </div>
+
                   {isExpanded ? (
-                    <div className="mt-2 rounded-md border border-dashed bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      {highlightText(doc.content, searchQuery)}
+                    <div className="mx-2 mb-2 mt-1 rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground leading-relaxed border border-border/30">
+                      {highlightText(doc.content.slice(0, 150) + (doc.content.length > 150 ? "..." : ""), searchQuery)}
                     </div>
                   ) : null}
                 </div>

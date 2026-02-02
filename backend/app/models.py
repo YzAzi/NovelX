@@ -47,6 +47,31 @@ class StoryNode(BaseModel):
         return value
 
 
+class StoryChapter(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    title: str
+    content: str
+    order: int
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": "ch-001",
+                "title": "第一章 雨夜",
+                "content": "雨落在屋檐上，像一阵迟到的鼓点。",
+                "order": 1,
+            }
+        }
+    )
+
+    @field_validator("order")
+    @classmethod
+    def order_starts_from_one(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("order must be >= 1")
+        return value
+
+
 class CharacterProfile(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     name: str
@@ -72,15 +97,24 @@ class CharacterProfile(BaseModel):
         return value
 
 
+class WriterConfig(BaseModel):
+    prompt: str | None = None
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+
+
 class StoryProject(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     title: str
     world_view: str
     style_tags: list[str] = Field(default_factory=list)
     nodes: list[StoryNode] = Field(default_factory=list)
+    chapters: list[StoryChapter] = Field(default_factory=list)
     characters: list[CharacterProfile] = Field(default_factory=list)
     analysis_profile: str = "auto"
     prompt_overrides: "PromptOverrides" = Field(default_factory=lambda: PromptOverrides())
+    writer_config: WriterConfig = Field(default_factory=WriterConfig)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -100,6 +134,14 @@ class StoryProject(BaseModel):
                         "timeline_order": 1.0,
                         "location_tag": "主线",
                         "characters": ["c-001", "c-002"],
+                    }
+                ],
+                "chapters": [
+                    {
+                        "id": "ch-001",
+                        "title": "第一章 雨夜",
+                        "content": "雨落在屋檐上，像一阵迟到的鼓点。",
+                        "order": 1,
                     }
                 ],
                 "characters": [
@@ -166,8 +208,16 @@ class PromptOverrides(BaseModel):
     sync: str | None = None
     extraction: str | None = None
     analysis: str | None = None
+    outline_import: str | None = None
 
-    @field_validator("drafting", "sync", "extraction", "analysis", mode="before")
+    @field_validator(
+        "drafting",
+        "sync",
+        "extraction",
+        "analysis",
+        "outline_import",
+        mode="before",
+    )
     @classmethod
     def normalize_prompt_value(cls, value: Any) -> str | None:
         if value is None:
@@ -286,6 +336,30 @@ class KnowledgeSearchRequest(BaseModel):
     top_k: int | None = None
 
 
+class OutlineImportNode(BaseModel):
+    title: str
+    content: str | None = None
+    narrative_order: int | None = None
+    timeline_order: float | None = None
+    location_tag: str | None = None
+    characters: list[str] = Field(default_factory=list)
+
+
+class OutlineImportCharacter(BaseModel):
+    name: str
+    tags: list[str] = Field(default_factory=list)
+    bio: str | None = None
+
+
+class OutlineImportRequest(BaseModel):
+    raw_text: str
+
+
+class OutlineImportResult(BaseModel):
+    nodes: list[OutlineImportNode] = Field(default_factory=list)
+    characters: list[OutlineImportCharacter] = Field(default_factory=list)
+
+
 class WritingAssistantRequest(BaseModel):
     project_id: str
     text: str
@@ -332,10 +406,18 @@ class PromptOverridesUpdate(BaseModel):
     sync: str | None = None
     extraction: str | None = None
     analysis: str | None = None
+    outline_import: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("drafting", "sync", "extraction", "analysis", mode="before")
+    @field_validator(
+        "drafting",
+        "sync",
+        "extraction",
+        "analysis",
+        "outline_import",
+        mode="before",
+    )
     @classmethod
     def normalize_prompt_value(cls, value: Any) -> str | None:
         if value is None:
@@ -351,6 +433,16 @@ class ProjectUpdateRequest(BaseModel):
     analysis_profile: str | None = None
     prompt_overrides: PromptOverridesUpdate | None = None
     writer_config: WriterConfig | None = None
+
+
+class ChapterCreateRequest(BaseModel):
+    title: str | None = None
+
+
+class ChapterUpdateRequest(BaseModel):
+    title: str | None = None
+    content: str | None = None
+    order: int | None = None
 
 
 class ProjectExportData(BaseModel):

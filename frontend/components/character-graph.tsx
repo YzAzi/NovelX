@@ -39,16 +39,6 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
 }) as unknown as typeof import("react-force-graph-2d").default
 
-const ENTITY_COLORS: Record<string, string> = {
-  character: "#3b82f6",
-  location: "#10b981",
-  item: "#f59e0b",
-  organization: "#6366f1",
-  event: "#ef4444",
-  concept: "#8b5cf6",
-  unknown: "#94a3b8",
-}
-
 const ENTITY_TYPE_LABELS: Record<string, string> = {
   character: "角色",
   location: "地点",
@@ -59,33 +49,121 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   unknown: "未知",
 }
 
-const RELATION_COLORS: Record<string, string> = {
-  family: "#0ea5e9",
-  friend: "#22c55e",
-  enemy: "#ef4444",
-  lover: "#ec4899",
-  master_student: "#8b5cf6",
-  colleague: "#14b8a6",
-  belongs_to: "#f59e0b",
-  located_at: "#10b981",
-  participates_in: "#f97316",
-  related_to: "#94a3b8",
-  unknown: "#94a3b8",
+type GraphPalette = {
+  background: string
+  card: string
+  border: string
+  foreground: string
+  muted: string
+  primary: string
+  accent: string
+  destructive: string
+  chart: string[]
+  entity: Record<string, string>
 }
 
-function getRelationColor(relation?: string) {
-  if (!relation) {
-    return RELATION_COLORS.unknown
+const createFallbackPalette = (): GraphPalette => {
+  const fallback = "currentColor"
+  return {
+    background: fallback,
+    card: fallback,
+    border: fallback,
+    foreground: fallback,
+    muted: fallback,
+    primary: fallback,
+    accent: fallback,
+    destructive: fallback,
+    chart: [fallback, fallback, fallback, fallback, fallback],
+    entity: {
+      character: fallback,
+      location: fallback,
+      item: fallback,
+      organization: fallback,
+      event: fallback,
+      concept: fallback,
+      unknown: fallback,
+    },
   }
-  if (RELATION_COLORS[relation]) {
-    return RELATION_COLORS[relation]
+}
+
+const getGraphPalette = (): GraphPalette => {
+  if (typeof window === "undefined") {
+    return createFallbackPalette()
+  }
+
+  const styles = getComputedStyle(document.documentElement)
+  const base = styles.color?.trim() || "currentColor"
+  const readVar = (name: string) => styles.getPropertyValue(name).trim() || base
+
+  const chart = [
+    readVar("--chart-1"),
+    readVar("--chart-2"),
+    readVar("--chart-3"),
+    readVar("--chart-4"),
+    readVar("--chart-5"),
+  ]
+
+  const palette: GraphPalette = {
+    background: readVar("--background"),
+    card: readVar("--card"),
+    border: readVar("--border"),
+    foreground: readVar("--foreground"),
+    muted: readVar("--muted-foreground"),
+    primary: readVar("--primary"),
+    accent: readVar("--accent-foreground"),
+    destructive: readVar("--destructive"),
+    chart,
+    entity: {
+      character: chart[0],
+      location: chart[1],
+      item: chart[2],
+      organization: chart[3],
+      event: chart[4],
+      concept: readVar("--accent-foreground"),
+      unknown: readVar("--muted-foreground"),
+    },
+  }
+
+  return palette
+}
+
+const RELATION_COLOR_INDEX: Record<string, number> = {
+  family: 1,
+  friend: 2,
+  enemy: -1,
+  lover: 0,
+  master_student: 3,
+  colleague: 4,
+  belongs_to: 3,
+  located_at: 1,
+  participates_in: 2,
+  related_to: -2,
+  unknown: -2,
+}
+
+function getRelationColor(
+  relation: string | undefined,
+  palette: GraphPalette
+) {
+  if (!relation) {
+    return palette.muted
+  }
+  const index = RELATION_COLOR_INDEX[relation]
+  if (index === -1) {
+    return palette.destructive
+  }
+  if (index === -2) {
+    return palette.muted
+  }
+  if (typeof index === "number") {
+    return palette.chart[index % palette.chart.length]
   }
   let hash = 0
   for (let i = 0; i < relation.length; i += 1) {
     hash = relation.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const hue = Math.abs(hash) % 360
-  return `hsl(${hue} 70% 45%)`
+  const fallbackIndex = Math.abs(hash) % palette.chart.length
+  return palette.chart[fallbackIndex]
 }
 
 function buildNodeLabel(node: CharacterGraphNode) {
@@ -101,15 +179,8 @@ function buildNodeLabel(node: CharacterGraphNode) {
   return rows.join("\n")
 }
 
-function getEntityColor(entityType?: string) {
-  if (!entityType) {
-    return ENTITY_COLORS.unknown
-  }
-  return ENTITY_COLORS[entityType] ?? ENTITY_COLORS.unknown
-}
-
 function normalizeEntityType(type?: string) {
-  if (type && ENTITY_COLORS[type]) {
+  if (type && ENTITY_TYPE_LABELS[type]) {
     return type
   }
   return "unknown"
@@ -206,7 +277,7 @@ export function CharacterGraph() {
     endId: "",
   })
   const [pathRelations, setPathRelations] = useState<CharacterGraphLink[]>([])
-  
+  const [palette, setPalette] = useState<GraphPalette>(() => getGraphPalette())
   const [editRelationOpen, setEditRelationOpen] = useState(false)
   const [editRelationForm, setEditRelationForm] = useState<{
     id: string
@@ -221,6 +292,28 @@ export function CharacterGraph() {
   })
 
   const fitOnceRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+    const updatePalette = () => setPalette(getGraphPalette())
+    updatePalette()
+
+    const observer = new MutationObserver(() => updatePalette())
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    })
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+    media.addEventListener?.("change", updatePalette)
+
+    return () => {
+      observer.disconnect()
+      media.removeEventListener?.("change", updatePalette)
+    }
+  }, [])
 
   const measureContainer = useCallback(() => {
     const container = containerRef.current
@@ -305,7 +398,6 @@ export function CharacterGraph() {
   useEffect(() => {
     graphDataRef.current = graphData
   }, [graphData])
-
 
   const loadGraph = useCallback(async () => {
     if (!currentProject) {
@@ -638,13 +730,12 @@ export function CharacterGraph() {
       setCreateError("请填写角色名称")
       return
     }
-    
+
     const properties: Record<string, unknown> = {}
     for (const row of propertyRows) {
       const key = row.key.trim()
       const value = row.value.trim()
       if (key) {
-        // Try to parse number or boolean if possible, otherwise string
         if (value === "true") properties[key] = true
         else if (value === "false") properties[key] = false
         else if (!Number.isNaN(Number(value)) && value !== "") properties[key] = Number(value)
@@ -841,25 +932,25 @@ export function CharacterGraph() {
       const paddingY = 3
       const boxWidth = textWidth + paddingX * 2
       const boxHeight = 14 + paddingY
-      ctx.fillStyle = "rgba(248, 250, 252, 0.92)"
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.6)"
+      ctx.fillStyle = palette.card
+      ctx.strokeStyle = palette.border
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.rect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight)
       ctx.fill()
       ctx.stroke()
-      ctx.fillStyle = "#475569"
+      ctx.fillStyle = palette.muted
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
       ctx.fillText(relation, x, y)
       ctx.restore()
     },
-    []
+    [palette]
   )
 
   if (!currentProject) {
     return (
-      <div className="flex h-full min-h-[420px] items-center justify-center rounded-2xl border border-dashed bg-white/80 text-sm text-muted-foreground shadow-sm">
+      <div className="flex h-full min-h-[420px] items-center justify-center rounded-xl border border-dashed bg-background text-sm text-muted-foreground">
         先生成大纲，再查看角色关系。
       </div>
     )
@@ -867,7 +958,7 @@ export function CharacterGraph() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-[420px] items-center justify-center rounded-2xl border bg-white/80 text-sm text-muted-foreground shadow-sm">
+      <div className="flex h-full min-h-[420px] items-center justify-center rounded-xl border border-border bg-background text-sm text-muted-foreground">
         正在加载角色关系...
       </div>
     )
@@ -875,7 +966,7 @@ export function CharacterGraph() {
 
   if (graphData.nodes.length === 0) {
     return (
-      <div className="flex h-full min-h-[420px] items-center justify-center rounded-2xl border border-dashed bg-white/80 text-sm text-muted-foreground shadow-sm">
+      <div className="flex h-full min-h-[420px] items-center justify-center rounded-xl border border-dashed bg-background text-sm text-muted-foreground">
         暂无角色关系数据
       </div>
     )
@@ -884,18 +975,10 @@ export function CharacterGraph() {
   return (
     <div
       ref={containerRef}
-      className="relative h-full min-h-[420px] overflow-hidden surface-card"
+      className="relative h-full min-h-[420px] w-full overflow-hidden rounded-xl border border-border bg-background"
     >
-      <div className="pointer-events-none absolute inset-0 opacity-20"
-           style={{
-             background: `
-               radial-gradient(circle at 50% 0%, var(--primary) 0%, transparent 40%),
-               radial-gradient(circle at 80% 80%, var(--accent) 0%, transparent 40%)
-             `
-           }}
-      />
       {isRefreshing ? (
-        <div className="absolute right-4 top-4 z-10 rounded-full border border-white/40 bg-white/60 px-3 py-1 text-xs text-muted-foreground shadow backdrop-blur-md">
+        <div className="absolute right-4 top-4 z-10 rounded-full border border-border bg-card/95 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
           更新中...
         </div>
       ) : null}
@@ -915,23 +998,21 @@ export function CharacterGraph() {
           const size = graphNode.id === selectedEntity?.id ? 8 : 5
           const isMatch = searchMatches.has(graphNode.id)
           const isPath = pathNodeIds.has(graphNode.id)
+          const baseColor =
+            palette.entity[normalizedType] ?? palette.entity.unknown
+
           ctx.save()
-          ctx.shadowColor = "rgba(15, 23, 42, 0.18)"
-          ctx.shadowBlur = graphNode.id === selectedEntity?.id ? 14 : 8
-          ctx.shadowOffsetY = 2
-          ctx.fillStyle = getEntityColor(normalizedType as EntityType)
-          if (isPath) {
-            ctx.fillStyle = "#f97316"
-          }
+          ctx.fillStyle = isPath ? palette.chart[4] : baseColor
           drawShape(ctx, graphNode.x, graphNode.y, size, graphNode.type)
           ctx.fill()
+
           if (isMatch || isPath || graphNode.id === selectedEntity?.id) {
             ctx.lineWidth = 2
-            ctx.strokeStyle = isMatch ? "#facc15" : "#2563eb"
+            ctx.strokeStyle = isMatch ? palette.accent : palette.primary
             ctx.stroke()
           }
-          ctx.shadowBlur = 0
-          ctx.font = "9px sans-serif"
+
+          ctx.font = "10px sans-serif"
           ctx.textAlign = "center"
           ctx.textBaseline = "top"
           const label = graphNode.name
@@ -940,18 +1021,20 @@ export function CharacterGraph() {
           const labelX = graphNode.x - labelWidth / 2 - labelPadding
           const labelY = graphNode.y + 9
           const labelHeight = 12
-          ctx.fillStyle = "rgba(248, 250, 252, 0.96)"
-          ctx.strokeStyle = "rgba(148, 163, 184, 0.7)"
+          ctx.fillStyle = palette.card
+          ctx.strokeStyle = palette.border
           ctx.lineWidth = 1
           ctx.beginPath()
           ctx.rect(labelX, labelY, labelWidth + labelPadding * 2, labelHeight)
           ctx.fill()
           ctx.stroke()
-          ctx.fillStyle = "#0f172a"
+          ctx.fillStyle = palette.foreground
           ctx.fillText(label, graphNode.x, graphNode.y + 10)
           ctx.restore()
         }}
-        linkColor={(link) => getRelationColor((link as CharacterGraphLink).relation_type)}
+        linkColor={(link) =>
+          getRelationColor((link as CharacterGraphLink).relation_type, palette)
+        }
         linkWidth={(link) =>
           pathRelations.includes(link as CharacterGraphLink) ? 2.4 : 1.2
         }
@@ -973,26 +1056,26 @@ export function CharacterGraph() {
         cooldownTicks={100}
       />
       {graphData.nodes.length > 0 && graphDataMemo.nodes.length === 0 ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-slate-500">
+        <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-muted-foreground">
           当前筛选条件下无可视节点
         </div>
       ) : null}
       {graphDataMemo.nodes.length > 0 && !isGraphReady ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm text-slate-500">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm text-muted-foreground">
           正在加载画布...
         </div>
       ) : null}
       {contextMenu ? (
         <div
-          className="absolute z-20 w-40 rounded-md border border-white/70 bg-white/95 p-2 text-xs shadow-lg backdrop-blur"
+          className="absolute z-20 w-44 rounded-lg border border-border bg-card/95 p-2 text-xs shadow-sm backdrop-blur-sm"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <div className="mb-2 text-[11px] font-semibold text-slate-500">
+          <div className="mb-2 text-[11px] font-semibold text-muted-foreground">
             {contextMenu.node.name}
           </div>
           <button
             type="button"
-            className="w-full rounded px-2 py-1 text-left hover:bg-slate-100"
+            className="w-full rounded-md px-2 py-1 text-left text-foreground transition hover:bg-muted"
             onClick={handleEditEntity}
             disabled={isMutating}
           >
@@ -1000,32 +1083,34 @@ export function CharacterGraph() {
           </button>
           <button
             type="button"
-            className="w-full rounded px-2 py-1 text-left hover:bg-slate-100"
+            className="w-full rounded-md px-2 py-1 text-left text-foreground transition hover:bg-muted"
             onClick={() => setMergeOpen((prev) => !prev)}
             disabled={isMutating}
           >
             合并实体
           </button>
           {mergeOpen ? (
-            <div className="mt-2 space-y-2 rounded-md border border-dashed p-2">
+            <div className="mt-2 space-y-2 rounded-md border border-border/50 bg-background p-2">
               <input
                 value={mergeQuery}
                 onChange={(event) => setMergeQuery(event.target.value)}
                 placeholder="搜索目标实体"
-                className="w-full rounded border px-2 py-1 text-[11px]"
+                className="w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <div className="max-h-32 space-y-1 overflow-y-auto">
                 {mergeOptions.map((node) => (
                   <button
                     key={node.id}
                     type="button"
-                    className={`w-full rounded px-2 py-1 text-left text-[11px] ${
-                      mergeTargetId === node.id ? "bg-blue-50 text-blue-600" : "hover:bg-slate-100"
+                    className={`w-full rounded-md px-2 py-1 text-left text-[11px] transition ${
+                      mergeTargetId === node.id
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-muted"
                     }`}
                     onClick={() => setMergeTargetId(node.id)}
                   >
                     <div className="font-medium">{node.name}</div>
-                    <div className="text-[10px] text-slate-500">
+                    <div className="text-[10px] text-muted-foreground">
                       {node.type ?? "unknown"}
                       {node.description
                         ? ` · ${node.description.slice(0, 14)}${node.description.length > 14 ? "..." : ""}`
@@ -1034,12 +1119,12 @@ export function CharacterGraph() {
                   </button>
                 ))}
                 {mergeOptions.length === 0 ? (
-                  <div className="text-[11px] text-slate-400">无匹配实体</div>
+                  <div className="text-[11px] text-muted-foreground">无匹配实体</div>
                 ) : null}
               </div>
               <button
                 type="button"
-                className="w-full rounded bg-slate-900 px-2 py-1 text-[11px] text-white"
+                className="w-full rounded-md bg-primary px-2 py-1 text-[11px] text-primary-foreground"
                 onClick={handleMergeEntity}
                 disabled={isMutating}
               >
@@ -1049,7 +1134,7 @@ export function CharacterGraph() {
           ) : null}
           <button
             type="button"
-            className="w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-50"
+            className="w-full rounded-md px-2 py-1 text-left text-destructive transition hover:bg-muted"
             onClick={handleDeleteEntity}
             disabled={isMutating}
           >
@@ -1099,7 +1184,7 @@ export function CharacterGraph() {
               </label>
               <select
                 id="entity-type"
-                className="w-full rounded-md border border-slate-200/80 bg-white/95 px-2 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={createForm.type}
                 onChange={(event) =>
                   setCreateForm((prev) => ({
@@ -1155,7 +1240,7 @@ export function CharacterGraph() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="shrink-0 text-red-500 hover:text-red-700"
+                      className="shrink-0 text-destructive"
                       onClick={() => handleRemovePropertyRow(index)}
                     >
                       ×
@@ -1173,7 +1258,7 @@ export function CharacterGraph() {
               </div>
             </div>
             {createError ? (
-              <div className="rounded-lg border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {createError}
               </div>
             ) : null}
@@ -1210,7 +1295,7 @@ export function CharacterGraph() {
             <div className="space-y-1">
               <label className="text-sm font-medium">关系类型</label>
               <select
-                className="w-full rounded-md border border-slate-200/80 bg-white/95 px-2 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={editRelationForm.relation_type}
                 onChange={(e) =>
                   setEditRelationForm((prev) => ({
@@ -1219,7 +1304,7 @@ export function CharacterGraph() {
                   }))
                 }
               >
-                {Object.keys(RELATION_COLORS).map((type) => (
+                {Object.keys(RELATION_COLOR_INDEX).map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
@@ -1251,9 +1336,9 @@ export function CharacterGraph() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="absolute left-4 top-4 z-10 w-[280px] space-y-3 rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
+      <div className="absolute left-4 top-4 z-10 w-[280px] space-y-3 rounded-lg border border-border bg-card/95 p-3 text-xs shadow-sm backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <div className="text-[11px] font-semibold text-slate-500">角色关系</div>
+          <div className="text-[11px] font-semibold text-muted-foreground">角色关系</div>
           <Button
             size="sm"
             variant="outline"
@@ -1274,26 +1359,26 @@ export function CharacterGraph() {
           </Button>
         </div>
         <div>
-          <div className="text-[11px] font-semibold text-slate-500">搜索实体</div>
+          <div className="text-[11px] font-semibold text-muted-foreground">搜索实体</div>
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="输入名称或别名"
-            className="mt-1 w-full rounded-md border border-slate-200/80 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
         <div>
-          <div className="text-[11px] font-semibold text-slate-500">实体类型筛选</div>
+          <div className="text-[11px] font-semibold text-muted-foreground">实体类型筛选</div>
           <div className="mt-1 grid grid-cols-2 gap-1">
             {Object.keys(filterTypes).map((type) => (
               <label
                 key={type}
-                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-slate-600 transition hover:border-slate-200 hover:bg-white/80"
+                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-muted-foreground transition hover:border-border/50 hover:bg-muted"
               >
                 <input
                   type="checkbox"
                   checked={filterTypes[type]}
-                  className="accent-slate-800"
+                  className="accent-primary"
                   onChange={(event) =>
                     setFilterTypes((prev) => ({
                       ...prev,
@@ -1303,7 +1388,10 @@ export function CharacterGraph() {
                 />
                 <span
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: ENTITY_COLORS[type] ?? "#94a3b8" }}
+                  style={{
+                    backgroundColor:
+                      palette.entity[type] ?? palette.entity.unknown,
+                  }}
                 />
                 {ENTITY_TYPE_LABELS[type] ?? type}
               </label>
@@ -1311,17 +1399,17 @@ export function CharacterGraph() {
           </div>
         </div>
         <div>
-          <div className="text-[11px] font-semibold text-slate-500">关系类型筛选</div>
+          <div className="text-[11px] font-semibold text-muted-foreground">关系类型筛选</div>
           <div className="mt-1 grid grid-cols-2 gap-1">
             {relationTypes.map((type) => (
               <label
                 key={type}
-                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-slate-600 transition hover:border-slate-200 hover:bg-white/80"
+                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-muted-foreground transition hover:border-border/50 hover:bg-muted"
               >
                 <input
                   type="checkbox"
                   checked={filterRelations[type] ?? true}
-                  className="accent-slate-800"
+                  className="accent-primary"
                   onChange={(event) =>
                     setFilterRelations((prev) => ({
                       ...prev,
@@ -1331,7 +1419,7 @@ export function CharacterGraph() {
                 />
                 <span
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: getRelationColor(type) }}
+                  style={{ backgroundColor: getRelationColor(type, palette) }}
                 />
                 {type}
               </label>
@@ -1339,10 +1427,10 @@ export function CharacterGraph() {
           </div>
         </div>
         <div>
-          <div className="text-[11px] font-semibold text-slate-500">路径查找</div>
+          <div className="text-[11px] font-semibold text-muted-foreground">路径查找</div>
           <div className="mt-1 flex flex-col gap-1">
             <select
-              className="rounded border border-slate-200/80 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={pathEndpoints.startId}
               onChange={(event) =>
                 setPathEndpoints((prev) => ({
@@ -1359,7 +1447,7 @@ export function CharacterGraph() {
               ))}
             </select>
             <select
-              className="rounded border border-slate-200/80 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={pathEndpoints.endId}
               onChange={(event) =>
                 setPathEndpoints((prev) => ({
@@ -1377,14 +1465,14 @@ export function CharacterGraph() {
             </select>
             <button
               type="button"
-              className="rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow transition hover:bg-slate-800"
+              className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"
               onClick={handlePathFind}
             >
               查找路径
             </button>
           </div>
           {pathRelations.length > 0 ? (
-            <div className="mt-2 space-y-1 text-[11px] text-slate-600">
+            <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
               {pathRelations.map((relation, index) => {
                 const sourceLabel =
                   typeof relation.source === "string"
@@ -1405,38 +1493,38 @@ export function CharacterGraph() {
         </div>
       </div>
       {selectedEntity ? (
-        <div className="absolute right-4 top-4 z-10 w-[280px] rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
-          <div className="text-sm font-semibold text-slate-900">
+        <div className="absolute right-4 top-4 z-10 w-[280px] rounded-lg border border-border bg-card/95 p-3 text-xs shadow-sm backdrop-blur-sm">
+          <div className="text-sm font-semibold text-foreground">
             {selectedEntity.name}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-muted-foreground">
             类型：{ENTITY_TYPE_LABELS[normalizeEntityType(selectedEntity.type)]}
           </div>
-          <div className="mt-2 text-[11px] text-slate-600">
+          <div className="mt-2 text-[11px] text-muted-foreground">
             {selectedEntity.description || "暂无描述"}
           </div>
           {selectedEntity.properties ? (
-            <div className="mt-2 text-[11px] text-slate-500">
+            <div className="mt-2 text-[11px] text-muted-foreground">
               属性：{JSON.stringify(selectedEntity.properties)}
             </div>
           ) : null}
-          <div className="mt-2 text-[11px] text-slate-500">
+          <div className="mt-2 text-[11px] text-muted-foreground">
             相关节点：{selectedEntity.source_refs?.length ?? 0}
           </div>
         </div>
       ) : null}
       {selectedRelation ? (
-        <div className="absolute right-4 bottom-4 z-10 w-[280px] rounded-2xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur">
-          <div className="text-sm font-semibold text-slate-900">
+        <div className="absolute right-4 bottom-4 z-10 w-[280px] rounded-lg border border-border bg-card/95 p-3 text-xs shadow-sm backdrop-blur-sm">
+          <div className="text-sm font-semibold text-foreground">
             {selectedRelation.relation_name ?? "关系"}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-muted-foreground">
             类型：{selectedRelation.relation_type ?? "related_to"}
           </div>
-          <div className="mt-2 text-[11px] text-slate-600">
+          <div className="mt-2 text-[11px] text-muted-foreground">
             {selectedRelation.description || "暂无描述"}
           </div>
-          <div className="mt-2 text-[11px] text-slate-500">
+          <div className="mt-2 text-[11px] text-muted-foreground">
             关联：
             {typeof selectedRelation.source === "string"
               ? selectedRelation.source
@@ -1473,10 +1561,10 @@ export function CharacterGraph() {
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`rounded-md border px-3 py-2 text-xs shadow-lg ${
+              className={`rounded-md border px-3 py-2 text-xs shadow-sm ${
                 toast.type === "success"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-red-200 bg-red-50 text-red-700"
+                  ? "border-border bg-primary/10 text-primary"
+                  : "border-destructive/30 bg-destructive/10 text-destructive"
               }`}
             >
               {toast.message}

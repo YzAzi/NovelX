@@ -8,6 +8,13 @@ export interface StoryNode {
   characters: string[]
 }
 
+export interface StoryChapter {
+  id: string
+  title: string
+  content: string
+  order: number
+}
+
 export interface CharacterProfile {
   id: string
   name: string
@@ -27,6 +34,7 @@ export interface PromptOverrides {
   sync?: string | null
   extraction?: string | null
   analysis?: string | null
+  outline_import?: string | null
 }
 
 export interface StoryProject {
@@ -35,6 +43,7 @@ export interface StoryProject {
   world_view: string
   style_tags: string[]
   nodes: StoryNode[]
+  chapters: StoryChapter[]
   characters: CharacterProfile[]
   analysis_profile?: "auto" | "short" | "medium" | "long"
   prompt_overrides?: PromptOverrides

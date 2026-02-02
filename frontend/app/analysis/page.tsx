@@ -1,12 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
+import { ChevronLeft, Sparkles, Send, Square, Trash2 } from "lucide-react"
 
 import type { AnalysisMessage } from "@/src/types/models"
 import { getAnalysisHistory, saveAnalysisHistory, updateProjectSettings } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 const QUICK_PROMPT = "请分析当前大纲的一致性问题，并给出修改与扩写建议。"
@@ -18,17 +22,18 @@ export default function OutlineAnalysisPage() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const outputRef = useRef<HTMLDivElement | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const canSend = Boolean(input.trim()) && !isStreaming && currentProject
   const selectedProfile = currentProject?.analysis_profile ?? "auto"
 
   const scrollToBottom = () => {
-    const target = outputRef.current
-    if (!target) {
-      return
+    if (scrollRef.current) {
+        const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (scrollContainer) {
+            scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+        }
     }
-    target.scrollTo({ top: target.scrollHeight, behavior: "smooth" })
   }
 
   const sendMessage = async (content: string) => {
@@ -177,35 +182,52 @@ export default function OutlineAnalysisPage() {
         if (err instanceof DOMException && err.name === "AbortError") {
           return
         }
-        const message = err instanceof Error ? err.message : "加载对话失败"
-        setError(message)
+        // Suppress initial load errors if backend is down
+        console.warn("Analysis history load failed", err)
       })
     return () => controller.abort()
   }, [currentProject?.id])
 
+  // Scroll to bottom on load
+  useEffect(() => {
+      if (messages.length > 0) {
+          scrollToBottom();
+      }
+  }, [messages.length]);
+
+
   if (!currentProject) {
     return (
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8">
-        <div className="surface-card flex flex-1 items-center justify-center text-sm text-muted-foreground">
-          请先在大纲视图中选择一个项目。
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-sm text-muted-foreground">
+        <div className="text-center space-y-4">
+            <p>请先在主界面选择一个项目。</p>
+            <Button asChild variant="outline">
+                <Link href="/">返回主页</Link>
+            </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8">
-      <div className="surface-card flex flex-1 flex-col overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/60 px-6 py-4">
-          <div>
-            <div className="text-lg font-semibold text-slate-900">分析大纲</div>
-            <div className="text-xs text-slate-500">
-              项目：{currentProject.title}
-            </div>
+    <div className="flex h-screen w-full flex-col bg-background text-foreground">
+      {/* Header */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <Button asChild variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Link href="/" title="返回主页">
+              <ChevronLeft size={20} />
+            </Link>
+          </Button>
+          <div className="flex flex-col">
+             <span className="text-sm font-semibold">{currentProject.title}</span>
+             <span className="text-[10px] text-muted-foreground">大纲深度分析</span>
           </div>
-          <div className="flex items-center gap-2">
+        </div>
+        
+        <div className="flex items-center gap-2">
             <select
-              className="h-8 rounded-md border border-slate-200/80 bg-white/80 px-2 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground shadow-sm focus:border-primary focus:outline-none"
               value={selectedProfile}
               onChange={(event) =>
                 handleProfileChange(
@@ -214,83 +236,125 @@ export default function OutlineAnalysisPage() {
               }
               disabled={isStreaming}
             >
-              <option value="auto">自动选择</option>
-              <option value="short">短篇（全量大纲）</option>
-              <option value="medium">中篇（检索优先）</option>
-              <option value="long">长篇（检索优先）</option>
+              <option value="auto">自动配置</option>
+              <option value="short">短篇 (全量)</option>
+              <option value="medium">中篇 (RAG)</option>
+              <option value="long">长篇 (RAG)</option>
             </select>
-            <Button variant="outline" size="sm" onClick={handleQuickAnalyze} disabled={isStreaming}>
-              分析当前大纲
+            <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handleQuickAnalyze} 
+                disabled={isStreaming}
+                className="h-8 text-xs"
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              一键分析
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => setMessages([])}
               disabled={isStreaming || messages.length === 0}
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              title="清空对话"
             >
-              清空对话
+              <Trash2 size={16} />
             </Button>
-          </div>
         </div>
-        <div ref={outputRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-          {orderedMessages.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200/70 bg-white/60 px-4 py-6 text-sm text-slate-500">
-              请输入你的需求，例如“帮我检查时间线冲突并给出修正建议”。
+      </header>
+
+      {/* Chat Area */}
+      <div className="flex-1 overflow-hidden relative bg-muted/20">
+         <ScrollArea ref={scrollRef} className="h-full w-full">
+            <div className="mx-auto max-w-3xl px-4 py-8 space-y-6">
+                {orderedMessages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                            <Sparkles size={24} />
+                        </div>
+                        <h3 className="text-sm font-medium text-foreground mb-1">AI 大纲分析助手</h3>
+                        <p className="text-xs text-muted-foreground max-w-xs">
+                            我可以帮你检查剧情逻辑、寻找设定冲突，或者提供扩写建议。
+                        </p>
+                    </div>
+                ) : (
+                    orderedMessages.map((message, index) => (
+                        <div
+                            key={index}
+                            className={cn(
+                                "flex w-full",
+                                message.role === "user" ? "justify-end" : "justify-start"
+                            )}
+                        >
+                            <div
+                                className={cn(
+                                    "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-sm leading-relaxed whitespace-pre-wrap",
+                                    message.role === "user"
+                                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                                        : "bg-card text-card-foreground border border-border rounded-bl-sm"
+                                )}
+                            >
+                                {message.content || (isStreaming && message.role === "assistant" ? <span className="animate-pulse">Analyzing...</span> : "")}
+                            </div>
+                        </div>
+                    ))
+                )}
+                <div className="h-4" />
             </div>
-          ) : (
-            orderedMessages.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={
-                  message.role === "user"
-                    ? "ml-auto max-w-[78%] rounded-2xl bg-sky-500/10 px-4 py-3 text-sm text-slate-800 shadow-sm"
-                    : "mr-auto max-w-[82%] rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-sm"
-                }
-              >
-                <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                  {message.role === "user" ? "你" : "分析师"}
+         </ScrollArea>
+      </div>
+
+      {/* Input Area */}
+      <div className="shrink-0 border-t border-border bg-background px-4 py-4">
+         <div className="mx-auto max-w-3xl relative">
+            <div className="relative rounded-xl border border-border bg-muted/30 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all shadow-sm">
+                <Textarea
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (canSend) sendMessage(input.trim());
+                        }
+                    }}
+                    placeholder="输入你的问题，Shift + Enter 换行..."
+                    rows={1}
+                    className="min-h-[50px] max-h-[200px] w-full resize-none border-0 bg-transparent px-4 py-3 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                    style={{ height: 'auto', overflow: 'hidden' }} 
+                    // Simple auto-grow hack if needed, or rely on Textarea autosize props if available
+                />
+                <div className="absolute right-2 bottom-2 flex items-center gap-2">
+                    {isStreaming ? (
+                        <Button
+                            size="icon"
+                            variant="destructive"
+                            className="h-8 w-8 rounded-lg"
+                            onClick={() => abortRef.current?.abort()}
+                        >
+                            <Square size={14} fill="currentColor" />
+                        </Button>
+                    ) : (
+                        <Button
+                            size="icon"
+                            className="h-8 w-8 rounded-lg"
+                            disabled={!canSend}
+                            onClick={() => sendMessage(input.trim())}
+                        >
+                            <Send size={16} />
+                        </Button>
+                    )}
                 </div>
-                <div className="mt-1 whitespace-pre-wrap leading-relaxed">
-                  {message.content || (isStreaming && message.role === "assistant" ? "分析中..." : "")}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="border-t border-white/60 px-6 py-4">
-          <div className="flex flex-col gap-3">
-            <Textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="描述你希望分析的重点或修改意图..."
-              rows={3}
-            />
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-slate-500">
-                {isStreaming ? "分析中，内容将持续输出..." : "支持多轮对话。"}
-              </div>
-              <div className="flex items-center gap-2">
-                {isStreaming ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => abortRef.current?.abort()}
-                  >
-                    停止输出
-                  </Button>
-                ) : null}
-                <Button onClick={() => sendMessage(input.trim())} disabled={!canSend}>
-                  发送
-                </Button>
-              </div>
             </div>
-            {error ? (
-              <div className="rounded-lg border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
-                {error}
-              </div>
-            ) : null}
-          </div>
-        </div>
+            {error && (
+                <div className="mt-2 text-xs text-destructive flex items-center gap-1">
+                    <span className="font-medium">Error:</span> {error}
+                </div>
+            )}
+            <div className="mt-2 text-[10px] text-center text-muted-foreground/60">
+                AI 内容仅供参考，请核对重要信息。
+            </div>
+         </div>
       </div>
     </div>
   )

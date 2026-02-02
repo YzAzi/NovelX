@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 import time
@@ -25,10 +26,12 @@ from .config import (
     settings,
 )
 from .graph import run_drafting_workflow, run_sync_workflow
+from .graph_extractor import GraphExtractor
 from langchain_openai import ChatOpenAI
 from .knowledge_graph import delete_graph, load_graph, save_graph
 from .models import (
     CreateOutlineRequest,
+    CharacterProfile,
     CharacterGraphLink,
     CharacterGraphNode,
     CharacterGraphResponse,
@@ -36,6 +39,8 @@ from .models import (
     AnalysisHistoryResponse,
     HealthResponse,
     OutlineAnalysisRequest,
+    OutlineImportRequest,
+    OutlineImportResult,
     KnowledgeDocumentRequest,
     KnowledgeImportRequest,
     KnowledgeSearchRequest,
@@ -47,7 +52,10 @@ from .models import (
     ProjectExportData,
     ModelConfigResponse,
     ModelConfigUpdateRequest,
+    ChapterCreateRequest,
+    ChapterUpdateRequest,
     StoryNode,
+    StoryChapter,
     StoryProject,
     SyncNodeRequest,
     ReorderNodesRequest,
@@ -57,6 +65,7 @@ from .models import (
 )
 from .index_sync import SyncResult
 from .node_indexer import NodeIndexer
+from .schema_utils import pydantic_json_schema_inline, pydantic_to_openai_function_inline
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode, SyncQueue, build_default_sync_manager
 from .vectorstore import SearchResult, add_documents
 from langchain.prompts import PromptTemplate
@@ -85,6 +94,10 @@ app = FastAPI(
 
 ANALYSIS_PROMPT_PATH = Path(__file__).parent / "prompts" / "outline_analysis_prompt.txt"
 ANALYSIS_PROMPT_TEMPLATE = ANALYSIS_PROMPT_PATH.read_text(encoding="utf-8")
+OUTLINE_IMPORT_PROMPT_PATH = Path(__file__).parent / "prompts" / "outline_import_prompt.txt"
+OUTLINE_IMPORT_PROMPT_TEMPLATE = PromptTemplate.from_template(
+    OUTLINE_IMPORT_PROMPT_PATH.read_text(encoding="utf-8")
+)
 
 
 def _count_words(text: str) -> int:
@@ -253,6 +266,136 @@ async def create_outline(
         raise
 
     await create_project(session, project)
+    return project
+
+
+@app.post(
+    "/api/projects/{project_id}/outline/import",
+    response_model=StoryProject,
+    status_code=status.HTTP_200_OK,
+)
+async def import_outline(
+    project_id: str,
+    payload: OutlineImportRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    raw_text = payload.raw_text.strip()
+    if not raw_text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Outline content cannot be empty"
+        )
+
+    api_key = get_api_key("drafting")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="OPENAI_API_KEY is not configured"
+        )
+
+    schema = pydantic_to_openai_function_inline(OutlineImportResult)
+    llm = ChatOpenAI(
+        api_key=api_key,
+        base_url=get_base_url(),
+        model=get_model_name("drafting"),
+    ).with_structured_output(schema)
+
+    prompt_schema = pydantic_json_schema_inline(OutlineImportResult)
+    prompt_override = project.prompt_overrides.outline_import
+    prompt_template = (
+        PromptTemplate.from_template(prompt_override)
+        if prompt_override
+        else OUTLINE_IMPORT_PROMPT_TEMPLATE
+    )
+    try:
+        prompt_text = prompt_template.format(
+            raw_text=raw_text,
+            output_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="自定义 Prompt 缺少必要变量：raw_text、output_schema",
+        ) from exc
+    result = await llm.ainvoke(prompt_text)
+    if isinstance(result, OutlineImportResult):
+        parsed = result
+    elif isinstance(result, dict):
+        parsed = OutlineImportResult.model_validate(result)
+    elif hasattr(result, "model_dump"):
+        parsed = OutlineImportResult.model_validate(result.model_dump())
+    else:
+        parsed = OutlineImportResult.model_validate(result)
+
+    character_map: dict[str, CharacterProfile] = {}
+    for character in parsed.characters:
+        name = character.name.strip()
+        if not name or name in character_map:
+            continue
+        bio = (character.bio or "").strip()
+        if len(bio) > 100:
+            bio = bio[:100]
+        character_map[name] = CharacterProfile(
+            name=name,
+            tags=[tag.strip() for tag in character.tags if tag.strip()],
+            bio=bio or "待补充",
+        )
+
+    nodes: list[StoryNode] = []
+    for index, node in enumerate(parsed.nodes, start=1):
+        title = node.title.strip() if node.title else ""
+        if not title:
+            title = f"未命名节点 {index}"
+        content = (node.content or "").strip()
+        narrative_order = node.narrative_order if node.narrative_order and node.narrative_order >= 1 else index
+        timeline_order = (
+            float(node.timeline_order)
+            if node.timeline_order and node.timeline_order > 0
+            else float(narrative_order)
+        )
+        location_tag = (node.location_tag or "主线").strip() or "主线"
+
+        character_ids: list[str] = []
+        for name in node.characters:
+            normalized = name.strip()
+            if not normalized:
+                continue
+            profile = character_map.get(normalized)
+            if not profile:
+                profile = CharacterProfile(name=normalized, tags=[], bio="待补充")
+                character_map[normalized] = profile
+            character_ids.append(profile.id)
+
+        nodes.append(
+            StoryNode(
+                title=title,
+                content=content,
+                narrative_order=int(narrative_order),
+                timeline_order=float(timeline_order),
+                location_tag=location_tag,
+                characters=character_ids,
+            )
+        )
+
+    project.nodes = nodes
+    project.characters = list(character_map.values())
+    project.updated_at = datetime.utcnow()
+    await update_project(session, project_id, project)
+
+    prompt_override = project.prompt_overrides.extraction
+    prompt_template = (
+        PromptTemplate.from_template(prompt_override) if prompt_override else None
+    )
+    extractor = GraphExtractor(prompt_template=prompt_template)
+    node_indexer = NodeIndexer()
+    await node_indexer.clear_project(project.id)
+    await node_indexer.index_project(project)
+    graph = await extractor.build_full_graph(project)
+    save_graph(graph)
+
     return project
 
 
@@ -951,6 +1094,112 @@ async def update_project_record(
                 field_name,
                 getattr(payload.prompt_overrides, field_name),
             )
+    if payload.writer_config is not None:
+        project.writer_config = payload.writer_config
+    project.updated_at = datetime.utcnow()
+    await update_project(session, project_id, project)
+    return project
+
+
+@app.post(
+    "/api/projects/{project_id}/chapters",
+    response_model=StoryProject,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project_chapter(
+    project_id: str,
+    payload: ChapterCreateRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    title = (payload.title or "").strip() or "未命名章节"
+    max_order = max((chapter.order for chapter in project.chapters), default=0)
+    new_chapter = StoryChapter(title=title, content="", order=max_order + 1)
+    project.chapters.append(new_chapter)
+    project.updated_at = datetime.utcnow()
+    await update_project(session, project_id, project)
+    return project
+
+
+@app.put(
+    "/api/projects/{project_id}/chapters/{chapter_id}",
+    response_model=StoryProject,
+    status_code=status.HTTP_200_OK,
+)
+async def update_project_chapter(
+    project_id: str,
+    chapter_id: str,
+    payload: ChapterUpdateRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    chapter = next((item for item in project.chapters if item.id == chapter_id), None)
+    if chapter is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+        )
+
+    if payload.title is not None:
+        title = payload.title.strip()
+        if not title:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Chapter title cannot be empty"
+            )
+        chapter.title = title
+    if payload.content is not None:
+        chapter.content = payload.content
+    if payload.order is not None:
+        if payload.order < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Chapter order must be >= 1"
+            )
+        chapter.order = payload.order
+        project.chapters.sort(key=lambda item: item.order)
+        for index, item in enumerate(project.chapters, start=1):
+            item.order = index
+
+    project.updated_at = datetime.utcnow()
+    await update_project(session, project_id, project)
+    return project
+
+
+@app.delete(
+    "/api/projects/{project_id}/chapters/{chapter_id}",
+    response_model=StoryProject,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_project_chapter(
+    project_id: str,
+    chapter_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    remaining = [item for item in project.chapters if item.id != chapter_id]
+    if len(remaining) == len(project.chapters):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+        )
+
+    project.chapters = remaining
+    project.chapters.sort(key=lambda item: item.order)
+    for index, item in enumerate(project.chapters, start=1):
+        item.order = index
+
     project.updated_at = datetime.utcnow()
     await update_project(session, project_id, project)
     return project

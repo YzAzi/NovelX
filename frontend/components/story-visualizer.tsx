@@ -16,9 +16,10 @@ import {
   type NodeProps,
 } from "@xyflow/react"
 import dagre from "dagre"
+import { Search, Upload, Plus, Minus, FileText, Image, Map as MapIcon, ZoomIn, ZoomOut } from "lucide-react"
 
 import type { StoryNode } from "@/src/types/models"
-import { insertNode, reorderNodes } from "@/src/lib/api"
+import { importOutline, insertNode, reorderNodes } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 120
@@ -40,17 +42,17 @@ const ZOOM_MIN = 0.4
 const ZOOM_MAX = 1.4
 const ZOOM_STEP = 0.1
 const TAG_COLORS = [
-  "bg-amber-100/80 text-amber-900",
-  "bg-sky-100/80 text-sky-900",
-  "bg-emerald-100/80 text-emerald-900",
-  "bg-rose-100/80 text-rose-900",
-  "bg-lime-100/80 text-lime-900",
-  "bg-orange-100/80 text-orange-900",
-  "bg-teal-100/80 text-teal-900",
-  "bg-fuchsia-100/80 text-fuchsia-900",
+  "bg-amber-100/80 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300",
+  "bg-sky-100/80 text-sky-900 dark:bg-sky-900/30 dark:text-sky-300",
+  "bg-emerald-100/80 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-300",
+  "bg-rose-100/80 text-rose-900 dark:bg-rose-900/30 dark:text-rose-300",
+  "bg-lime-100/80 text-lime-900 dark:bg-lime-900/30 dark:text-lime-300",
+  "bg-orange-100/80 text-orange-900 dark:bg-orange-900/30 dark:text-orange-300",
+  "bg-teal-100/80 text-teal-900 dark:bg-teal-900/30 dark:text-teal-300",
+  "bg-fuchsia-100/80 text-fuchsia-900 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
 ]
 
-const defaultEdgeOptions = { type: "smoothstep", animated: false }
+const defaultEdgeOptions = { type: "smoothstep", animated: false, style: { stroke: "var(--border)" } }
 
 type StoryNodeData = {
   title: string
@@ -73,20 +75,21 @@ function StoryNodeCard({ data, selected }: NodeProps<StoryFlowNode>) {
   return (
     <div
       className={cn(
-        "w-[220px] rounded-xl border border-border/60 bg-card/90 p-3 shadow-sm backdrop-blur-md transition hover:shadow-md hover:-translate-y-0.5",
+        "w-[220px] rounded-xl border bg-card p-4 shadow-sm transition-all duration-200",
         selected
-          ? "ring-2 ring-primary/60 border-primary/30"
+          ? "border-primary ring-1 ring-primary shadow-md"
           : data.highlight
-            ? "ring-2 ring-amber-300"
-            : "hover:border-primary/30"
+            ? "border-amber-400 ring-1 ring-amber-400"
+            : "border-border hover:border-primary/50 hover:shadow-md"
       )}
     >
-      <Handle type="target" position={Position.Left} isConnectable={false} />
-      <div className="mb-2 text-sm font-semibold text-slate-900">{data.title}</div>
-      <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", data.colorClass)}>
+      <Handle type="target" position={Position.Left} isConnectable={false} className="!bg-muted-foreground/50 !h-3 !w-1 !rounded-sm !border-none" />
+      <div className="mb-3 text-sm font-semibold text-card-foreground leading-tight">{data.title}</div>
+      <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium", data.colorClass)}>
+        <MapIcon size={10} />
         {data.locationTag}
       </span>
-      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Handle type="source" position={Position.Right} isConnectable={false} className="!bg-muted-foreground/50 !h-3 !w-1 !rounded-sm !border-none" />
     </div>
   )
 }
@@ -112,6 +115,7 @@ function buildEdges(nodes: StoryNode[]): Edge[] {
       source: source.id,
       target: target.id,
       type: "smoothstep",
+      style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5, opacity: 0.5 },
     })
   }
   return edges
@@ -195,6 +199,11 @@ export function StoryVisualizer() {
   const [createOpen, setCreateOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importText, setImportText] = useState("")
+  const [importFileName, setImportFileName] = useState<string | null>(null)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [createForm, setCreateForm] = useState({
     title: "",
@@ -299,6 +308,14 @@ export function StoryVisualizer() {
     })
   }, [createOpen, nextNarrativeOrder, nextTimelineOrder])
 
+  useEffect(() => {
+    if (!importOpen) {
+      setImportError(null)
+      setImportText("")
+      setImportFileName(null)
+    }
+  }, [importOpen])
+
   const handleCreateFieldChange =
     (field: keyof typeof createForm) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -351,6 +368,55 @@ export function StoryVisualizer() {
       setIsCreating(false)
     }
   }, [createForm, currentProject, selectNode, setNodeEditorOpen, setProject])
+
+  const handleImportOutline = useCallback(async () => {
+    if (!currentProject) {
+      return
+    }
+    const content = importText.trim()
+    if (!content) {
+      setImportError("请输入或上传大纲文本")
+      return
+    }
+    setIsImporting(true)
+    setImportError(null)
+    try {
+      const updated = await importOutline(currentProject.id, content)
+      setProject(updated)
+      selectNode(null)
+      const next = [...updated.nodes].sort((a, b) => a.narrative_order - b.narrative_order)[0]
+      setActiveSceneId(next?.id ?? null)
+      setImportOpen(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "导入失败"
+      setImportError(message)
+    } finally {
+      setIsImporting(false)
+    }
+  }, [currentProject, importText, selectNode, setProject])
+
+  const handleImportFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) {
+        return
+      }
+      if (!file.name.endsWith(".txt") && !file.name.endsWith(".md")) {
+        setImportError("仅支持 .txt / .md 文件")
+        return
+      }
+      try {
+        const text = await file.text()
+        setImportText(text)
+        setImportFileName(file.name)
+        setImportError(null)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "读取文件失败"
+        setImportError(message)
+      }
+    },
+    []
+  )
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -507,68 +573,91 @@ export function StoryVisualizer() {
 
   if (!currentProject) {
     return (
-      <div className="surface-card flex h-full items-center justify-center border-dashed text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center border-dashed border-2 border-muted rounded-xl bg-muted/20 text-sm text-muted-foreground m-4">
         先创建大纲以查看节点布局。
       </div>
     )
   }
 
   return (
-    <div ref={wrapperRef} className="surface-card flex h-full overflow-hidden">
-      <div className="flex w-[240px] shrink-0 flex-col border-r border-border/40 bg-white/40 backdrop-blur-sm">
-        <div className="flex items-center justify-between px-3 pb-2 pt-3">
-          <div className="text-xs font-semibold text-slate-500">场景目录</div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-[11px]"
-            onClick={() => setCreateOpen(true)}
-          >
-            新增节点
-          </Button>
+    <div ref={wrapperRef} className="flex h-full overflow-hidden bg-background">
+      <div className="flex w-[260px] shrink-0 flex-col border-r border-border bg-muted/10">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+          <div className="text-sm font-semibold text-foreground">场景目录</div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={() => setImportOpen(true)}
+              title="导入大纲"
+            >
+              <Upload size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={() => setCreateOpen(true)}
+              title="新增场景"
+            >
+              <Plus size={14} />
+            </Button>
+          </div>
         </div>
-        <div className="px-3 pb-2">
-          <input
-            className="h-8 w-full rounded-md border border-slate-200/80 bg-white/80 px-2 text-xs text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            placeholder="搜索场景或地点..."
-            value={sceneSearch}
-            onChange={(event) => setSceneSearch(event.target.value)}
-          />
+        
+        <div className="p-3">
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                    className="h-9 w-full bg-background pl-8 text-xs shadow-none border-border/60 focus-visible:ring-1 focus-visible:ring-primary/20"
+                    placeholder="搜索场景或地点..."
+                    value={sceneSearch}
+                    onChange={(event) => setSceneSearch(event.target.value)}
+                />
+            </div>
         </div>
-        <div className="flex-1 overflow-y-auto pb-3">
-          {filteredStoryNodes.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-slate-400">暂无匹配场景</div>
-          ) : (
-            filteredStoryNodes.map((node) => {
-              const isActive = node.id === activeSceneId
-              return (
-                <button
-                  key={node.id}
-                  ref={(el) => {
-                    if (el) {
-                      sceneItemRefs.current.set(node.id, el)
-                    } else {
-                      sceneItemRefs.current.delete(node.id)
-                    }
-                  }}
-                  className={cn(
-                    "flex w-full flex-col gap-1 px-3 py-2 text-left text-xs transition",
-                    isActive
-                      ? "bg-white/80 text-slate-900 shadow-sm"
-                      : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                  )}
-                  onClick={() => focusScene(node.id)}
-                  type="button"
-                >
-                  <span className="font-semibold">{node.title || "未命名节点"}</span>
-                  <span className="text-[11px] text-slate-500">{getLocationTag(node)}</span>
-                </button>
-              )
-            })
-          )}
-        </div>
+        
+        <ScrollArea className="flex-1">
+           <div className="px-3 pb-3 space-y-1">
+              {filteredStoryNodes.length === 0 ? (
+                <div className="px-3 py-8 text-center text-xs text-muted-foreground">暂无匹配场景</div>
+              ) : (
+                filteredStoryNodes.map((node) => {
+                  const isActive = node.id === activeSceneId
+                  return (
+                    <button
+                      key={node.id}
+                      ref={(el) => {
+                        if (el) {
+                          sceneItemRefs.current.set(node.id, el)
+                        } else {
+                          sceneItemRefs.current.delete(node.id)
+                        }
+                      }}
+                      className={cn(
+                        "group flex w-full flex-col gap-1 rounded-lg px-3 py-2.5 text-left text-xs transition-all",
+                        isActive
+                          ? "bg-primary/10 text-foreground"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      )}
+                      onClick={() => focusScene(node.id)}
+                      type="button"
+                    >
+                      <span className={cn("font-medium line-clamp-1", isActive ? "text-primary" : "text-foreground")}>{node.title || "未命名节点"}</span>
+                      <div className="flex items-center gap-1.5 opacity-70">
+                         <MapIcon size={10} />
+                         <span className="text-[10px]">{getLocationTag(node)}</span>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+          </div>
+        </ScrollArea>
       </div>
-      <div className="relative flex-1">
+
+      <div className="relative flex-1 bg-background">
         <ReactFlow
           nodes={flowNodes}
           edges={edges}
@@ -588,76 +677,80 @@ export function StoryVisualizer() {
           minZoom={ZOOM_MIN}
           maxZoom={ZOOM_MAX}
           nodesDraggable={true}
+          proOptions={{ hideAttribution: true }}
         >
-          <Background gap={24} size={1} />
-          <Controls position="bottom-right" />
-          <MiniMap pannable zoomable />
+          <Background gap={24} size={1} color="currentColor" className="text-border/40" />
+          <Controls position="bottom-right" className="!bg-card !border !border-border !rounded-lg !shadow-sm [&>button]:!border-border/40 [&>button:hover]:!bg-muted" />
+          <MiniMap 
+            pannable 
+            zoomable 
+            className="!bg-card !border !border-border !rounded-lg !shadow-sm" 
+            nodeColor={(n) => {
+                 if (n.selected) return 'hsl(var(--primary))';
+                 return 'hsl(var(--muted))';
+            }}
+            maskColor="hsl(var(--background) / 0.7)"
+          />
         </ReactFlow>
-        <div className="glass-panel absolute right-4 top-4 flex items-center gap-2 rounded-full px-3 py-2 text-xs text-slate-700 shadow-sm">
+        
+        <div className="absolute right-4 top-4 flex items-center gap-1 rounded-lg border border-border bg-card/80 backdrop-blur p-1 shadow-sm">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={() => applyZoom(zoomLevel - ZOOM_STEP)}
           >
-            −
+            <Minus size={14} />
           </Button>
-          <input
-            type="range"
-            min={ZOOM_MIN}
-            max={ZOOM_MAX}
-            step={ZOOM_STEP}
-            value={zoomLevel}
-            onChange={(event) => applyZoom(Number(event.target.value))}
-            className="h-2 w-28 accent-sky-500"
-          />
+          <div className="w-12 text-center text-xs font-medium tabular-nums text-muted-foreground">
+            {Math.round(zoomLevel * 100)}%
+          </div>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={() => applyZoom(zoomLevel + ZOOM_STEP)}
           >
-            +
+            <Plus size={14} />
           </Button>
-          <div className="w-12 text-right text-[11px] text-slate-500">
-            {Math.round(zoomLevel * 100)}%
-          </div>
         </div>
       </div>
+
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>新增节点</DialogTitle>
-            <DialogDescription>填写叙事顺序与时间轴位置，系统会自动后移对应顺序。</DialogDescription>
+            <DialogTitle>新增场景节点</DialogTitle>
+            <DialogDescription>填写场景的基本信息，它将被插入到当前故事流中。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="new-node-title">
-                标题
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="new-node-title">
+                场景标题
               </label>
               <Input
                 id="new-node-title"
                 value={createForm.title}
                 onChange={handleCreateFieldChange("title")}
-                placeholder="例如：新的转折"
+                placeholder="例如：深夜的港口会面"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="new-node-content">
-                内容梗概
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="new-node-content">
+                剧情梗概
               </label>
               <Textarea
                 id="new-node-content"
                 rows={4}
                 value={createForm.content}
                 onChange={handleCreateFieldChange("content")}
-                placeholder="简单描述该节点的剧情"
+                placeholder="描述发生了什么..."
+                className="resize-none"
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-sm font-medium" htmlFor="new-node-order">
-                  叙事顺序
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="new-node-order">
+                  叙事顺序 (Narrative)
                 </label>
                 <Input
                   id="new-node-order"
@@ -666,9 +759,9 @@ export function StoryVisualizer() {
                   onChange={handleCreateFieldChange("narrativeOrder")}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium" htmlFor="new-node-timeline">
-                  时间轴位置
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="new-node-timeline">
+                  时间轴 (Timeline)
                 </label>
                 <Input
                   id="new-node-timeline"
@@ -679,20 +772,20 @@ export function StoryVisualizer() {
                 />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="new-node-location">
-                泳道标签
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="new-node-location">
+                地点/分组 (Tag)
               </label>
               <Input
                 id="new-node-location"
                 value={createForm.locationTag}
                 onChange={handleCreateFieldChange("locationTag")}
-                placeholder="例如：港口、旧城区"
+                placeholder="例如：主角家、警察局"
               />
             </div>
             {createError ? (
-              <div className="rounded-lg border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
-                {createError}
+              <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive">
+                <span className="font-semibold">错误：</span>{createError}
               </div>
             ) : null}
           </div>
@@ -701,7 +794,65 @@ export function StoryVisualizer() {
               取消
             </Button>
             <Button onClick={handleCreateNode} disabled={isCreating}>
-              {isCreating ? "新增中..." : "确认新增"}
+              {isCreating ? "创建中..." : "确认创建"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>导入大纲</DialogTitle>
+            <DialogDescription>
+              粘贴文本或上传 .txt/.md 文件。注意：导入将<b>覆盖</b>当前项目的所有节点。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border border-dashed border-border p-6 text-center hover:bg-muted/50 transition-colors cursor-pointer relative">
+               <input 
+                  type="file" 
+                  accept=".txt,.md"
+                  onChange={handleImportFileChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+               />
+               <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+               <div className="text-sm font-medium">点击上传文件</div>
+               <div className="text-xs text-muted-foreground mt-1">支持 TXT, MD</div>
+               {importFileName && (
+                 <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                    <FileText size={12} /> {importFileName}
+                 </div>
+               )}
+            </div>
+            <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">或者粘贴文本</span>
+                </div>
+            </div>
+            <div className="space-y-2">
+              <Textarea
+                rows={6}
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+                placeholder="第一章：开始..."
+                className="font-mono text-xs"
+              />
+            </div>
+            {importError ? (
+               <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive">
+                <span className="font-semibold">错误：</span>{importError}
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleImportOutline} disabled={isImporting}>
+              {isImporting ? "导入中..." : "确认导入"}
             </Button>
           </DialogFooter>
         </DialogContent>

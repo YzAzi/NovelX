@@ -118,6 +118,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       set({ projects })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
+      if (message.includes("Failed to fetch")) {
+        console.warn("Backend not connected: Failed to fetch projects.")
+        return
+      }
       setError(message)
     }
   },
@@ -135,6 +139,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
+      if (message.includes("Failed to fetch")) {
+        console.warn(`Backend not connected: Failed to load project ${projectId}.`)
+        return
+      }
       setError(message)
     }
   },

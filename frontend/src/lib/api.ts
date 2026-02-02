@@ -33,7 +33,7 @@ function isAbortError(error: unknown) {
 async function request<T>(
   path: string,
   options: RequestInit,
-  config: { showLoading?: boolean } = {},
+  config: { showLoading?: boolean; suppressGlobalError?: boolean } = {},
 ): Promise<T> {
   const { setLoading, setError } = useProjectStore.getState()
   const shouldSetLoading = config.showLoading !== false
@@ -61,8 +61,12 @@ async function request<T>(
     return (await response.json()) as T
   } catch (error) {
     if (!isAbortError(error)) {
-      const message = error instanceof Error ? error.message : "Unknown error"
-      setError(message)
+      if (!config.suppressGlobalError) {
+        const message = error instanceof Error ? error.message : "Unknown error"
+        setError(message)
+      } else {
+        console.warn(`Suppressed global error for ${path}:`, error)
+      }
     }
     throw error
   } finally {
@@ -163,7 +167,7 @@ export async function getProjects(
       method: "GET",
       signal: options.signal,
     },
-    { showLoading: false },
+    { showLoading: false, suppressGlobalError: true },
   )
 }
 
@@ -177,7 +181,7 @@ export async function getProject(
       method: "GET",
       signal: options.signal,
     },
-    { showLoading: false },
+    { showLoading: false, suppressGlobalError: true },
   )
 }
 
@@ -211,6 +215,70 @@ export async function updateProjectSettings(
     {
       method: "PUT",
       body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function createChapter(
+  projectId: string,
+  payload: { title?: string | null },
+  options: { signal?: AbortSignal } = {},
+): Promise<StoryProject> {
+  return request<StoryProject>(
+    `/api/projects/${encodeURIComponent(projectId)}/chapters`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function updateChapter(
+  projectId: string,
+  chapterId: string,
+  payload: { title?: string | null; content?: string | null; order?: number | null },
+  options: { signal?: AbortSignal } = {},
+): Promise<StoryProject> {
+  return request<StoryProject>(
+    `/api/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function importOutline(
+  projectId: string,
+  rawText: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<StoryProject> {
+  return request<StoryProject>(
+    `/api/projects/${encodeURIComponent(projectId)}/outline/import`,
+    {
+      method: "POST",
+      body: JSON.stringify({ raw_text: rawText }),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function deleteChapter(
+  projectId: string,
+  chapterId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<StoryProject> {
+  return request<StoryProject>(
+    `/api/projects/${encodeURIComponent(projectId)}/chapters/${encodeURIComponent(chapterId)}`,
+    {
+      method: "DELETE",
       signal: options.signal,
     },
     { showLoading: false },
@@ -651,7 +719,7 @@ export async function getModelConfig(
       method: "GET",
       signal: options.signal,
     },
-    { showLoading: false },
+    { showLoading: false, suppressGlobalError: true },
   )
 }
 

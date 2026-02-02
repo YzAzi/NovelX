@@ -1,10 +1,25 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Sparkles, Settings2, PenLine, Save, ChevronRight, ChevronLeft } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  Sparkles,
+  Settings2,
+  PenLine,
+  Save,
+  ChevronRight,
+  ChevronLeft,
+  Plus,
+  PencilLine,
+  Trash2,
+  FileText,
+  PanelLeftClose,
+  PanelRightClose,
+  PanelLeftOpen,
+  PanelRightOpen,
+} from "lucide-react"
 
 import { useProjectStore } from "@/src/stores/project-store"
-import { syncNode, updateProjectSettings } from "@/src/lib/api"
+import { createChapter, deleteChapter, updateChapter, updateProjectSettings } from "@/src/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,14 +29,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import type { WriterConfig, StoryNode } from "@/src/types/models"
+import type { WriterConfig } from "@/src/types/models"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 
 export function WritingWorkspace() {
   const { currentProject, setProject } = useProjectStore()
-  const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
   const [content, setContent] = useState("")
+  const [chapterTitle, setChapterTitle] = useState("")
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(true)
   const [isConfigOpen, setIsConfigOpen] = useState(false)
@@ -34,29 +53,34 @@ export function WritingWorkspace() {
   const [isPolishing, setIsPolishing] = useState(false)
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const skipCommitRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isCreatingChapter, setIsCreatingChapter] = useState(false)
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState("")
 
   // Sort nodes
-  const sortedNodes = useMemo(() => {
+  const sortedChapters = useMemo(() => {
     if (!currentProject) return []
-    return [...currentProject.nodes].sort((a, b) => a.narrative_order - b.narrative_order)
-  }, [currentProject?.nodes])
+    return [...currentProject.chapters].sort((a, b) => a.order - b.order)
+  }, [currentProject?.chapters])
 
-  // Set initial active node
+  // Set initial active chapter
   useEffect(() => {
-    if (!activeNodeId && sortedNodes.length > 0) {
-      setActiveNodeId(sortedNodes[0].id)
+    if (!activeChapterId && sortedChapters.length > 0) {
+      setActiveChapterId(sortedChapters[0].id)
     }
-  }, [sortedNodes, activeNodeId])
+  }, [sortedChapters, activeChapterId])
 
-  // Sync content when active node changes
+  // Sync content when active chapter changes
   useEffect(() => {
-    if (!activeNodeId || !currentProject) return
-    const node = currentProject.nodes.find((n) => n.id === activeNodeId)
-    if (node) {
-      setContent(node.content || "")
+    if (!activeChapterId || !currentProject) return
+    const chapter = currentProject.chapters.find((item) => item.id === activeChapterId)
+    if (chapter) {
+      setContent(chapter.content || "")
+      setChapterTitle(chapter.title || "")
     }
-  }, [activeNodeId, currentProject])
+  }, [activeChapterId, currentProject])
 
   // Load config
   useEffect(() => {
@@ -66,19 +90,37 @@ export function WritingWorkspace() {
   }, [currentProject?.writer_config])
 
   const handleSaveContent = async () => {
-    if (!currentProject || !activeNodeId) return
-    const node = currentProject.nodes.find((n) => n.id === activeNodeId)
-    if (!node) return
+    if (!currentProject || !activeChapterId) return
+    const chapter = currentProject.chapters.find((item) => item.id === activeChapterId)
+    if (!chapter) return
 
     setIsSaving(true)
     try {
-      const updatedNode = { ...node, content }
-      const response = await syncNode(currentProject.id, updatedNode)
-      setProject(response.project)
+      const response = await updateChapter(currentProject.id, activeChapterId, {
+        title: chapterTitle.trim() || "未命名章节",
+        content,
+      })
+      setProject(response)
     } catch (error) {
       console.error("Failed to save content", error)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleTitleBlur = async () => {
+    if (!currentProject || !activeChapterId) return
+    const chapter = currentProject.chapters.find((item) => item.id === activeChapterId)
+    if (!chapter) return
+    const nextTitle = chapterTitle.trim() || "未命名章节"
+    if (nextTitle === chapter.title) return
+    try {
+      const response = await updateChapter(currentProject.id, activeChapterId, {
+        title: nextTitle,
+      })
+      setProject(response)
+    } catch (error) {
+      console.error("Failed to update chapter title", error)
     }
   }
 
@@ -96,7 +138,7 @@ export function WritingWorkspace() {
   }
 
   const handlePolish = async (type: "selection" | "full") => {
-    if (!currentProject || !activeNodeId) return
+    if (!currentProject || !activeChapterId) return
     
     let textToPolish = content
     let instruction = "请润色这段文本，使其描写更生动，沉浸感更强。保持原意不变。"
@@ -147,14 +189,6 @@ export function WritingWorkspace() {
           }
         }
       }
-
-      // If full text polish, maybe replace content? Or show diff?
-      // For now, let's just append or show in alert/modal.
-      // Better: Replace content if selection, or show in a "Suggestion" box.
-      // To keep it simple for this iteration: Just replace selection or content directly?
-      // No, that's dangerous. Let's just log it or put it in clipboard?
-      // Let's replace selection for "selection" mode, and replace all for "full" mode?
-      // User requested "Click polish -> polish entire article".
       
       if (type === "full") {
          setContent(polishedText)
@@ -172,175 +206,347 @@ export function WritingWorkspace() {
     }
   }
 
+  const handleCreateChapter = async () => {
+    if (!currentProject) return
+    setIsCreatingChapter(true)
+    try {
+      const response = await createChapter(currentProject.id, {})
+      setProject(response)
+      const existingIds = new Set(currentProject.chapters.map((item) => item.id))
+      const newChapter = response.chapters.find((item) => !existingIds.has(item.id))
+      if (newChapter) {
+        setActiveChapterId(newChapter.id)
+      }
+    } catch (error) {
+      console.error("Failed to create chapter", error)
+    } finally {
+      setIsCreatingChapter(false)
+    }
+  }
+
+  const handleStartEditTitle = (chapterId: string, title: string) => {
+    setEditingChapterId(chapterId)
+    setEditingTitle(title)
+  }
+
+  const handleCommitTitle = async () => {
+    if (!currentProject || !editingChapterId) return
+    if (skipCommitRef.current) {
+      skipCommitRef.current = false
+      return
+    }
+    const nextTitle = editingTitle.trim() || "未命名章节"
+    try {
+      const response = await updateChapter(currentProject.id, editingChapterId, {
+        title: nextTitle,
+      })
+      setProject(response)
+    } catch (error) {
+      console.error("Failed to rename chapter", error)
+    } finally {
+      setEditingChapterId(null)
+    }
+  }
+
+  const handleDeleteChapter = async (chapterId: string) => {
+    if (!currentProject) return
+    const confirmed = window.confirm("确定要删除该章节吗？此操作无法撤销。")
+    if (!confirmed) return
+    try {
+      const response = await deleteChapter(currentProject.id, chapterId)
+      setProject(response)
+      if (activeChapterId === chapterId) {
+        const next = response.chapters.sort((a, b) => a.order - b.order)[0]
+        setActiveChapterId(next?.id ?? null)
+        setChapterTitle(next?.title ?? "")
+        setContent(next?.content ?? "")
+      }
+    } catch (error) {
+      console.error("Failed to delete chapter", error)
+    }
+  }
+
   if (!currentProject) return null
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-zinc-50/50 dark:bg-zinc-950/50">
+    <div className="flex h-full w-full overflow-hidden bg-background">
       {/* Sidebar */}
-      <div className={cn(
-        "flex flex-col border-r bg-white/60 backdrop-blur-xl transition-all duration-300 dark:bg-zinc-900/60",
-        isSidebarOpen ? "w-64" : "w-0 overflow-hidden"
-      )}>
-        <div className="flex items-center justify-between p-4">
-          <span className="font-semibold text-sm">章节列表</span>
-          <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)} className="h-6 w-6">
-            <ChevronLeft size={14} />
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <div className="space-y-1 p-2">
-            {sortedNodes.map(node => (
-              <button
-                key={node.id}
-                onClick={() => setActiveNodeId(node.id)}
-                className={cn(
-                  "w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800",
-                  activeNodeId === node.id ? "bg-zinc-200 font-medium dark:bg-zinc-800" : ""
-                )}
-              >
-                <div className="truncate">{node.title}</div>
-              </button>
-            ))}
+      <div 
+        className={cn(
+          "flex flex-col border-r border-border bg-muted/10 transition-all duration-300 ease-in-out",
+          isSidebarOpen ? "w-64 opacity-100" : "w-0 opacity-0 overflow-hidden border-none"
+        )}
+      >
+        <div className="flex items-center justify-between p-3 border-b border-border/50">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+             <FileText className="h-4 w-4" />
+             <span>章节列表</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCreateChapter}
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              disabled={isCreatingChapter}
+              title="新建章节"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSidebarOpen(false)}
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              title="收起侧边栏"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
           </div>
         </div>
+        <ScrollArea className="flex-1">
+          <div className="space-y-1 p-2">
+            {sortedChapters.map((chapter) => {
+              const isActive = activeChapterId === chapter.id
+              const isEditing = editingChapterId === chapter.id
+              return (
+                <div
+                  key={chapter.id}
+                  className={cn(
+                    "group flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+                    isActive 
+                      ? "bg-primary/10 text-primary font-medium" 
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <button
+                    onClick={() => setActiveChapterId(chapter.id)}
+                    className="flex-1 truncate text-left outline-none"
+                  >
+                    {isEditing ? (
+                      <Input
+                        value={editingTitle}
+                        onChange={(event) => setEditingTitle(event.target.value)}
+                        onBlur={handleCommitTitle}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault()
+                            handleCommitTitle()
+                          }
+                          if (event.key === "Escape") {
+                            event.preventDefault()
+                            skipCommitRef.current = true
+                            setEditingChapterId(null)
+                          }
+                        }}
+                        autoFocus
+                        className="h-6 px-1 text-sm bg-background border-primary"
+                      />
+                    ) : (
+                      <span className="truncate">{chapter.title}</span>
+                    )}
+                  </button>
+                  {!isEditing && (
+                    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 hover:text-foreground"
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEditTitle(chapter.id, chapter.title);
+                          }}
+                        >
+                          <PencilLine className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 hover:text-destructive"
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteChapter(chapter.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </ScrollArea>
       </div>
 
-      {/* Toggle Sidebar Button (when closed) */}
-      {!isSidebarOpen && (
-        <div className="absolute left-4 top-4 z-10">
-          <Button variant="outline" size="icon" onClick={() => setIsSidebarOpen(true)}>
-            <ChevronRight size={16} />
-          </Button>
-        </div>
-      )}
-
       {/* Main Editor */}
-      <div className="flex-1 flex flex-col relative h-full">
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
-           <Button 
-             variant={isSaving ? "secondary" : "default"} 
-             size="sm" 
-             onClick={handleSaveContent}
-             disabled={isSaving}
-           >
-             <Save size={14} className="mr-1" />
-             {isSaving ? "保存中..." : "保存"}
-           </Button>
-           <Button
-             variant="outline"
-             size="icon"
-             onClick={() => setIsAiPanelOpen(!isAiPanelOpen)}
-           >
-             <Sparkles size={16} />
-           </Button>
-        </div>
+      <div className="flex-1 flex flex-col relative h-full bg-muted/30 min-w-0">
         
-        <div className="mx-auto w-full max-w-3xl flex-1 py-12 px-8 flex flex-col h-full">
-           <input
-             className="bg-transparent text-3xl font-bold mb-6 focus:outline-none"
-             value={currentProject.nodes.find(n => n.id === activeNodeId)?.title || ""}
-             readOnly // Editing title in sidebar or dedicated edit mode
-           />
-           <textarea
-             ref={textareaRef}
-             className="flex-1 w-full resize-none bg-transparent text-lg leading-relaxed focus:outline-none"
-             placeholder="开始写作..."
-             value={content}
-             onChange={(e) => setContent(e.target.value)}
-           />
+        {/* Editor Toolbar / Header */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border/40 bg-background/50 backdrop-blur-sm z-10 sticky top-0">
+            <div className="flex items-center gap-2">
+                {!isSidebarOpen && (
+                    <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)} className="text-muted-foreground hover:bg-muted">
+                        <PanelLeftOpen className="h-4 w-4" />
+                    </Button>
+                )}
+            </div>
+            <div className="flex items-center gap-2">
+                 <div className="text-xs text-muted-foreground mr-2 font-mono">
+                    {content.length} 字
+                 </div>
+                 <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleSaveContent}
+                    disabled={isSaving}
+                    className={cn("text-xs h-8", isSaving ? "text-primary animate-pulse" : "text-muted-foreground hover:text-foreground")}
+                 >
+                    <Save className="h-3.5 w-3.5 mr-1.5" />
+                    {isSaving ? "保存中" : "保存"}
+                 </Button>
+                 {!isAiPanelOpen && (
+                    <Button variant="ghost" size="icon" onClick={() => setIsAiPanelOpen(true)} className="text-muted-foreground hover:bg-muted">
+                        <PanelRightOpen className="h-4 w-4" />
+                    </Button>
+                 )}
+            </div>
         </div>
+
+        {/* Scrollable Paper Container */}
+        <ScrollArea className="flex-1 w-full">
+           <div className="flex flex-col items-center py-8 px-4 min-h-full">
+               <div className="w-full max-w-[850px] min-h-[850px] bg-background shadow-paper rounded-sm border border-border/30 p-12 sm:p-16 transition-shadow duration-500 hover:shadow-lg">
+                   <input
+                     className="w-full bg-transparent text-4xl font-bold mb-8 focus:outline-none text-foreground placeholder:text-muted-foreground/20 font-serif leading-tight tracking-tight"
+                     value={chapterTitle}
+                     onChange={(event) => setChapterTitle(event.target.value)}
+                     onBlur={handleTitleBlur}
+                     placeholder="输入章节标题..."
+                   />
+                   <textarea
+                     ref={textareaRef}
+                     className="w-full h-full min-h-[600px] resize-none bg-transparent text-lg leading-loose focus:outline-none text-foreground/90 placeholder:text-muted-foreground/20 font-serif selection:bg-primary/15"
+                     placeholder="在此开始您的创作..."
+                     value={content}
+                     onChange={(e) => setContent(e.target.value)}
+                     spellCheck={false}
+                     style={{ lineHeight: "1.8" }}
+                   />
+               </div>
+               <div className="h-12 shrink-0" /> {/* Bottom spacer */}
+           </div>
+        </ScrollArea>
       </div>
 
       {/* AI Panel */}
-      <div className={cn(
-        "flex flex-col border-l bg-white/60 backdrop-blur-xl transition-all duration-300 dark:bg-zinc-900/60",
-        isAiPanelOpen ? "w-80" : "w-0 overflow-hidden"
-      )}>
-        <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-purple-500" />
-            <span className="font-semibold text-sm">AI 助手</span>
+      <div 
+        className={cn(
+          "flex flex-col border-l border-border bg-muted/10 transition-all duration-300 ease-in-out",
+          isAiPanelOpen ? "w-80 opacity-100" : "w-0 opacity-0 overflow-hidden border-none"
+        )}
+      >
+        <div className="flex items-center justify-between p-3 border-b border-border/50">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span>AI 助手</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setIsConfigOpen(true)}>
-            <Settings2 size={16} />
-          </Button>
+          <div className="flex items-center gap-1">
+             <Button variant="ghost" size="icon" onClick={() => setIsConfigOpen(true)} className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                <Settings2 className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setIsAiPanelOpen(false)} className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                <PanelRightClose className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <div className="p-4 space-y-4">
-          <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800">
-            <h3 className="font-medium text-sm mb-2 text-purple-900 dark:text-purple-100">智能润色</h3>
-            <p className="text-xs text-purple-700 dark:text-purple-300 mb-4">
-              选中一段文本进行局部润色，或点击下方按钮全文润色。
+        
+        <ScrollArea className="flex-1 p-4">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+                <h3 className="font-medium text-sm text-primary">智能润色</h3>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              AI 可以帮助您优化选中的文本片段，或对全篇内容进行风格润色。请确保已配置 API Key。
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 pt-2">
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={() => handlePolish("selection")}
                 disabled={isPolishing}
+                className="h-8 text-xs bg-background/50 hover:bg-background"
               >
-                <PenLine size={14} className="mr-1" /> 选中润色
+                <PenLine className="h-3 w-3 mr-1.5" /> 选中润色
               </Button>
               <Button 
-                variant="default" 
                 size="sm" 
                 onClick={() => handlePolish("full")}
                 disabled={isPolishing}
-                className="bg-purple-600 hover:bg-purple-700"
+                className="h-8 text-xs"
               >
-                <Sparkles size={14} className="mr-1" /> 全文润色
+                <Sparkles className="h-3 w-3 mr-1.5" /> 全文润色
               </Button>
             </div>
           </div>
           
-          {/* Status */}
           {isPolishing && (
-            <div className="text-xs text-center text-muted-foreground animate-pulse">
-              AI 正在思考中...
+            <div className="mt-4 flex flex-col items-center justify-center py-8 text-muted-foreground animate-pulse space-y-2">
+               <Sparkles className="h-5 w-5 animate-spin" />
+               <span className="text-xs">AI 正在思考中...</span>
             </div>
           )}
-        </div>
+        </ScrollArea>
       </div>
 
       {/* Config Dialog */}
       <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>写作助手设置</DialogTitle>
+            <DialogTitle>写作助手配置</DialogTitle>
+            <DialogDescription>
+                自定义 AI 润色的行为和使用的模型。
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Prompt (润色指令)</label>
+              <label className="text-xs font-medium text-muted-foreground">系统指令 (System Prompt)</label>
               <Textarea 
                 value={configForm.prompt || ""} 
                 onChange={e => setConfigForm(prev => ({ ...prev, prompt: e.target.value }))}
-                placeholder="例如：你是一个资深小说编辑..."
+                placeholder="例如：你是一个资深小说编辑，请优化这段文字的描写..."
+                className="h-20 text-xs"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Model Name</label>
+              <label className="text-xs font-medium text-muted-foreground">模型名称 (Model)</label>
               <Input 
                 value={configForm.model || ""} 
                 onChange={e => setConfigForm(prev => ({ ...prev, model: e.target.value }))}
                 placeholder="gpt-4o"
+                className="h-8"
+              />
+            </div>
+             <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">API Base URL</label>
+              <Input 
+                value={configForm.base_url || ""} 
+                onChange={e => setConfigForm(prev => ({ ...prev, base_url: e.target.value }))}
+                placeholder="https://api.openai.com/v1"
+                className="h-8"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">API Key</label>
+              <label className="text-xs font-medium text-muted-foreground">API Key</label>
               <Input 
                 type="password"
                 value={configForm.api_key || ""} 
                 onChange={e => setConfigForm(prev => ({ ...prev, api_key: e.target.value }))}
                 placeholder="sk-..."
+                className="h-8"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Base URL</label>
-              <Input 
-                value={configForm.base_url || ""} 
-                onChange={e => setConfigForm(prev => ({ ...prev, base_url: e.target.value }))}
-                placeholder="https://api.openai.com/v1"
-              />
-            </div>
+           
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsConfigOpen(false)}>取消</Button>
@@ -351,5 +557,3 @@ export function WritingWorkspace() {
     </div>
   )
 }
-
-import { useMemo } from "react" // Added missing import

@@ -84,10 +84,10 @@ export function KnowledgeUpload({ onUploaded }: KnowledgeUploadProps) {
   }
 
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
-      <div className="text-sm font-semibold text-slate-900">上传文档</div>
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="text-sm font-semibold text-foreground">上传文档</div>
       <label
-        className="mt-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-xs text-slate-500"
+        className="mt-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/20 px-4 py-6 text-xs text-muted-foreground transition-colors hover:border-primary/50"
         onDrop={handleDrop}
         onDragOver={handleDragOver}
       >
@@ -106,30 +106,30 @@ export function KnowledgeUpload({ onUploaded }: KnowledgeUploadProps) {
           {previews.map((preview) => (
             <div
               key={preview.file.name}
-              className="rounded-md border border-dashed px-3 py-2 text-xs text-slate-600"
+              className="rounded-md border border-dashed border-border/60 bg-background px-3 py-2 text-xs text-muted-foreground"
             >
-              <div className="font-semibold">{preview.file.name}</div>
+              <div className="font-semibold text-foreground">{preview.file.name}</div>
               {preview.sections.length > 0 ? (
-                <div className="mt-1 text-[11px] text-slate-500">
+                <div className="mt-1 text-[11px] text-muted-foreground">
                   解析到 {preview.sections.length} 个标题：
                   <div className="mt-1 flex flex-wrap gap-1">
                     {preview.sections.slice(0, 6).map((title) => (
                       <span
                         key={title}
-                        className="rounded-full bg-slate-100 px-2 py-0.5"
+                        className="rounded-full bg-muted/60 px-2 py-0.5 text-[11px] text-foreground"
                       >
                         {title}
                       </span>
                     ))}
                     {preview.sections.length > 6 ? (
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-muted-foreground">
                         +{preview.sections.length - 6}
                       </span>
                     ) : null}
                   </div>
                 </div>
               ) : (
-                <div className="mt-1 text-[11px] text-slate-500">
+                <div className="mt-1 text-[11px] text-muted-foreground">
                   纯文本文件，将作为单文档导入。
                 </div>
               )}

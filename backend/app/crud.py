@@ -6,12 +6,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db_models import ProjectTable
-from .models import CharacterProfile, ProjectSummary, StoryNode, StoryProject
+from .models import CharacterProfile, ProjectSummary, StoryChapter, StoryNode, StoryProject
 
 
 def _serialize_project(project: StoryProject) -> dict:
     return {
         "nodes": [node.model_dump() for node in project.nodes],
+        "chapters": [chapter.model_dump() for chapter in project.chapters],
         "characters": [character.model_dump() for character in project.characters],
         "analysis_profile": project.analysis_profile,
         "prompt_overrides": project.prompt_overrides.model_dump(),
@@ -22,11 +23,13 @@ def _serialize_project(project: StoryProject) -> dict:
 def _deserialize_project(row: ProjectTable) -> StoryProject:
     data = row.data_json or {}
     nodes_data: Iterable[dict] = data.get("nodes", [])
+    chapters_data: Iterable[dict] = data.get("chapters", [])
     characters_data: Iterable[dict] = data.get("characters", [])
     analysis_profile = data.get("analysis_profile", "auto")
     prompt_overrides = data.get("prompt_overrides", {})
-    writer_config = data.get("writer_config", {})
+    writer_config = data.get("writer_config") or {}
     nodes = [StoryNode(**node) for node in nodes_data]
+    chapters = [StoryChapter(**chapter) for chapter in chapters_data]
     characters = [CharacterProfile(**character) for character in characters_data]
     return StoryProject(
         id=row.id,
@@ -34,6 +37,7 @@ def _deserialize_project(row: ProjectTable) -> StoryProject:
         world_view=row.world_view,
         style_tags=row.style_tags or [],
         nodes=nodes,
+        chapters=chapters,
         characters=characters,
         analysis_profile=analysis_profile,
         prompt_overrides=prompt_overrides,
