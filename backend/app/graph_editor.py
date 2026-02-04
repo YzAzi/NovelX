@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from .knowledge_graph import Entity, EntityType, KnowledgeGraph, Relation, new_entity_id
+from .knowledge_graph import (
+    Entity,
+    EntityType,
+    KnowledgeGraph,
+    Relation,
+    RelationType,
+    new_entity_id,
+    new_relation_id,
+)
 
 
 class GraphEditor:
@@ -194,6 +202,64 @@ class GraphEditor:
             if "description" in updates:
                 relation.description = updates["description"]
             
+            self._touch_graph()
+            return relation
+        except Exception:
+            self.graph.entities = snapshot.entities
+            self.graph.relations = snapshot.relations
+            self.graph.last_updated = snapshot.last_updated
+            raise
+
+    def create_relation(self, payload: dict) -> Relation:
+        snapshot = deepcopy(self.graph)
+        try:
+            source_id = payload.get("source_id")
+            target_id = payload.get("target_id")
+            if not source_id or not target_id:
+                raise ValueError("Missing source_id or target_id")
+            if source_id == target_id:
+                raise ValueError("Source and target cannot be the same")
+
+            source = next((e for e in self.graph.entities if e.id == source_id), None)
+            target = next((e for e in self.graph.entities if e.id == target_id), None)
+            if source is None or target is None:
+                raise ValueError("Entity not found")
+            if (
+                source.type != EntityType.CHARACTER
+                or target.type != EntityType.CHARACTER
+            ):
+                raise ValueError("Relation must connect character entities")
+
+            raw_type = payload.get("relation_type") or RelationType.RELATED_TO
+            if isinstance(raw_type, str):
+                try:
+                    relation_type = RelationType(raw_type)
+                except ValueError:
+                    relation_type = RelationType.RELATED_TO
+            else:
+                relation_type = raw_type
+
+            relation_name = payload.get("relation_name") or ""
+            description = payload.get("description") or ""
+            properties = payload.get("properties") or {}
+            source_refs = payload.get("source_refs") or []
+            if not isinstance(properties, dict):
+                raise ValueError("Invalid properties value")
+            if not isinstance(source_refs, list):
+                raise ValueError("Invalid source_refs value")
+
+            relation = Relation(
+                id=new_relation_id(),
+                source_id=source_id,
+                target_id=target_id,
+                relation_type=relation_type,
+                relation_name=relation_name,
+                description=description,
+                properties=properties,
+                source_refs=source_refs,
+            )
+            self.graph.relations.append(relation)
+            self._dedupe_relations()
             self._touch_graph()
             return relation
         except Exception:

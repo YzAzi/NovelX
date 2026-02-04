@@ -13,5 +13,5 @@
 
 输出格式：
 - new_characters: list[CharacterProfile]
-- timeline_updates: list[{node_id, new_timeline_order}]
-- conflicts: list[{description, affected_nodes}]
+- timeline_updates: list[{{node_id, new_timeline_order}}]
+- conflicts: list[{{description, affected_nodes}}]

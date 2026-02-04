@@ -3,17 +3,29 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, Sparkles, Send, Square, Trash2 } from "lucide-react"
+import dynamic from "next/dynamic"
+import "@uiw/react-markdown-preview/markdown.css";
 
 import type { AnalysisMessage } from "@/src/types/models"
 import { getAnalysisHistory, saveAnalysisHistory, updateProjectSettings } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
+import { normalizeMarkdown } from "@/src/lib/markdown"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
+const MarkdownPreview = dynamic(
+  () => import("@uiw/react-markdown-preview").then((mod) => mod.default),
+  { ssr: false }
+);
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 const QUICK_PROMPT = "请分析当前大纲的一致性问题，并给出修改与扩写建议。"
+const stripFencedCodeBlocks = (input: string) =>
+  input.replace(/```[\w-]*\n([\s\S]*?)```/g, (_match, code: string) =>
+    code.replace(/^\s{0,4}/gm, "")
+  )
 
 export default function OutlineAnalysisPage() {
   const { currentProject, setProject } = useProjectStore()
@@ -21,11 +33,24 @@ export default function OutlineAnalysisPage() {
   const [input, setInput] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [colorMode, setColorMode] = useState<"light" | "dark">("light")
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const canSend = Boolean(input.trim()) && !isStreaming && currentProject
   const selectedProfile = currentProject?.analysis_profile ?? "auto"
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const updateMode = () => {
+      const isDark = document.documentElement.classList.contains("dark")
+      setColorMode(isDark ? "dark" : "light")
+    }
+    updateMode()
+    const observer = new MutationObserver(updateMode)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => observer.disconnect()
+  }, [])
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -90,10 +115,13 @@ export default function OutlineAnalysisPage() {
             if (line.startsWith("event:")) {
               event = line.replace("event:", "").trim()
             } else if (line.startsWith("data:")) {
-              dataLines.push(line.replace("data:", ""))
+              dataLines.push(line.replace(/^data:\s?/, ""))
             }
           }
           const data = dataLines.join("\n")
+          if (event === "start") {
+             continue
+          }
           if (event === "done") {
             done = true
             break
@@ -295,7 +323,21 @@ export default function OutlineAnalysisPage() {
                                         : "bg-card text-card-foreground border border-border rounded-bl-sm"
                                 )}
                             >
-                                {message.content || (isStreaming && message.role === "assistant" ? <span className="animate-pulse">Analyzing...</span> : "")}
+                                {message.role === "assistant" ? (
+                                    <div className="markdown-preview-reset text-sm">
+                                        <MarkdownPreview 
+                                            source={normalizeMarkdown(
+                                              stripFencedCodeBlocks(
+                                                message.content || (isStreaming ? "Thinking..." : "")
+                                              )
+                                            )} 
+                                            style={{ backgroundColor: 'transparent', color: 'inherit', fontSize: 'inherit' }}
+                                            wrapperElement={{ "data-color-mode": colorMode }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="whitespace-pre-wrap">{message.content}</div>
+                                )}
                             </div>
                         </div>
                     ))

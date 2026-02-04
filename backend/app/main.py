@@ -5,10 +5,12 @@ import re
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .crud import create_project, delete_project, get_project, list_projects, update_project
@@ -25,13 +27,14 @@ from .config import (
     set_model_override,
     settings,
 )
-from .graph import run_drafting_workflow, run_sync_workflow
+from .graph import run_drafting_workflow
 from .graph_extractor import GraphExtractor
 from langchain_openai import ChatOpenAI
-from .knowledge_graph import delete_graph, load_graph, save_graph
+from .knowledge_graph import EntityType, delete_graph, load_graph, save_graph
 from .models import (
     CreateOutlineRequest,
     CharacterProfile,
+    CharacterAppearance,
     CharacterGraphLink,
     CharacterGraphNode,
     CharacterGraphResponse,
@@ -63,7 +66,7 @@ from .models import (
     VersionCreateRequest,
     VersionUpdateRequest,
 )
-from .index_sync import SyncResult
+from .index_sync import IndexSyncManager, SyncResult
 from .node_indexer import NodeIndexer
 from .schema_utils import pydantic_json_schema_inline, pydantic_to_openai_function_inline
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode, SyncQueue, build_default_sync_manager
@@ -98,6 +101,16 @@ OUTLINE_IMPORT_PROMPT_PATH = Path(__file__).parent / "prompts" / "outline_import
 OUTLINE_IMPORT_PROMPT_TEMPLATE = PromptTemplate.from_template(
     OUTLINE_IMPORT_PROMPT_PATH.read_text(encoding="utf-8")
 )
+
+
+class GraphSyncRequest(BaseModel):
+    mode: Literal["full", "node"] = "full"
+    node_id: str | None = None
+
+
+class GraphSyncResponse(BaseModel):
+    sync_result: SyncResult
+    sync_status: str = "completed"
 
 
 def _count_words(text: str) -> int:
@@ -426,7 +439,16 @@ async def sync_node(
         (node for node in project.nodes if node.id == payload.node.id),
         None,
     )
-    updated_project = await run_sync_workflow(project, payload.node)
+    updated = False
+    for idx, node in enumerate(project.nodes):
+        if node.id == payload.node.id:
+            project.nodes[idx] = payload.node
+            updated = True
+            break
+    if not updated:
+        project.nodes.append(payload.node)
+    project.updated_at = datetime.utcnow()
+    updated_project = project
     await update_project(session, updated_project.id, updated_project)
 
     updated_node = next(
@@ -621,7 +643,9 @@ async def insert_node(
         {"node_id": payload.node.id, "request_id": request_id},
     )
 
-    updated_project = await run_sync_workflow(project, payload.node)
+    project.nodes.append(payload.node)
+    project.updated_at = datetime.utcnow()
+    updated_project = project
     await update_project(session, updated_project.id, updated_project)
 
     updated_node = next(
@@ -779,6 +803,80 @@ async def insert_node(
         conflicts=conflicts,
         sync_status=sync_status,
     )
+
+
+@app.post(
+    "/api/projects/{project_id}/graph/sync",
+    response_model=GraphSyncResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def sync_graph_manual(
+    project_id: str,
+    payload: GraphSyncRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    prompt_override = project.prompt_overrides.extraction
+    prompt_template = (
+        PromptTemplate.from_template(prompt_override)
+        if prompt_override
+        else None
+    )
+    extractor = GraphExtractor(prompt_template=prompt_template)
+    node_indexer = NodeIndexer()
+
+    if payload.mode == "full":
+        await node_indexer.clear_project(project_id)
+        indexed = await node_indexer.index_project(project)
+        updated_graph = await extractor.build_full_graph(project)
+        save_graph(updated_graph)
+        sync_result = SyncResult(
+            success=True,
+            vector_updated=indexed > 0,
+            graph_updated=True,
+            new_entities=updated_graph.entities,
+            new_relations=updated_graph.relations,
+        )
+    elif payload.mode == "node":
+        if not payload.node_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing node_id for node sync",
+            )
+        node = next(
+            (item for item in project.nodes if item.id == payload.node_id),
+            None,
+        )
+        if node is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Node not found"
+            )
+        current_graph = load_graph(project_id)
+        temp_sync_manager = IndexSyncManager(
+            node_indexer=node_indexer,
+            graph_extractor=extractor,
+            knowledge_manager=world_knowledge_manager,
+        )
+        sync_result = await temp_sync_manager.sync_node_create(
+            project_id=project_id,
+            new_node=node,
+            current_graph=current_graph,
+        )
+        save_graph(current_graph)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sync mode"
+        )
+
+    if sync_result.graph_updated:
+        await notifier.notify_graph_updated(project_id, sync_result.model_dump())
+
+    return GraphSyncResponse(sync_result=sync_result, sync_status="completed")
 
 
 @app.post("/api/outline_analysis_stream")
@@ -1964,6 +2062,33 @@ async def update_graph_relation(
     return relation.model_dump()
 
 
+@app.post(
+    "/api/projects/{project_id}/graph/relations",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+)
+async def create_graph_relation(
+    project_id: str,
+    payload: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    graph = load_graph(project_id)
+    editor = GraphEditor(graph)
+    try:
+        relation = editor.create_relation(payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        )
+    save_graph(graph)
+    return relation.model_dump()
+
+
 @app.delete(
     "/api/projects/{project_id}/graph/relations/{relation_id}",
     response_model=dict,
@@ -2010,18 +2135,66 @@ async def get_character_graph(
         )
 
     graph = load_graph(project_id)
-    nodes = [
-        CharacterGraphNode(
-            id=entity.id,
-            name=entity.name,
-            type=entity.type.value if hasattr(entity.type, "value") else str(entity.type),
-            description=entity.description,
-            aliases=entity.aliases,
-            properties=entity.properties or {},
-            source_refs=entity.source_refs,
-        )
-        for entity in graph.entities
+    node_map = {node.id: node for node in project.nodes}
+    character_entities = [
+        entity for entity in graph.entities if entity.type == EntityType.CHARACTER
     ]
+    character_ids = {entity.id for entity in character_entities}
+
+    def _extract_appearance_ids(entity) -> set[str]:
+        appearances: set[str] = set()
+        props = entity.properties or {}
+        if isinstance(props, dict):
+            raw = props.get("appearances")
+            if isinstance(raw, list):
+                for item in raw:
+                    if isinstance(item, str):
+                        appearances.add(item)
+                    elif isinstance(item, dict):
+                        node_id = item.get("node_id")
+                        if isinstance(node_id, str):
+                            appearances.add(node_id)
+        for ref in entity.source_refs:
+            appearances.add(ref)
+        for node in project.nodes:
+            if entity.id in node.characters:
+                appearances.add(node.id)
+        return appearances
+
+    nodes: list[CharacterGraphNode] = []
+    for entity in character_entities:
+        appearance_ids = _extract_appearance_ids(entity)
+        appearances = []
+        for node_id in appearance_ids:
+            node = node_map.get(node_id)
+            if not node:
+                continue
+            appearances.append(
+                CharacterAppearance(
+                    node_id=node.id,
+                    node_title=node.title,
+                    narrative_order=node.narrative_order,
+                    timeline_order=node.timeline_order,
+                )
+            )
+        appearances.sort(
+            key=lambda item: (item.narrative_order, item.timeline_order or 0)
+        )
+        nodes.append(
+            CharacterGraphNode(
+                id=entity.id,
+                name=entity.name,
+                type=entity.type.value
+                if hasattr(entity.type, "value")
+                else str(entity.type),
+                description=entity.description,
+                aliases=entity.aliases,
+                properties=entity.properties or {},
+                source_refs=entity.source_refs,
+                appearances=appearances,
+            )
+        )
+
     links = [
         CharacterGraphLink(
             id=relation.id,
@@ -2034,5 +2207,7 @@ async def get_character_graph(
             description=relation.description,
         )
         for relation in graph.relations
+        if relation.source_id in character_ids
+        and relation.target_id in character_ids
     ]
     return CharacterGraphResponse(nodes=nodes, links=links)

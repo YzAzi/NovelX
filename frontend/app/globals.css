@@ -199,4 +199,27 @@
   .animate-fade-in {
     animation: fade-in 0.2s ease-out both;
   }
+  
+  /* Markdown Preview Overrides */
+  .markdown-preview-reset strong {
+    font-weight: 700 !important;
+  }
+  
+  .markdown-preview-reset em {
+    font-style: italic !important;
+  }
+  
+  .markdown-preview-reset h1, 
+  .markdown-preview-reset h2, 
+  .markdown-preview-reset h3 {
+    font-weight: 600 !important;
+    margin-top: 0.5em;
+    margin-bottom: 0.25em;
+  }
+  
+  .markdown-preview-reset ul, 
+  .markdown-preview-reset ol {
+    list-style: revert !important;
+    padding-left: 1.2em !important;
+  }
 }

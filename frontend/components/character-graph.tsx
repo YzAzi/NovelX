@@ -1,7 +1,15 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import type { CSSProperties } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import type {
   ForceGraphMethods,
   LinkObject,
@@ -10,19 +18,17 @@ import type {
 
 import {
   createGraphEntity,
-  deleteGraphEntity,
-  deleteGraphRelation,
+  createGraphRelation,
   getCharacterGraph,
-  mergeGraphEntities,
+  syncCharacterGraph,
   updateGraphEntity,
-  updateGraphRelation,
 } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import type {
+  CharacterAppearance,
   CharacterGraphLink,
   CharacterGraphNode,
   CharacterGraphResponse,
-  EntityType,
 } from "@/src/types/character-graph"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,1539 +45,1002 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
 }) as unknown as typeof import("react-force-graph-2d").default
 
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  character: "角色",
-  location: "地点",
-  item: "物品",
-  organization: "组织",
-  event: "事件",
-  concept: "概念",
-  unknown: "未知",
-}
+const RELATION_TYPES = [
+  { value: "family", label: "亲属" },
+  { value: "friend", label: "朋友" },
+  { value: "lover", label: "恋人" },
+  { value: "colleague", label: "同事" },
+  { value: "enemy", label: "敌对" },
+  { value: "related_to", label: "相关" },
+]
 
-type GraphPalette = {
+type Palette = {
   background: string
-  card: string
+  surface: string
   border: string
-  foreground: string
+  ink: string
   muted: string
-  primary: string
   accent: string
-  destructive: string
-  chart: string[]
-  entity: Record<string, string>
+  accentSoft: string
+  link: string
 }
 
-const createFallbackPalette = (): GraphPalette => {
-  const fallback = "currentColor"
-  return {
-    background: fallback,
-    card: fallback,
-    border: fallback,
-    foreground: fallback,
-    muted: fallback,
-    primary: fallback,
-    accent: fallback,
-    destructive: fallback,
-    chart: [fallback, fallback, fallback, fallback, fallback],
-    entity: {
-      character: fallback,
-      location: fallback,
-      item: fallback,
-      organization: fallback,
-      event: fallback,
-      concept: fallback,
-      unknown: fallback,
-    },
-  }
+const defaultPalette: Palette = {
+  background: "#f7f7f2",
+  surface: "#ffffff",
+  border: "#e2e2dc",
+  ink: "#111111",
+  muted: "#5c5c58",
+  accent: "#e04f2f",
+  accentSoft: "#f6d8cf",
+  link: "#2d2d2d",
 }
 
-const getGraphPalette = (): GraphPalette => {
-  if (typeof window === "undefined") {
-    return createFallbackPalette()
-  }
-
-  const styles = getComputedStyle(document.documentElement)
-  const base = styles.color?.trim() || "currentColor"
-  const readVar = (name: string) => styles.getPropertyValue(name).trim() || base
-
-  const chart = [
-    readVar("--chart-1"),
-    readVar("--chart-2"),
-    readVar("--chart-3"),
-    readVar("--chart-4"),
-    readVar("--chart-5"),
-  ]
-
-  const palette: GraphPalette = {
-    background: readVar("--background"),
-    card: readVar("--card"),
-    border: readVar("--border"),
-    foreground: readVar("--foreground"),
-    muted: readVar("--muted-foreground"),
-    primary: readVar("--primary"),
-    accent: readVar("--accent-foreground"),
-    destructive: readVar("--destructive"),
-    chart,
-    entity: {
-      character: chart[0],
-      location: chart[1],
-      item: chart[2],
-      organization: chart[3],
-      event: chart[4],
-      concept: readVar("--accent-foreground"),
-      unknown: readVar("--muted-foreground"),
-    },
-  }
-
-  return palette
+function parseAliases(value: string) {
+  return value
+    .split("，")
+    .join(",")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
-const RELATION_COLOR_INDEX: Record<string, number> = {
-  family: 1,
-  friend: 2,
-  enemy: -1,
-  lover: 0,
-  master_student: 3,
-  colleague: 4,
-  belongs_to: 3,
-  located_at: 1,
-  participates_in: 2,
-  related_to: -2,
-  unknown: -2,
+function appearancesToIds(appearances?: CharacterAppearance[]) {
+  if (!appearances || appearances.length === 0) {
+    return []
+  }
+  return appearances.map((item) => item.node_id)
 }
 
-function getRelationColor(
-  relation: string | undefined,
-  palette: GraphPalette
-) {
-  if (!relation) {
-    return palette.muted
-  }
-  const index = RELATION_COLOR_INDEX[relation]
-  if (index === -1) {
-    return palette.destructive
-  }
-  if (index === -2) {
-    return palette.muted
-  }
-  if (typeof index === "number") {
-    return palette.chart[index % palette.chart.length]
-  }
-  let hash = 0
-  for (let i = 0; i < relation.length; i += 1) {
-    hash = relation.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  const fallbackIndex = Math.abs(hash) % palette.chart.length
-  return palette.chart[fallbackIndex]
-}
-
-function buildNodeLabel(node: CharacterGraphNode) {
-  const rows = [node.name]
-  const normalizedType = normalizeEntityType(node.type)
-  rows.push(`类型：${ENTITY_TYPE_LABELS[normalizedType]}`)
-  if (node.aliases && node.aliases.length > 0) {
-    rows.push(`别名：${node.aliases.join("、")}`)
-  }
-  if (node.description) {
-    rows.push(`描述：${node.description}`)
-  }
-  return rows.join("\n")
-}
-
-function normalizeEntityType(type?: string) {
-  if (type && ENTITY_TYPE_LABELS[type]) {
-    return type
-  }
-  return "unknown"
-}
-
-function drawShape(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number,
-  type?: EntityType
-) {
-  ctx.beginPath()
-  if (type === "location") {
-    ctx.rect(x - size, y - size, size * 2, size * 2)
-  } else if (type === "item") {
-    ctx.moveTo(x, y - size)
-    ctx.lineTo(x + size, y)
-    ctx.lineTo(x, y + size)
-    ctx.lineTo(x - size, y)
-    ctx.closePath()
-  } else if (type === "organization") {
-    const angle = Math.PI / 3
-    ctx.moveTo(x + size, y)
-    for (let i = 1; i <= 6; i += 1) {
-      ctx.lineTo(x + size * Math.cos(angle * i), y + size * Math.sin(angle * i))
-    }
-  } else if (type === "event") {
-    ctx.moveTo(x, y - size)
-    ctx.lineTo(x + size, y + size)
-    ctx.lineTo(x - size, y + size)
-    ctx.closePath()
-  } else {
-    ctx.arc(x, y, size, 0, Math.PI * 2, false)
-  }
+function nodeLabel(node: CharacterGraphNode) {
+  return node.name
 }
 
 export function CharacterGraph() {
-  const { currentProject, graphUpdateVersion, setHighlightedNodes } = useProjectStore()
+  const { currentProject, graphUpdateVersion } = useProjectStore()
   const [graphData, setGraphData] = useState<CharacterGraphResponse>({
     nodes: [],
     links: [],
   })
-  const graphDataRef = useRef(graphData)
-  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [selectedChapterId, setSelectedChapterId] = useState<string | "all">(
+    "all",
+  )
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
+    null,
+  )
+  const [hoveredCharacterId, setHoveredCharacterId] = useState<string | null>(
+    null,
+  )
   const [graphSize, setGraphSize] = useState({ width: 0, height: 0 })
-  const [isLoading, setIsLoading] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const abortRef = useRef<AbortController | null>(null)
-  const graphRef = useRef<
-    | ForceGraphMethods<
-        NodeObject<CharacterGraphNode>,
-        LinkObject<CharacterGraphNode, CharacterGraphLink>
-      >
-    | undefined
-  >(undefined)
-  const [graphInstanceKey, setGraphInstanceKey] = useState(0)
-  const [selectedEntity, setSelectedEntity] = useState<CharacterGraphNode | null>(null)
-  const [selectedRelation, setSelectedRelation] = useState<CharacterGraphLink | null>(null)
-  const [contextMenu, setContextMenu] = useState<{
-    x: number
-    y: number
-    node: CharacterGraphNode
-  } | null>(null)
-  const [isMutating, setIsMutating] = useState(false)
-  const [mergeOpen, setMergeOpen] = useState(false)
-  const [mergeQuery, setMergeQuery] = useState("")
-  const [mergeTargetId, setMergeTargetId] = useState("")
-  const [toasts, setToasts] = useState<
-    Array<{ id: string; type: "success" | "error"; message: string }>
-  >([])
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({
+  const [graphKey, setGraphKey] = useState(0)
+  const [palette, setPalette] = useState<Palette>(defaultPalette)
+  const [loading, setLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [editMode, setEditMode] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+
+  const [showAddCharacter, setShowAddCharacter] = useState(false)
+  const [showAddRelation, setShowAddRelation] = useState(false)
+  const [showCharacterDetail, setShowCharacterDetail] = useState(false)
+
+  const [characterDraft, setCharacterDraft] = useState({
     name: "",
     description: "",
-    type: "character" as EntityType,
     aliases: "",
-    properties: "",
+    appearances: [] as string[],
   })
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [filterTypes, setFilterTypes] = useState<Record<string, boolean>>({
-    character: true,
-    location: true,
-    item: true,
-    organization: true,
-    event: true,
-    concept: true,
-    unknown: true,
-  })
-  const [filterRelations, setFilterRelations] = useState<Record<string, boolean>>({})
-  const [pathEndpoints, setPathEndpoints] = useState({
-    startId: "",
-    endId: "",
-  })
-  const [pathRelations, setPathRelations] = useState<CharacterGraphLink[]>([])
-  const [palette, setPalette] = useState<GraphPalette>(() => getGraphPalette())
-  const [editRelationOpen, setEditRelationOpen] = useState(false)
-  const [editRelationForm, setEditRelationForm] = useState<{
-    id: string
-    relation_type: string
-    relation_name: string
-    description: string
-  }>({
-    id: "",
-    relation_type: "",
-    relation_name: "",
+
+  const [relationDraft, setRelationDraft] = useState({
+    sourceId: "",
+    targetId: "",
+    relationType: RELATION_TYPES[0].value,
+    relationName: "",
     description: "",
   })
 
-  const fitOnceRef = useRef(false)
+  const graphRef = useRef<
+    ForceGraphMethods<
+      NodeObject<CharacterGraphNode>,
+      LinkObject<CharacterGraphNode, CharacterGraphLink>
+    > | undefined
+  >(undefined)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return
+  const nodesById = useMemo(() => {
+    const map = new Map<string, CharacterGraphNode>()
+    graphData.nodes.forEach((node) => map.set(node.id, node))
+    return map
+  }, [graphData.nodes])
+
+  const chapters = useMemo(() => {
+    if (!currentProject) {
+      return []
     }
-    const updatePalette = () => setPalette(getGraphPalette())
-    updatePalette()
+    return [...currentProject.nodes].sort(
+      (a, b) => a.narrative_order - b.narrative_order,
+    )
+  }, [currentProject])
 
-    const observer = new MutationObserver(() => updatePalette())
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
+  const selectedCharacter = selectedCharacterId
+    ? nodesById.get(selectedCharacterId) ?? null
+    : null
+
+  const filteredGraph = useMemo(() => {
+    const activeIds = new Set<string>()
+    const nodes = graphData.nodes
+    if (selectedChapterId === "all") {
+      nodes.forEach((node) => activeIds.add(node.id))
+    } else {
+      nodes.forEach((node) => {
+        const appearances = node.appearances ?? []
+        if (appearances.some((item) => item.node_id === selectedChapterId)) {
+          activeIds.add(node.id)
+        }
+      })
+    }
+    const filteredNodes = nodes.filter((node) => activeIds.has(node.id))
+    const filteredLinks = graphData.links.filter((link) => {
+      const source = typeof link.source === "string" ? link.source : link.source.id
+      const target = typeof link.target === "string" ? link.target : link.target.id
+      return activeIds.has(source) && activeIds.has(target)
     })
+    return { nodes: filteredNodes, links: filteredLinks }
+  }, [graphData.links, graphData.nodes, selectedChapterId])
 
-    const media = window.matchMedia("(prefers-color-scheme: dark)")
-    media.addEventListener?.("change", updatePalette)
-
-    return () => {
-      observer.disconnect()
-      media.removeEventListener?.("change", updatePalette)
+  const visibleCharacters = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) {
+      return filteredGraph.nodes
     }
-  }, [])
-
-  const measureContainer = useCallback(() => {
-    const container = containerRef.current
-    if (!container) {
-      return
-    }
-    const rect = container.getBoundingClientRect()
-    if (rect.width > 0 && rect.height > 0) {
-      setGraphSize({ width: Math.floor(rect.width), height: Math.floor(rect.height) })
-    }
-  }, [])
-
-  useLayoutEffect(() => {
-    let cancelled = false
-    let attempt = 0
-    const tick = () => {
-      if (cancelled) {
-        return
-      }
-      measureContainer()
-      const rect = containerRef.current?.getBoundingClientRect()
-      if (rect && rect.width > 0 && rect.height > 0) {
-        return
-      }
-      attempt += 1
-      if (attempt < 6) {
-        window.requestAnimationFrame(tick)
-      }
-    }
-    const id = window.requestAnimationFrame(tick)
-    return () => {
-      cancelled = true
-      window.cancelAnimationFrame(id)
-    }
-  }, [measureContainer])
-
-  const handleGraphRef = useCallback(
-    (
-      instance:
-        | ForceGraphMethods<
-            NodeObject<CharacterGraphNode>,
-            LinkObject<CharacterGraphNode, CharacterGraphLink>
-          >
-        | null
-    ) => {
-      graphRef.current = instance ?? undefined
-      if (instance) {
-        setGraphInstanceKey((prev) => prev + 1)
-      }
-    },
-    []
-  )
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) {
-      return
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (!entry) {
-        return
-      }
-      const nextWidth = Math.floor(entry.contentRect.width)
-      const nextHeight = Math.floor(entry.contentRect.height)
-      if (nextWidth > 0 && nextHeight > 0) {
-        setGraphSize({ width: nextWidth, height: nextHeight })
-      }
-    })
-
-    observer.observe(container)
-    const id = window.requestAnimationFrame(() => {
-      measureContainer()
-    })
-    return () => {
-      window.cancelAnimationFrame(id)
-      observer.disconnect()
-    }
-  }, [measureContainer])
-
-  useEffect(() => {
-    graphDataRef.current = graphData
-  }, [graphData])
+    return filteredGraph.nodes.filter((node) =>
+      node.name.toLowerCase().includes(query),
+    )
+  }, [filteredGraph.nodes, searchQuery])
 
   const loadGraph = useCallback(async () => {
-    if (!currentProject) {
-      setGraphData({ nodes: [], links: [] })
-      setIsLoading(false)
-      setIsRefreshing(false)
+    if (!currentProject?.id) {
       return
     }
-
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    const hasData = graphDataRef.current.nodes.length > 0
-    if (hasData) {
-      setIsRefreshing(true)
-    } else {
-      setIsLoading(true)
-    }
-
+    setLoading(true)
     try {
-      const response = await getCharacterGraph(currentProject.id, {
-        signal: controller.signal,
-      })
+      const response = await getCharacterGraph(currentProject.id)
       setGraphData(response)
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return
-      }
-      setGraphData({ nodes: [], links: [] })
     } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
+      setLoading(false)
     }
-  }, [currentProject])
+  }, [currentProject?.id])
 
   useEffect(() => {
     loadGraph()
-    return () => {
-      abortRef.current?.abort()
-    }
-  }, [loadGraph, currentProject?.updated_at, graphUpdateVersion])
+  }, [loadGraph, graphUpdateVersion, currentProject?.updated_at])
 
-  const handleNodeClick = useCallback(
-    (node: CharacterGraphNode) => {
-      setSelectedRelation(null)
-      setSelectedEntity(node)
-      setHighlightedNodes(node.source_refs ?? [])
-    },
-    [setHighlightedNodes]
-  )
-
-  const handleBackgroundClick = useCallback(() => {
-    setSelectedEntity(null)
-    setSelectedRelation(null)
-    setContextMenu(null)
-    setHighlightedNodes([])
-  }, [setHighlightedNodes])
-
-  const handleNodeRightClick = useCallback(
-    (node: CharacterGraphNode, event: MouseEvent) => {
-      event.preventDefault()
-      setContextMenu({ x: event.clientX, y: event.clientY, node })
-      setMergeOpen(false)
-      setMergeQuery("")
-      setMergeTargetId("")
-    },
-    []
-  )
-
-  const handleNodeDoubleClick = useCallback((node: CharacterGraphNode) => {
-    if (!graphRef.current || node.x == null || node.y == null) {
+  useLayoutEffect(() => {
+    if (!containerRef.current) {
       return
     }
-    graphRef.current.centerAt(node.x, node.y, 800)
-    graphRef.current.zoom(2, 800)
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        setGraphSize({ width, height })
+      }
+    })
+    resizeObserver.observe(containerRef.current)
+    return () => resizeObserver.disconnect()
   }, [])
 
-  const handleLinkClick = useCallback((link: CharacterGraphLink) => {
-    setSelectedEntity(null)
-    setSelectedRelation(link)
+  useEffect(() => {
+    if (!containerRef.current) {
+      return
+    }
+    const styles = getComputedStyle(containerRef.current)
+    const read = (name: string) => styles.getPropertyValue(name).trim()
+    setPalette({
+      background: read("--cg-bg") || defaultPalette.background,
+      surface: read("--cg-surface") || defaultPalette.surface,
+      border: read("--cg-border") || defaultPalette.border,
+      ink: read("--cg-ink") || defaultPalette.ink,
+      muted: read("--cg-muted") || defaultPalette.muted,
+      accent: read("--cg-accent") || defaultPalette.accent,
+      accentSoft: read("--cg-accent-soft") || defaultPalette.accentSoft,
+      link: read("--cg-link") || defaultPalette.link,
+    })
   }, [])
 
-  const relationTypes = useMemo(() => {
-    const types = new Set<string>()
-    graphData.links.forEach((link) => {
-      types.add(link.relation_type ?? "related_to")
-    })
-    return Array.from(types)
-  }, [graphData.links])
+  useEffect(() => {
+    if (
+      !graphRef.current ||
+      filteredGraph.nodes.length === 0 ||
+      graphSize.width === 0 ||
+      graphSize.height === 0
+    ) {
+      return
+    }
+    // Small delay to ensure internal canvas resize is complete
+    const timer = setTimeout(() => {
+      graphRef.current?.zoomToFit(500, 48)
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [filteredGraph.nodes.length, graphKey, graphSize.width, graphSize.height])
 
   useEffect(() => {
-    setFilterRelations((prev) => {
-      const next = { ...prev }
-      relationTypes.forEach((type) => {
-        if (next[type] === undefined) {
-          next[type] = true
-        }
-      })
-      return next
-    })
-  }, [relationTypes])
-
-  const graphDataMemo = useMemo(() => {
-    const allowedTypes = new Set(
-      Object.entries(filterTypes)
-        .filter(([, value]) => value)
-        .map(([key]) => key)
-    )
-    const allowedRelations = new Set(
-      Object.entries(filterRelations)
-        .filter(([, value]) => value)
-        .map(([key]) => key)
-    )
-    const filteredNodes = graphData.nodes.filter((node) => {
-      const type = normalizeEntityType(node.type)
-      return allowedTypes.has(type)
-    })
-    const nodeIds = new Set(filteredNodes.map((node) => node.id))
-    const filteredLinks = graphData.links.filter((link) => {
-      const relationType = link.relation_type ?? "related_to"
-      if (allowedRelations.size > 0 && !allowedRelations.has(relationType)) {
-        return false
-      }
-      return nodeIds.has(String(link.source)) && nodeIds.has(String(link.target))
-    })
-    return {
-      nodes: filteredNodes,
-      links: filteredLinks,
-    }
-  }, [filterTypes, filterRelations, graphData.links, graphData.nodes])
-
-  const isGraphReady = graphSize.width > 0 && graphSize.height > 0
+    setGraphKey((value) => value + 1)
+  }, [selectedChapterId])
 
   useEffect(() => {
-    if (graphDataMemo.nodes.length === 0) {
+    if (!selectedCharacter) {
+      setEditMode(false)
       return
     }
-    if (graphSize.width > 0 && graphSize.height > 0) {
-      return
-    }
-    const id = window.requestAnimationFrame(() => {
-      measureContainer()
-      if (graphSize.width === 0 || graphSize.height === 0) {
-        const fallbackWidth = Math.max(640, Math.floor(window.innerWidth * 0.7))
-        const fallbackHeight = Math.max(420, Math.floor(window.innerHeight * 0.6))
-        setGraphSize({ width: fallbackWidth, height: fallbackHeight })
-      }
+    setCharacterDraft({
+      name: selectedCharacter.name,
+      description: selectedCharacter.description ?? "",
+      aliases: (selectedCharacter.aliases ?? []).join("，"),
+      appearances: appearancesToIds(selectedCharacter.appearances),
     })
-    return () => window.cancelAnimationFrame(id)
-  }, [graphDataMemo.nodes.length, graphSize.height, graphSize.width, measureContainer])
+  }, [selectedCharacter])
 
-  useEffect(() => {
-    if (!graphRef.current || graphDataMemo.nodes.length === 0) {
-      return
-    }
-    if (!isGraphReady) {
-      return
-    }
-    fitOnceRef.current = false
-    const id = window.requestAnimationFrame(() => {
-      graphRef.current?.zoomToFit(500, 60)
-    })
-    return () => window.cancelAnimationFrame(id)
-  }, [graphDataMemo.nodes.length, graphInstanceKey, isGraphReady])
-
-  const handleEngineStop = useCallback(() => {
-    if (!graphRef.current || !isGraphReady || fitOnceRef.current) {
-      return
-    }
-    fitOnceRef.current = true
-    graphRef.current.zoomToFit(500, 60)
-  }, [isGraphReady])
-
-  useEffect(() => {
-    if (!graphRef.current || graphDataMemo.nodes.length === 0 || !isGraphReady) {
-      return
-    }
-    const id = window.requestAnimationFrame(() => {
-      graphRef.current?.d3Force("charge")?.strength(-450)
-      graphRef.current?.d3Force("link")?.distance(100)
-      graphRef.current?.d3Force("collide")?.radius(34).strength(0.98)
-    })
-    return () => window.cancelAnimationFrame(id)
-  }, [graphDataMemo.nodes.length, graphInstanceKey, isGraphReady])
-
-  const searchMatches = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return new Set<string>()
-    }
-    const query = searchQuery.toLowerCase()
-    return new Set(
-      graphData.nodes
-        .filter(
-          (node) =>
-            node.name.toLowerCase().includes(query) ||
-            (node.aliases ?? []).some((alias) => alias.toLowerCase().includes(query))
-        )
-        .map((node) => node.id)
-    )
-  }, [graphData.nodes, searchQuery])
-
-  const pathNodeIds = useMemo(() => {
-    const ids = new Set<string>()
-    pathRelations.forEach((link) => {
-      const source = typeof link.source === "string" ? link.source : link.source.id
-      const target = typeof link.target === "string" ? link.target : link.target.id
-      ids.add(source)
-      ids.add(target)
-    })
-    return ids
-  }, [pathRelations])
-
-  const handlePathFind = useCallback(() => {
-    if (!pathEndpoints.startId || !pathEndpoints.endId) {
-      setPathRelations([])
-      return
-    }
-    const getNodeId = (value: string | CharacterGraphNode) =>
-      typeof value === "string" ? value : value.id
-    const adjacency = new Map<string, CharacterGraphLink[]>()
-    graphData.links.forEach((link) => {
-      const source = getNodeId(link.source)
-      const target = getNodeId(link.target)
-      adjacency.set(source, [...(adjacency.get(source) ?? []), link])
-      adjacency.set(target, [...(adjacency.get(target) ?? []), link])
-    })
-
-    const queue: Array<{ id: string; path: CharacterGraphLink[] }> = [
-      { id: pathEndpoints.startId, path: [] },
-    ]
-    const visited = new Set<string>([pathEndpoints.startId])
-
-    while (queue.length > 0) {
-      const current = queue.shift()
-      if (!current) break
-      if (current.id === pathEndpoints.endId) {
-        setPathRelations(current.path)
-        return
-      }
-      for (const relation of adjacency.get(current.id) ?? []) {
-        const nextId =
-          getNodeId(relation.source) === current.id
-            ? getNodeId(relation.target)
-            : getNodeId(relation.source)
-        if (visited.has(nextId)) {
-          continue
-        }
-        visited.add(nextId)
-        queue.push({ id: nextId, path: [...current.path, relation] })
-      }
-    }
-    setPathRelations([])
-  }, [graphData.links, pathEndpoints.endId, pathEndpoints.startId])
-
-  const pushToast = useCallback((type: "success" | "error", message: string) => {
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    setToasts((prev) => [...prev, { id, type, message }])
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id))
-    }, 3000)
+  const handleNodeClick = useCallback((node: CharacterGraphNode) => {
+    setSelectedCharacterId(node.id)
+    setShowCharacterDetail(true)
   }, [])
 
-  const handleEditEntity = useCallback(async () => {
-    if (!currentProject || !contextMenu) {
+  const handleSaveCharacter = useCallback(async () => {
+    if (!currentProject?.id || !selectedCharacter) {
       return
     }
-    const name = window.prompt("编辑实体名称", contextMenu.node.name)
-    if (name === null) {
+    const payload = {
+      name: characterDraft.name.trim(),
+      description: characterDraft.description.trim(),
+      aliases: parseAliases(characterDraft.aliases),
+      properties: {
+        ...(selectedCharacter.properties ?? {}),
+        appearances: characterDraft.appearances,
+      },
+    }
+    await updateGraphEntity(currentProject.id, selectedCharacter.id, payload)
+    await loadGraph()
+    setEditMode(false)
+  }, [
+    characterDraft,
+    currentProject?.id,
+    loadGraph,
+    selectedCharacter,
+  ])
+
+  const handleCreateCharacter = useCallback(async () => {
+    if (!currentProject?.id) {
       return
     }
-    const description = window.prompt(
-      "编辑实体描述",
-      contextMenu.node.description ?? ""
-    )
-    if (description === null) {
+    const payload = {
+      name: characterDraft.name.trim(),
+      description: characterDraft.description.trim(),
+      aliases: parseAliases(characterDraft.aliases),
+      type: "character" as const,
+      properties: {
+        appearances: characterDraft.appearances,
+      },
+    }
+    await createGraphEntity(currentProject.id, payload)
+    await loadGraph()
+    setShowAddCharacter(false)
+  }, [characterDraft, currentProject?.id, loadGraph])
+
+  const handleCreateRelation = useCallback(async () => {
+    if (!currentProject?.id) {
       return
     }
-    setIsMutating(true)
-    try {
-      await updateGraphEntity(currentProject.id, contextMenu.node.id, {
-        name,
-        description,
-      })
-      await loadGraph()
-      setSelectedEntity((prev) =>
-        prev?.id === contextMenu.node.id
-          ? { ...prev, name, description }
-          : prev
-      )
-      pushToast("success", "实体已更新")
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "实体更新失败"
-      pushToast("error", message)
-    } finally {
-      setIsMutating(false)
-      setContextMenu(null)
-    }
-  }, [contextMenu, currentProject, loadGraph, pushToast])
-
-  const [propertyRows, setPropertyRows] = useState<
-    Array<{ key: string; value: string }>
-  >([])
-
-  const handleAddPropertyRow = () => {
-    setPropertyRows((prev) => [...prev, { key: "", value: "" }])
-  }
-
-  const handleRemovePropertyRow = (index: number) => {
-    setPropertyRows((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const handlePropertyChange = (
-    index: number,
-    field: "key" | "value",
-    value: string
-  ) => {
-    setPropertyRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
-    )
-  }
-
-  const handleCreateEntity = useCallback(async () => {
-    if (!currentProject) {
-      return
-    }
-    const name = createForm.name.trim()
-    if (!name) {
-      setCreateError("请填写角色名称")
-      return
-    }
-
-    const properties: Record<string, unknown> = {}
-    for (const row of propertyRows) {
-      const key = row.key.trim()
-      const value = row.value.trim()
-      if (key) {
-        if (value === "true") properties[key] = true
-        else if (value === "false") properties[key] = false
-        else if (!Number.isNaN(Number(value)) && value !== "") properties[key] = Number(value)
-        else properties[key] = value
-      }
-    }
-
-    const aliases = createForm.aliases
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean)
-    setIsMutating(true)
-    setCreateError(null)
-    try {
-      const entity = await createGraphEntity(currentProject.id, {
-        name,
-        description: createForm.description.trim(),
-        type: createForm.type,
-        aliases,
-        properties: Object.keys(properties).length > 0 ? properties : undefined,
-      })
-      await loadGraph()
-      setSelectedEntity(entity)
-      pushToast("success", "角色已创建")
-      setCreateOpen(false)
-      setCreateForm({
-        name: "",
-        description: "",
-        type: "character",
-        aliases: "",
-        properties: "",
-      })
-      setPropertyRows([])
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "角色创建失败"
-      setCreateError(message)
-      pushToast("error", message)
-    } finally {
-      setIsMutating(false)
-    }
-  }, [createForm, currentProject, loadGraph, propertyRows, pushToast])
-
-  const handleMergeEntity = useCallback(async () => {
-    if (!currentProject || !contextMenu) {
-      return
-    }
-    if (!mergeTargetId) {
-      pushToast("error", "请选择要合并的目标实体")
-      return
-    }
-    const target = graphData.nodes.find((node) => node.id === mergeTargetId)
-    const confirmed = window.confirm(
-      `确认将「${contextMenu.node.name}」合并到「${target?.name ?? "目标实体"}」吗？`
-    )
-    if (!confirmed) {
-      return
-    }
-    setIsMutating(true)
-    try {
-      await mergeGraphEntities(
-        currentProject.id,
-        contextMenu.node.id,
-        mergeTargetId
-      )
-      await loadGraph()
-      setSelectedEntity(null)
-      pushToast("success", "实体合并完成")
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "实体合并失败"
-      pushToast("error", message)
-    } finally {
-      setIsMutating(false)
-      setContextMenu(null)
-    }
-  }, [contextMenu, currentProject, graphData.nodes, loadGraph, mergeTargetId, pushToast])
-
-  const handleDeleteEntity = useCallback(async () => {
-    if (!currentProject || !contextMenu) {
-      return
-    }
-    const confirmed = window.confirm(
-      `确认删除实体「${contextMenu.node.name}」及其关系吗？`
-    )
-    if (!confirmed) {
-      return
-    }
-    setIsMutating(true)
-    try {
-      await deleteGraphEntity(currentProject.id, contextMenu.node.id)
-      await loadGraph()
-      setSelectedEntity(null)
-      pushToast("success", "实体已删除")
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "实体删除失败"
-      pushToast("error", message)
-    } finally {
-      setIsMutating(false)
-      setContextMenu(null)
-    }
-  }, [contextMenu, currentProject, loadGraph, pushToast])
-
-  const handleEditRelation = useCallback(() => {
-    if (!selectedRelation || !selectedRelation.id) return
-    setEditRelationForm({
-      id: selectedRelation.id,
-      relation_type: selectedRelation.relation_type ?? "related_to",
-      relation_name: selectedRelation.relation_name ?? "",
-      description: selectedRelation.description ?? "",
+    await createGraphRelation(currentProject.id, {
+      source_id: relationDraft.sourceId,
+      target_id: relationDraft.targetId,
+      relation_type: relationDraft.relationType,
+      relation_name: relationDraft.relationName,
+      description: relationDraft.description,
     })
-    setEditRelationOpen(true)
-  }, [selectedRelation])
+    await loadGraph()
+    setShowAddRelation(false)
+  }, [currentProject?.id, loadGraph, relationDraft])
 
-  const handleUpdateRelation = useCallback(async () => {
-    if (!currentProject || !editRelationForm.id) return
-    setIsMutating(true)
-    try {
-      await updateGraphRelation(currentProject.id, editRelationForm.id, {
-        relation_type: editRelationForm.relation_type,
-        relation_name: editRelationForm.relation_name,
-        description: editRelationForm.description,
-      })
-      await loadGraph()
-      setEditRelationOpen(false)
-      setSelectedRelation(null)
-      pushToast("success", "关系已更新")
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "更新关系失败"
-      pushToast("error", message)
-    } finally {
-      setIsMutating(false)
-    }
-  }, [currentProject, editRelationForm, loadGraph, pushToast])
-
-  const handleDeleteRelation = useCallback(async () => {
-    if (!currentProject || !selectedRelation || !selectedRelation.id) return
-    const confirmed = window.confirm("确认删除这条关系吗？")
-    if (!confirmed) return
-
-    setIsMutating(true)
-    try {
-      await deleteGraphRelation(currentProject.id, selectedRelation.id)
-      await loadGraph()
-      setSelectedRelation(null)
-      pushToast("success", "关系已删除")
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "删除关系失败"
-      pushToast("error", message)
-    } finally {
-      setIsMutating(false)
-    }
-  }, [currentProject, selectedRelation, loadGraph, pushToast])
-
-  const mergeOptions = useMemo(() => {
-    if (!contextMenu) {
-      return []
-    }
-    const keyword = mergeQuery.trim().toLowerCase()
-    return graphData.nodes
-      .filter((node) => node.id !== contextMenu.node.id)
-      .filter((node) =>
-        keyword
-          ? node.name.toLowerCase().includes(keyword) ||
-            (node.aliases ?? []).some((alias) =>
-              alias.toLowerCase().includes(keyword)
-            )
-          : true
-      )
-      .slice(0, 8)
-  }, [contextMenu, graphData.nodes, mergeQuery])
-
-  const drawLinkLabel = useCallback(
-    (link: CharacterGraphLink, ctx: CanvasRenderingContext2D) => {
-      const relation = link.relation_name ?? link.relation_type
-      if (!relation) {
+  const handleSync = useCallback(
+    async (mode: "full" | "node") => {
+      if (!currentProject?.id) {
         return
       }
-      const source = typeof link.source === "string" ? null : link.source
-      const target = typeof link.target === "string" ? null : link.target
-      if (source?.x == null || source?.y == null || target?.x == null || target?.y == null) {
-        return
+      setSyncing(true)
+      try {
+        await syncCharacterGraph(currentProject.id, {
+          mode,
+          node_id:
+            mode === "node" && selectedChapterId !== "all"
+              ? selectedChapterId
+              : undefined,
+        })
+        await loadGraph()
+      } finally {
+        setSyncing(false)
       }
-
-      const x = (source.x + target.x) / 2
-      const y = (source.y + target.y) / 2
-      ctx.save()
-      ctx.font = "11px sans-serif"
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      const textWidth = ctx.measureText(relation).width
-      const paddingX = 6
-      const paddingY = 3
-      const boxWidth = textWidth + paddingX * 2
-      const boxHeight = 14 + paddingY
-      ctx.fillStyle = palette.card
-      ctx.strokeStyle = palette.border
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.rect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight)
-      ctx.fill()
-      ctx.stroke()
-      ctx.fillStyle = palette.muted
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.fillText(relation, x, y)
-      ctx.restore()
     },
-    [palette]
+    [currentProject?.id, loadGraph, selectedChapterId],
   )
 
-  if (!currentProject) {
-    return (
-      <div className="flex h-full min-h-[420px] items-center justify-center rounded-xl border border-dashed bg-background text-sm text-muted-foreground">
-        先生成大纲，再查看角色关系。
-      </div>
-    )
-  }
+  const selectChapterOptions = chapters.map((node) => ({
+    value: node.id,
+    label: `${node.narrative_order}. ${node.title}`,
+  }))
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-[420px] items-center justify-center rounded-xl border border-border bg-background text-sm text-muted-foreground">
-        正在加载角色关系...
-      </div>
-    )
-  }
-
-  if (graphData.nodes.length === 0) {
-    return (
-      <div className="flex h-full min-h-[420px] items-center justify-center rounded-xl border border-dashed bg-background text-sm text-muted-foreground">
-        暂无角色关系数据
-      </div>
-    )
-  }
+  const cssVars = {
+    "--cg-bg": "#f7f7f2",
+    "--cg-surface": "#ffffff",
+    "--cg-border": "#dedbd3",
+    "--cg-ink": "#121212",
+    "--cg-muted": "#5a5852",
+    "--cg-accent": "#e04f2f",
+    "--cg-accent-soft": "#f6d8cf",
+    "--cg-link": "#2b2b2b",
+  } as CSSProperties
 
   return (
-    <div
-      ref={containerRef}
-      className="relative h-full min-h-[420px] w-full overflow-hidden rounded-xl border border-border bg-background"
+    <section
+      className="relative overflow-hidden rounded-3xl border border-black/5 bg-[var(--cg-bg)] text-[var(--cg-ink)] shadow-[0_20px_80px_rgba(0,0,0,0.08)]"
+      style={cssVars}
     >
-      {isRefreshing ? (
-        <div className="absolute right-4 top-4 z-10 rounded-full border border-border bg-card/95 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
-          更新中...
+      <div className="relative">
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(224,79,47,0.18),_transparent_50%)]" />
+        <div className="absolute inset-x-0 top-0 -z-10 h-24 bg-gradient-to-b from-white/70 to-transparent" />
+      </div>
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--cg-border)] px-6 py-5">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.3em] text-[var(--cg-muted)]">
+            Character Atlas
+          </p>
+          <h2 className="font-serif text-2xl text-[var(--cg-ink)] md:text-3xl">
+            角色关系图
+          </h2>
+          <p className="max-w-xl text-sm text-[var(--cg-muted)]">
+            只呈现角色之间的关系。切换大纲章节即可查看该章节登场角色。
+          </p>
         </div>
-      ) : null}
-      <ForceGraph2D
-        ref={handleGraphRef as any}
-        graphData={graphDataMemo}
-        width={graphSize.width}
-        height={graphSize.height}
-        nodeLabel={buildNodeLabel}
-        nodeRelSize={4}
-        nodeCanvasObject={(node, ctx) => {
-          const graphNode = node as CharacterGraphNode & { x?: number; y?: number }
-          if (graphNode.x == null || graphNode.y == null) {
-            return
-          }
-          const normalizedType = normalizeEntityType(graphNode.type)
-          const size = graphNode.id === selectedEntity?.id ? 8 : 5
-          const isMatch = searchMatches.has(graphNode.id)
-          const isPath = pathNodeIds.has(graphNode.id)
-          const baseColor =
-            palette.entity[normalizedType] ?? palette.entity.unknown
-
-          ctx.save()
-          ctx.fillStyle = isPath ? palette.chart[4] : baseColor
-          drawShape(ctx, graphNode.x, graphNode.y, size, graphNode.type)
-          ctx.fill()
-
-          if (isMatch || isPath || graphNode.id === selectedEntity?.id) {
-            ctx.lineWidth = 2
-            ctx.strokeStyle = isMatch ? palette.accent : palette.primary
-            ctx.stroke()
-          }
-
-          ctx.font = "10px sans-serif"
-          ctx.textAlign = "center"
-          ctx.textBaseline = "top"
-          const label = graphNode.name
-          const labelWidth = ctx.measureText(label).width
-          const labelPadding = 2
-          const labelX = graphNode.x - labelWidth / 2 - labelPadding
-          const labelY = graphNode.y + 9
-          const labelHeight = 12
-          ctx.fillStyle = palette.card
-          ctx.strokeStyle = palette.border
-          ctx.lineWidth = 1
-          ctx.beginPath()
-          ctx.rect(labelX, labelY, labelWidth + labelPadding * 2, labelHeight)
-          ctx.fill()
-          ctx.stroke()
-          ctx.fillStyle = palette.foreground
-          ctx.fillText(label, graphNode.x, graphNode.y + 10)
-          ctx.restore()
-        }}
-        linkColor={(link) =>
-          getRelationColor((link as CharacterGraphLink).relation_type, palette)
-        }
-        linkWidth={(link) =>
-          pathRelations.includes(link as CharacterGraphLink) ? 2.4 : 1.2
-        }
-        linkDirectionalParticles={0}
-        linkCanvasObject={drawLinkLabel}
-        linkCanvasObjectMode={() => "after"}
-        onNodeClick={(node, event) => {
-          handleNodeClick(node as CharacterGraphNode)
-          if (event.detail >= 2) {
-            handleNodeDoubleClick(node as CharacterGraphNode)
-          }
-        }}
-        onNodeRightClick={(node, event) =>
-          handleNodeRightClick(node as CharacterGraphNode, event)
-        }
-        onLinkClick={(link) => handleLinkClick(link as CharacterGraphLink)}
-        onBackgroundClick={handleBackgroundClick}
-        onEngineStop={handleEngineStop}
-        cooldownTicks={100}
-      />
-      {graphData.nodes.length > 0 && graphDataMemo.nodes.length === 0 ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-muted-foreground">
-          当前筛选条件下无可视节点
-        </div>
-      ) : null}
-      {graphDataMemo.nodes.length > 0 && !isGraphReady ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm text-muted-foreground">
-          正在加载画布...
-        </div>
-      ) : null}
-      {contextMenu ? (
-        <div
-          className="absolute z-20 w-44 rounded-lg border border-border bg-card/95 p-2 text-xs shadow-sm backdrop-blur-sm"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          <div className="mb-2 text-[11px] font-semibold text-muted-foreground">
-            {contextMenu.node.name}
-          </div>
-          <button
-            type="button"
-            className="w-full rounded-md px-2 py-1 text-left text-foreground transition hover:bg-muted"
-            onClick={handleEditEntity}
-            disabled={isMutating}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="secondary"
+            className="rounded-full border border-[var(--cg-border)] bg-[var(--cg-surface)] text-sm"
+            onClick={() => handleSync("full")}
+            disabled={syncing}
           >
-            编辑实体
-          </button>
-          <button
-            type="button"
-            className="w-full rounded-md px-2 py-1 text-left text-foreground transition hover:bg-muted"
-            onClick={() => setMergeOpen((prev) => !prev)}
-            disabled={isMutating}
+            {syncing ? "同步中…" : "全量同步"}
+          </Button>
+          <Button
+            className="rounded-full bg-[var(--cg-accent)] text-[var(--cg-bg)] hover:bg-[var(--cg-accent)]/90"
+            onClick={() => handleSync("node")}
+            disabled={syncing || selectedChapterId === "all"}
           >
-            合并实体
-          </button>
-          {mergeOpen ? (
-            <div className="mt-2 space-y-2 rounded-md border border-border/50 bg-background p-2">
-              <input
-                value={mergeQuery}
-                onChange={(event) => setMergeQuery(event.target.value)}
-                placeholder="搜索目标实体"
-                className="w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            同步当前章节
+          </Button>
+        </div>
+      </header>
+
+      <div className="grid gap-6 px-6 py-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="space-y-6">
+          <div className="space-y-3 rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_12px_40px_rgba(17,17,17,0.06)]">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cg-muted)]">
+                章节筛选
+              </p>
+              <span className="rounded-full bg-[var(--cg-accent-soft)] px-2 py-0.5 text-xs text-[var(--cg-accent)]">
+                {filteredGraph.nodes.length} 角色
+              </span>
+            </div>
+            <select
+              className="w-full rounded-xl border border-[var(--cg-border)] bg-[var(--cg-bg)] px-3 py-2 text-sm text-[var(--cg-ink)]"
+              value={selectedChapterId}
+              onChange={(event) =>
+                setSelectedChapterId(event.target.value as string | "all")
+              }
+            >
+              <option value="all">全部章节</option>
+              {selectChapterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--cg-muted)]">搜索角色</p>
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="输入角色名"
+                className="rounded-xl border-[var(--cg-border)] bg-white/70"
               />
-              <div className="max-h-32 space-y-1 overflow-y-auto">
-                {mergeOptions.map((node) => (
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_12px_40px_rgba(17,17,17,0.06)]">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cg-muted)]">
+                角色列表
+              </p>
+              <Button
+                size="sm"
+                className="rounded-full bg-[var(--cg-accent)] text-[var(--cg-bg)]"
+                onClick={() => {
+                  setCharacterDraft({
+                    name: "",
+                    description: "",
+                    aliases: "",
+                    appearances:
+                      selectedChapterId === "all" ? [] : [selectedChapterId],
+                  })
+                  setShowAddCharacter(true)
+                }}
+              >
+                添加角色
+              </Button>
+            </div>
+            <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
+              {visibleCharacters.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-[var(--cg-border)] px-3 py-6 text-center text-sm text-[var(--cg-muted)]">
+                  当前章节暂无角色
+                </p>
+              ) : (
+                visibleCharacters.map((node) => (
                   <button
                     key={node.id}
                     type="button"
-                    className={`w-full rounded-md px-2 py-1 text-left text-[11px] transition ${
-                      mergeTargetId === node.id
-                        ? "bg-primary/10 text-primary"
-                        : "text-foreground hover:bg-muted"
+                    onClick={() => {
+                      setSelectedCharacterId(node.id)
+                      setShowCharacterDetail(true)
+                    }}
+                    className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition ${
+                      node.id === selectedCharacterId
+                        ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] text-[var(--cg-ink)]"
+                        : "border-[var(--cg-border)] bg-white/70 hover:border-[var(--cg-accent)]/40"
                     }`}
-                    onClick={() => setMergeTargetId(node.id)}
                   >
-                    <div className="font-medium">{node.name}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {node.type ?? "unknown"}
-                      {node.description
-                        ? ` · ${node.description.slice(0, 14)}${node.description.length > 14 ? "..." : ""}`
-                        : ""}
-                    </div>
+                    <span>{node.name}</span>
+                    <span className="text-xs text-[var(--cg-muted)]">
+                      {(node.appearances ?? []).length}
+                    </span>
                   </button>
-                ))}
-                {mergeOptions.length === 0 ? (
-                  <div className="text-[11px] text-muted-foreground">无匹配实体</div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="w-full rounded-md bg-primary px-2 py-1 text-[11px] text-primary-foreground"
-                onClick={handleMergeEntity}
-                disabled={isMutating}
-              >
-                确认合并
-              </button>
+                ))
+              )}
             </div>
-          ) : null}
-          <button
-            type="button"
-            className="w-full rounded-md px-2 py-1 text-left text-destructive transition hover:bg-muted"
-            onClick={handleDeleteEntity}
-            disabled={isMutating}
+            <Button
+              variant="secondary"
+              className="w-full rounded-full border border-[var(--cg-border)] bg-transparent"
+              onClick={() => {
+                setRelationDraft({
+                  sourceId: selectedCharacterId ?? "",
+                  targetId: "",
+                  relationType: RELATION_TYPES[0].value,
+                  relationName: "",
+                  description: "",
+                })
+                setShowAddRelation(true)
+              }}
+              disabled={graphData.nodes.length < 2}
+            >
+              添加关系连线
+            </Button>
+          </div>
+        </aside>
+
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-serif text-xl text-[var(--cg-ink)]">
+                关系网络
+              </h3>
+              <p className="text-sm text-[var(--cg-muted)]">
+                只展示角色之间有关系的连线
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-[var(--cg-muted)]">
+              <span>{filteredGraph.links.length} 条关系</span>
+              <span className="h-4 w-px bg-[var(--cg-border)]" />
+              <span>{filteredGraph.nodes.length} 个角色</span>
+            </div>
+          </div>
+
+          <div
+            ref={containerRef}
+            className="relative min-h-[520px] overflow-hidden rounded-3xl border border-[var(--cg-border)] bg-[var(--cg-surface)]"
           >
-            删除实体
-          </button>
-        </div>
-      ) : null}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
+            {loading ? (
+              <div className="flex h-full items-center justify-center text-sm text-[var(--cg-muted)]">
+                加载角色关系图…
+              </div>
+            ) : filteredGraph.nodes.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-[var(--cg-muted)]">
+                <p>当前没有角色关系可展示</p>
+                <p>可新增角色或进行手动同步</p>
+              </div>
+            ) : (
+              <ForceGraph2D
+                key={graphKey}
+                ref={graphRef}
+                graphData={filteredGraph}
+                width={graphSize.width}
+                height={graphSize.height}
+                backgroundColor={palette.surface}
+                nodeLabel={(node) => nodeLabel(node as CharacterGraphNode)}
+                onNodeClick={(node) => handleNodeClick(node as CharacterGraphNode)}
+                onNodeHover={(node) =>
+                  setHoveredCharacterId((node as CharacterGraphNode | null)?.id ?? null)
+                }
+                linkColor={() => palette.link}
+                linkWidth={(link) =>
+                  hoveredCharacterId &&
+                  [
+                    (link as CharacterGraphLink).source,
+                    (link as CharacterGraphLink).target,
+                  ].some((item) =>
+                    (typeof item === "string" ? item : item.id) ===
+                    hoveredCharacterId,
+                  )
+                    ? 2.2
+                    : 1
+                }
+                nodeCanvasObject={(node, ctx, globalScale) => {
+                  const graphNode = node as CharacterGraphNode & {
+                    x?: number
+                    y?: number
+                  }
+                  if (graphNode.x == null || graphNode.y == null) {
+                    return
+                  }
+                  const isSelected = graphNode.id === selectedCharacterId
+                  const isHovered = graphNode.id === hoveredCharacterId
+                  const fontSize = 12 / globalScale
+                  const label = graphNode.name
+                  ctx.font = `${fontSize}px var(--font-sans)`
+                  const textWidth = ctx.measureText(label).width
+                  const padding = 8 / globalScale
+                  const radius = 10 / globalScale
+                  const width = textWidth + padding * 2
+                  const height = fontSize + padding
+
+                  ctx.fillStyle = isSelected
+                    ? palette.accent
+                    : isHovered
+                      ? palette.accentSoft
+                      : palette.background
+                  ctx.strokeStyle = isSelected
+                    ? palette.accent
+                    : palette.border
+                  ctx.lineWidth = 1 / globalScale
+
+                  ctx.beginPath()
+                  const roundRect = (
+                    ctx as CanvasRenderingContext2D & {
+                      roundRect?: (
+                        x: number,
+                        y: number,
+                        w: number,
+                        h: number,
+                        r: number,
+                      ) => void
+                    }
+                  ).roundRect
+                  if (roundRect) {
+                    roundRect.call(
+                      ctx,
+                      graphNode.x - width / 2,
+                      graphNode.y - height / 2,
+                      width,
+                      height,
+                      radius,
+                    )
+                  } else {
+                    const x = graphNode.x - width / 2
+                    const y = graphNode.y - height / 2
+                    ctx.moveTo(x + radius, y)
+                    ctx.lineTo(x + width - radius, y)
+                    ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+                    ctx.lineTo(x + width, y + height - radius)
+                    ctx.quadraticCurveTo(
+                      x + width,
+                      y + height,
+                      x + width - radius,
+                      y + height,
+                    )
+                    ctx.lineTo(x + radius, y + height)
+                    ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+                    ctx.lineTo(x, y + radius)
+                    ctx.quadraticCurveTo(x, y, x + radius, y)
+                  }
+                  ctx.fill()
+                  ctx.stroke()
+
+                  ctx.fillStyle = isSelected
+                    ? palette.background
+                    : palette.ink
+                  ctx.textAlign = "center"
+                  ctx.textBaseline = "middle"
+                  ctx.fillText(label, graphNode.x, graphNode.y)
+                }}
+              />
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* Character Details Dialog */}
+      <Dialog
+        open={showCharacterDetail}
+        onOpenChange={(open) => {
+          setShowCharacterDetail(open)
+          if (!open) setEditMode(false)
+        }}
+      >
+        <DialogContent
+          className="flex h-[80vh] w-[80vw] max-w-5xl flex-col gap-6 rounded-3xl"
+          style={cssVars}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-2xl">
+              {selectedCharacter?.name || "角色档案"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {!selectedCharacter ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-[var(--cg-muted)]">
+              请选择一个角色
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto pr-2 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+              <div>
+                <p className="text-sm font-medium text-[var(--cg-muted)]">
+                  角色名
+                </p>
+                {editMode ? (
+                  <Input
+                    value={characterDraft.name}
+                    onChange={(event) =>
+                      setCharacterDraft((draft) => ({
+                        ...draft,
+                        name: event.target.value,
+                      }))
+                    }
+                    className="mt-2 rounded-xl border-[var(--cg-border)]"
+                  />
+                ) : (
+                  <p className="mt-2 font-serif text-3xl font-bold text-[var(--cg-ink)]">
+                    {selectedCharacter.name}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-[var(--cg-muted)]">
+                  描述
+                </p>
+                {editMode ? (
+                  <Textarea
+                    value={characterDraft.description}
+                    onChange={(event) =>
+                      setCharacterDraft((draft) => ({
+                        ...draft,
+                        description: event.target.value,
+                      }))
+                    }
+                    className="mt-2 min-h-[200px] rounded-xl border-[var(--cg-border)] text-base leading-relaxed"
+                  />
+                ) : (
+                  <p className="mt-2 whitespace-pre-wrap text-lg leading-relaxed text-[var(--cg-ink)]">
+                    {selectedCharacter.description || "暂无描述"}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div>
+                  <p className="text-sm font-medium text-[var(--cg-muted)]">
+                    别名
+                  </p>
+                  {editMode ? (
+                    <Input
+                      value={characterDraft.aliases}
+                      onChange={(event) =>
+                        setCharacterDraft((draft) => ({
+                          ...draft,
+                          aliases: event.target.value,
+                        }))
+                      }
+                      className="mt-2 rounded-xl border-[var(--cg-border)]"
+                      placeholder="使用逗号分隔"
+                    />
+                  ) : (
+                    <p className="mt-2 text-base text-[var(--cg-ink)]">
+                      {(selectedCharacter.aliases ?? []).join("、") || "无"}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-[var(--cg-muted)]">
+                  登场章节
+                </p>
+                {editMode ? (
+                  <div className="mt-2 max-h-[300px] space-y-2 overflow-auto rounded-xl border border-[var(--cg-border)] bg-[var(--cg-bg)] p-4">
+                    {chapters.map((node) => (
+                      <label
+                        key={node.id}
+                        className="flex items-center gap-3 text-base"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 text-[var(--cg-accent)] focus:ring-[var(--cg-accent)]"
+                          checked={characterDraft.appearances.includes(
+                            node.id,
+                          )}
+                          onChange={(event) => {
+                            setCharacterDraft((draft) => {
+                              const next = new Set(draft.appearances)
+                              if (event.target.checked) {
+                                next.add(node.id)
+                              } else {
+                                next.delete(node.id)
+                              }
+                              return {
+                                ...draft,
+                                appearances: Array.from(next),
+                              }
+                            })
+                          }}
+                        />
+                        <span>
+                          {node.narrative_order}. {node.title}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(selectedCharacter.appearances ?? []).length === 0 ? (
+                      <span className="rounded-full border border-dashed border-[var(--cg-border)] px-4 py-1.5 text-sm text-[var(--cg-muted)]">
+                        暂无记录
+                      </span>
+                    ) : (
+                      (selectedCharacter.appearances ?? []).map((item) => (
+                        <span
+                          key={item.node_id}
+                          className="rounded-full border border-[var(--cg-border)] bg-[var(--cg-bg)] px-4 py-1.5 text-sm font-medium transition hover:border-[var(--cg-accent)]"
+                        >
+                          {item.narrative_order}. {item.node_title}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-0 gap-3 sm:justify-between border-t border-[var(--cg-border)] pt-4">
+            <div className="flex-1" />
+            {selectedCharacter &&
+              (editMode ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setEditMode(false)}
+                    className="rounded-full px-6"
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    className="rounded-full bg-[var(--cg-accent)] px-6 text-[var(--cg-bg)] hover:bg-[var(--cg-accent)]/90"
+                    onClick={handleSaveCharacter}
+                  >
+                    保存档案
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => setEditMode(true)}
+                  className="rounded-full border-[var(--cg-border)] px-6"
+                >
+                  编辑档案
+                </Button>
+              ))}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddCharacter} onOpenChange={setShowAddCharacter}>
+        <DialogContent className="max-w-lg rounded-3xl" style={cssVars}>
           <DialogHeader>
             <DialogTitle>新增角色</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="entity-name">
-                角色名称
-              </label>
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-muted-foreground">角色名</p>
               <Input
-                id="entity-name"
-                value={createForm.name}
+                value={characterDraft.name}
                 onChange={(event) =>
-                  setCreateForm((prev) => ({ ...prev, name: event.target.value }))
+                  setCharacterDraft((draft) => ({
+                    ...draft,
+                    name: event.target.value,
+                  }))
                 }
-                placeholder="例如：林澄"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="entity-description">
-                角色描述
-              </label>
+            <div>
+              <p className="text-xs text-muted-foreground">描述</p>
               <Textarea
-                id="entity-description"
-                rows={3}
-                value={createForm.description}
+                value={characterDraft.description}
                 onChange={(event) =>
-                  setCreateForm((prev) => ({
-                    ...prev,
+                  setCharacterDraft((draft) => ({
+                    ...draft,
                     description: event.target.value,
                   }))
                 }
-                placeholder="简单描述角色背景或特征"
+                className="min-h-[120px]"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="entity-type">
-                角色类型
-              </label>
-              <select
-                id="entity-type"
-                className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={createForm.type}
-                onChange={(event) =>
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    type: event.target.value as EntityType,
-                  }))
-                }
-              >
-                {Object.keys(ENTITY_TYPE_LABELS).map((type) => (
-                  <option key={type} value={type}>
-                    {ENTITY_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="entity-aliases">
-                角色别名
-              </label>
+            <div>
+              <p className="text-xs text-muted-foreground">别名</p>
               <Input
-                id="entity-aliases"
-                value={createForm.aliases}
+                value={characterDraft.aliases}
                 onChange={(event) =>
-                  setCreateForm((prev) => ({
-                    ...prev,
+                  setCharacterDraft((draft) => ({
+                    ...draft,
                     aliases: event.target.value,
                   }))
                 }
-                placeholder="使用英文逗号分隔，例如：阿澄, 林小姐"
+                placeholder="使用逗号分隔"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">角色属性</label>
-              <div className="space-y-2">
-                {propertyRows.map((row, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      placeholder="属性名 (如: age)"
-                      value={row.key}
-                      onChange={(e) =>
-                        handlePropertyChange(index, "key", e.target.value)
-                      }
-                      className="flex-1"
+            <div>
+              <p className="text-xs text-muted-foreground">登场章节</p>
+              <div className="mt-2 max-h-[200px] space-y-2 overflow-auto rounded-xl border border-border bg-muted/30 p-3">
+                {chapters.map((node) => (
+                  <label key={node.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={characterDraft.appearances.includes(node.id)}
+                      onChange={(event) => {
+                        setCharacterDraft((draft) => {
+                          const next = new Set(draft.appearances)
+                          if (event.target.checked) {
+                            next.add(node.id)
+                          } else {
+                            next.delete(node.id)
+                          }
+                          return { ...draft, appearances: Array.from(next) }
+                        })
+                      }}
                     />
-                    <Input
-                      placeholder="属性值 (如: 28)"
-                      value={row.value}
-                      onChange={(e) =>
-                        handlePropertyChange(index, "value", e.target.value)
-                      }
-                      className="flex-1"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-destructive"
-                      onClick={() => handleRemovePropertyRow(index)}
-                    >
-                      ×
-                    </Button>
-                  </div>
+                    <span>
+                      {node.narrative_order}. {node.title}
+                    </span>
+                  </label>
                 ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs"
-                  onClick={handleAddPropertyRow}
-                >
-                  + 添加属性
-                </Button>
               </div>
             </div>
-            {createError ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                {createError}
-              </div>
-            ) : null}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+          <DialogFooter className="mt-4">
+            <Button variant="secondary" onClick={() => setShowAddCharacter(false)}>
               取消
             </Button>
-            <Button onClick={handleCreateEntity} disabled={isMutating}>
-              {isMutating ? "创建中..." : "确认创建"}
+            <Button
+              className="bg-[var(--cg-accent)] text-[var(--cg-bg)]"
+              onClick={handleCreateCharacter}
+              disabled={!characterDraft.name.trim()}
+            >
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={editRelationOpen} onOpenChange={setEditRelationOpen}>
-        <DialogContent className="sm:max-w-md">
+
+      <Dialog open={showAddRelation} onOpenChange={setShowAddRelation}>
+        <DialogContent className="max-w-lg rounded-3xl" style={cssVars}>
           <DialogHeader>
-            <DialogTitle>编辑关系</DialogTitle>
+            <DialogTitle>新增角色关系</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">关系名称</label>
-              <Input
-                value={editRelationForm.relation_name}
-                onChange={(e) =>
-                  setEditRelationForm((prev) => ({
-                    ...prev,
-                    relation_name: e.target.value,
-                  }))
-                }
-                placeholder="例如：师徒"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">关系类型</label>
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-muted-foreground">角色 A</p>
               <select
-                className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={editRelationForm.relation_type}
-                onChange={(e) =>
-                  setEditRelationForm((prev) => ({
-                    ...prev,
-                    relation_type: e.target.value,
+                className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                value={relationDraft.sourceId}
+                onChange={(event) =>
+                  setRelationDraft((draft) => ({
+                    ...draft,
+                    sourceId: event.target.value,
                   }))
                 }
               >
-                {Object.keys(RELATION_COLOR_INDEX).map((type) => (
-                  <option key={type} value={type}>
-                    {type}
+                <option value="">选择角色</option>
+                {graphData.nodes.map((node) => (
+                  <option key={node.id} value={node.id}>
+                    {node.name}
                   </option>
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">描述</label>
-              <Textarea
-                rows={3}
-                value={editRelationForm.description}
-                onChange={(e) =>
-                  setEditRelationForm((prev) => ({
-                    ...prev,
-                    description: e.target.value,
+            <div>
+              <p className="text-xs text-muted-foreground">角色 B</p>
+              <select
+                className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                value={relationDraft.targetId}
+                onChange={(event) =>
+                  setRelationDraft((draft) => ({
+                    ...draft,
+                    targetId: event.target.value,
                   }))
                 }
-                placeholder="关系的详细描述"
+              >
+                <option value="">选择角色</option>
+                {graphData.nodes.map((node) => (
+                  <option key={node.id} value={node.id}>
+                    {node.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">关系类型</p>
+              <select
+                className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                value={relationDraft.relationType}
+                onChange={(event) =>
+                  setRelationDraft((draft) => ({
+                    ...draft,
+                    relationType: event.target.value,
+                  }))
+                }
+              >
+                {RELATION_TYPES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">关系名称</p>
+              <Input
+                value={relationDraft.relationName}
+                onChange={(event) =>
+                  setRelationDraft((draft) => ({
+                    ...draft,
+                    relationName: event.target.value,
+                  }))
+                }
+                placeholder="如：师徒、宿敌"
+              />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">说明</p>
+              <Textarea
+                value={relationDraft.description}
+                onChange={(event) =>
+                  setRelationDraft((draft) => ({
+                    ...draft,
+                    description: event.target.value,
+                  }))
+                }
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditRelationOpen(false)}>
+          <DialogFooter className="mt-4">
+            <Button variant="secondary" onClick={() => setShowAddRelation(false)}>
               取消
             </Button>
-            <Button onClick={handleUpdateRelation} disabled={isMutating}>
-              {isMutating ? "更新中..." : "确认更新"}
+            <Button
+              className="bg-[var(--cg-accent)] text-[var(--cg-bg)]"
+              onClick={handleCreateRelation}
+              disabled={!relationDraft.sourceId || !relationDraft.targetId}
+            >
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="absolute left-4 top-4 z-10 w-[280px] space-y-3 rounded-lg border border-border bg-card/95 p-3 text-xs shadow-sm backdrop-blur-sm">
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] font-semibold text-muted-foreground">角色关系</div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 text-[11px]"
-            onClick={() => {
-              setCreateError(null)
-              setCreateForm({
-                name: "",
-                description: "",
-                type: "character",
-                aliases: "",
-                properties: "",
-              })
-              setCreateOpen(true)
-            }}
-          >
-            新增角色
-          </Button>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold text-muted-foreground">搜索实体</div>
-          <input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="输入名称或别名"
-            className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold text-muted-foreground">实体类型筛选</div>
-          <div className="mt-1 grid grid-cols-2 gap-1">
-            {Object.keys(filterTypes).map((type) => (
-              <label
-                key={type}
-                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-muted-foreground transition hover:border-border/50 hover:bg-muted"
-              >
-                <input
-                  type="checkbox"
-                  checked={filterTypes[type]}
-                  className="accent-primary"
-                  onChange={(event) =>
-                    setFilterTypes((prev) => ({
-                      ...prev,
-                      [type]: event.target.checked,
-                    }))
-                  }
-                />
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{
-                    backgroundColor:
-                      palette.entity[type] ?? palette.entity.unknown,
-                  }}
-                />
-                {ENTITY_TYPE_LABELS[type] ?? type}
-              </label>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold text-muted-foreground">关系类型筛选</div>
-          <div className="mt-1 grid grid-cols-2 gap-1">
-            {relationTypes.map((type) => (
-              <label
-                key={type}
-                className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-[11px] text-muted-foreground transition hover:border-border/50 hover:bg-muted"
-              >
-                <input
-                  type="checkbox"
-                  checked={filterRelations[type] ?? true}
-                  className="accent-primary"
-                  onChange={(event) =>
-                    setFilterRelations((prev) => ({
-                      ...prev,
-                      [type]: event.target.checked,
-                    }))
-                  }
-                />
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: getRelationColor(type, palette) }}
-                />
-                {type}
-              </label>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold text-muted-foreground">路径查找</div>
-          <div className="mt-1 flex flex-col gap-1">
-            <select
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={pathEndpoints.startId}
-              onChange={(event) =>
-                setPathEndpoints((prev) => ({
-                  ...prev,
-                  startId: event.target.value,
-                }))
-              }
-            >
-              <option value="">选择起点</option>
-              {graphData.nodes.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={pathEndpoints.endId}
-              onChange={(event) =>
-                setPathEndpoints((prev) => ({
-                  ...prev,
-                  endId: event.target.value,
-                }))
-              }
-            >
-              <option value="">选择终点</option>
-              {graphData.nodes.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"
-              onClick={handlePathFind}
-            >
-              查找路径
-            </button>
-          </div>
-          {pathRelations.length > 0 ? (
-            <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-              {pathRelations.map((relation, index) => {
-                const sourceLabel =
-                  typeof relation.source === "string"
-                    ? relation.source
-                    : relation.source?.name ?? relation.source?.id ?? "?"
-                const targetLabel =
-                  typeof relation.target === "string"
-                    ? relation.target
-                    : relation.target?.name ?? relation.target?.id ?? "?"
-                return (
-                  <div key={`${sourceLabel}-${targetLabel}-${index}`}>
-                    {relation.relation_name ?? relation.relation_type ?? "关系"}：{sourceLabel} → {targetLabel}
-                  </div>
-                )
-              })}
-            </div>
-          ) : null}
-        </div>
-      </div>
-      {selectedEntity ? (
-        <div className="absolute right-4 top-4 z-10 w-[280px] rounded-lg border border-border bg-card/95 p-3 text-xs shadow-sm backdrop-blur-sm">
-          <div className="text-sm font-semibold text-foreground">
-            {selectedEntity.name}
-          </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            类型：{ENTITY_TYPE_LABELS[normalizeEntityType(selectedEntity.type)]}
-          </div>
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            {selectedEntity.description || "暂无描述"}
-          </div>
-          {selectedEntity.properties ? (
-            <div className="mt-2 text-[11px] text-muted-foreground">
-              属性：{JSON.stringify(selectedEntity.properties)}
-            </div>
-          ) : null}
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            相关节点：{selectedEntity.source_refs?.length ?? 0}
-          </div>
-        </div>
-      ) : null}
-      {selectedRelation ? (
-        <div className="absolute right-4 bottom-4 z-10 w-[280px] rounded-lg border border-border bg-card/95 p-3 text-xs shadow-sm backdrop-blur-sm">
-          <div className="text-sm font-semibold text-foreground">
-            {selectedRelation.relation_name ?? "关系"}
-          </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            类型：{selectedRelation.relation_type ?? "related_to"}
-          </div>
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            {selectedRelation.description || "暂无描述"}
-          </div>
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            关联：
-            {typeof selectedRelation.source === "string"
-              ? selectedRelation.source
-              : selectedRelation.source?.name ?? selectedRelation.source?.id ?? "?"}{" "}
-            →{" "}
-            {typeof selectedRelation.target === "string"
-              ? selectedRelation.target
-              : selectedRelation.target?.name ?? selectedRelation.target?.id ?? "?"}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 flex-1 text-[10px]"
-              onClick={handleEditRelation}
-              disabled={isMutating || !selectedRelation.id}
-            >
-              编辑
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-6 flex-1 text-[10px]"
-              onClick={handleDeleteRelation}
-              disabled={isMutating || !selectedRelation.id}
-            >
-              删除
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      {toasts.length > 0 ? (
-        <div className="absolute right-4 top-4 z-20 space-y-2">
-          {toasts.map((toast) => (
-            <div
-              key={toast.id}
-              className={`rounded-md border px-3 py-2 text-xs shadow-sm ${
-                toast.type === "success"
-                  ? "border-border bg-primary/10 text-primary"
-                  : "border-destructive/30 bg-destructive/10 text-destructive"
-              }`}
-            >
-              {toast.message}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    </section>
   )
 }

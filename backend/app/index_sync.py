@@ -70,10 +70,12 @@ class IndexSyncManager:
         )
 
         removed_entities: set[str] = set()
+        removed_entity_refs: set[str] = set()
         if old_node:
             old_mentions = self._extract_entity_mentions(old_node.content, current_graph)
             new_mentions = self._extract_entity_mentions(new_node.content, current_graph)
             removed_entities = old_mentions - new_mentions
+            removed_entity_refs = removed_entities.copy()
 
         diff = self._diff_graphs(current_graph, updated_graph)
         if removed_entities:
@@ -82,6 +84,20 @@ class IndexSyncManager:
                 for entity_id in removed_entities
                 if entity_id not in diff.removed_entities
             )
+
+        if removed_entity_refs:
+            for entity in updated_graph.entities:
+                if entity.id not in removed_entity_refs:
+                    continue
+                if not isinstance(entity.properties, dict):
+                    continue
+                appearances = entity.properties.get("appearances")
+                if not isinstance(appearances, list):
+                    continue
+                if old_node and old_node.id in appearances:
+                    entity.properties["appearances"] = [
+                        item for item in appearances if item != old_node.id
+                    ]
 
         result.new_entities = diff.new_entities
         result.new_relations = diff.new_relations
@@ -125,6 +141,12 @@ class IndexSyncManager:
                 if not entity.source_refs:
                     removed_entities.append(entity.id)
                     current_graph.entities.remove(entity)
+            if entity.id not in removed_entities and isinstance(entity.properties, dict):
+                appearances = entity.properties.get("appearances")
+                if isinstance(appearances, list) and node_id in appearances:
+                    entity.properties["appearances"] = [
+                        item for item in appearances if item != node_id
+                    ]
         for relation in list(current_graph.relations):
             if node_id in relation.source_refs:
                 relation.source_refs = [

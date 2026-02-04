@@ -13,6 +13,7 @@ import type {
   StoryNode,
   StoryProject,
   PromptOverrides,
+  GraphSyncResponse,
   SyncNodeResponse,
   WorldDocument,
   WorldKnowledgeBase,
@@ -704,6 +705,41 @@ export async function deleteGraphRelation(
     `/api/projects/${encodeURIComponent(projectId)}/graph/relations/${encodeURIComponent(relationId)}`,
     {
       method: "DELETE",
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function createGraphRelation(
+  projectId: string,
+  payload: Partial<CharacterGraphLink> & {
+    source_id: string
+    target_id: string
+  },
+  options: { signal?: AbortSignal } = {},
+): Promise<CharacterGraphLink> {
+  return request<CharacterGraphLink>(
+    `/api/projects/${encodeURIComponent(projectId)}/graph/relations`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function syncCharacterGraph(
+  projectId: string,
+  payload: { mode: "full" | "node"; node_id?: string | null },
+  options: { signal?: AbortSignal } = {},
+): Promise<GraphSyncResponse> {
+  return request<GraphSyncResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/graph/sync`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
       signal: options.signal,
     },
     { showLoading: false },

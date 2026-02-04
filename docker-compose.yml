@@ -9,8 +9,10 @@ services:
       - .env
     environment:
       CHROMA_PERSIST_PATH: /app/data/chroma_db
+      EMBEDDING_MODEL: /app/models/paraphrase-multilingual-MiniLM-L12-v2
     volumes:
       - ./backend/data:/app/data
+      - ./backend/models:/app/models
 
   frontend:
     build:
@@ -18,11 +20,13 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8000
+        INTERNAL_API_URL: http://backend:8000
     ports:
       - "3000:3000"
     env_file:
       - .env
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      INTERNAL_API_URL: http://backend:8000
     depends_on:
       - backend

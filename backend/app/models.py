@@ -474,6 +474,13 @@ class ModelConfigUpdateRequest(BaseModel):
     extraction_model: str | None = None
 
 
+class CharacterAppearance(BaseModel):
+    node_id: str
+    node_title: str
+    narrative_order: int
+    timeline_order: float | None = None
+
+
 class CharacterGraphNode(BaseModel):
     id: str
     name: str
@@ -482,6 +489,7 @@ class CharacterGraphNode(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     properties: dict = Field(default_factory=dict)
     source_refs: list[str] = Field(default_factory=list)
+    appearances: list[CharacterAppearance] = Field(default_factory=list)
 
 
 class CharacterGraphLink(BaseModel):

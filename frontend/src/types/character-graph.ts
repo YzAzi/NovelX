@@ -1,10 +1,11 @@
-export type EntityType =
-  | "character"
-  | "location"
-  | "item"
-  | "event"
-  | "organization"
-  | "concept"
+export type EntityType = "character"
+
+export interface CharacterAppearance {
+  node_id: string
+  node_title: string
+  narrative_order: number
+  timeline_order?: number | null
+}
 
 export interface CharacterGraphNode {
   id: string
@@ -14,6 +15,7 @@ export interface CharacterGraphNode {
   aliases?: string[]
   properties?: Record<string, unknown>
   source_refs?: string[]
+  appearances?: CharacterAppearance[]
   x?: number
   y?: number
 }

@@ -10,9 +10,11 @@ services:
       - .env
     environment:
       CHROMA_PERSIST_PATH: /app/data/chroma_db
+      EMBEDDING_MODEL: /app/models/paraphrase-multilingual-MiniLM-L12-v2
     volumes:
       - ./backend:/app
       - ./backend/data:/app/data
+      - ./backend/models:/app/models
 
   frontend:
     image: node:20-alpine
@@ -23,7 +25,8 @@ services:
     env_file:
       - .env
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      INTERNAL_API_URL: http://backend:8000
     volumes:
       - ./frontend:/app
     depends_on:

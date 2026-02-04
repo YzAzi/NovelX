@@ -91,6 +91,19 @@
         "一个穿着红色雨衣的身影",
         "node_3"
       ]
+    },
+    {
+      "id": "5b3b9102-c41c-46d8-910d-0d5224105765",
+      "name": "测试",
+      "type": "character",
+      "description": "测试",
+      "aliases": [],
+      "properties": {
+        "appearances": [
+          "node-84243487-e983-4de4-ab58-b72dd96049c5"
+        ]
+      },
+      "source_refs": []
     }
   ],
   "relations": [
@@ -186,5 +199,5 @@
       ]
     }
   ],
-  "last_updated": "2026-01-14T06:55:49.375461"
+  "last_updated": "2026-02-04T08:21:21.979978"
 }

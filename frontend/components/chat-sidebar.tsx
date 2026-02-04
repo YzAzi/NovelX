@@ -1,11 +1,19 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
 import { Send, Sparkles, X, MessageSquareText, Eraser } from "lucide-react"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { normalizeMarkdown } from "@/src/lib/markdown"
+import "@uiw/react-markdown-preview/markdown.css"
+
+const MarkdownPreview = dynamic(
+  () => import("@uiw/react-markdown-preview").then((mod) => mod.default),
+  { ssr: false }
+)
 
 type Message = {
   id: string
@@ -19,6 +27,7 @@ export function ChatSidebar() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [colorMode, setColorMode] = useState<"light" | "dark">("light")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -29,6 +38,18 @@ export function ChatSidebar() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const updateMode = () => {
+      const isDark = document.documentElement.classList.contains("dark")
+      setColorMode(isDark ? "dark" : "light")
+    }
+    updateMode()
+    const observer = new MutationObserver(updateMode)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => observer.disconnect()
+  }, [])
 
   // 当切换项目时，清空聊天记录（可选，也可以做持久化）
   useEffect(() => {
@@ -84,36 +105,51 @@ export function ChatSidebar() {
       if (!response.body) return
 
       const reader = response.body.getReader()
-      const decoder = new TextDecoder()
+      const decoder = new TextDecoder("utf-8")
+      let buffer = ""
       let done = false
       let currentResponse = ""
 
       while (!done) {
         const { value, done: doneReading } = await reader.read()
-        done = doneReading
-        const chunkValue = decoder.decode(value, { stream: true })
-        
-        // 处理 SSE 格式数据
-        // 格式通常是: "data: ...\n\n"
-        const lines = chunkValue.split("\n")
-        
-        for (const line of lines) {
-            if (line.startsWith("data: ")) {
-                const data = line.slice(6)
-                if (data === "[DONE]") {
-                    continue
-                }
-                currentResponse += data
-                
-                // 更新最后一条消息的内容
-                setMessages((prev) => 
-                    prev.map((msg) => 
-                        msg.id === assistantMessageId 
-                            ? { ...msg, content: currentResponse } 
-                            : msg
-                    )
-                )
+        if (doneReading) {
+          done = true
+          break
+        }
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split("\n\n")
+        buffer = parts.pop() ?? ""
+
+        for (const part of parts) {
+          const lines = part.split("\n")
+          let event = "message"
+          const dataLines: string[] = []
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              event = line.replace("event:", "").trim()
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.replace(/^data:\s?/, ""))
             }
+          }
+          if (event === "start") continue
+          if (event === "done") {
+            done = true
+            break
+          }
+          const data = dataLines.join("\n")
+          if (!data || data === "[DONE]") {
+            continue
+          }
+          currentResponse += data
+
+          // 更新最后一条消息的内容
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: currentResponse }
+                : msg
+            )
+          )
         }
       }
     } catch (error) {
@@ -201,7 +237,17 @@ export function ChatSidebar() {
                   : "self-start bg-white border border-slate-100 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 rounded-tl-sm"
               )}
             >
-              <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+              {msg.role === "assistant" ? (
+                <div className="markdown-preview-reset text-sm leading-relaxed">
+                  <MarkdownPreview
+                    source={normalizeMarkdown(msg.content || (isLoading ? "..." : ""))}
+                    style={{ backgroundColor: "transparent", color: "inherit", fontSize: "inherit" }}
+                    wrapperElement={{ "data-color-mode": colorMode }}
+                  />
+                </div>
+              ) : (
+                <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+              )}
             </div>
           ))}
           {isLoading && messages[messages.length - 1]?.role === "user" && (

@@ -54,6 +54,34 @@ def _ensure_entity_ids(entities: list[Entity]) -> list[Entity]:
     return updated
 
 
+def _add_appearance(entity: Entity, node_id: str) -> None:
+    if not node_id:
+        return
+    if not isinstance(entity.properties, dict):
+        entity.properties = {}
+    appearances = entity.properties.get("appearances")
+    if not isinstance(appearances, list):
+        appearances = []
+    if node_id not in appearances:
+        appearances.append(node_id)
+    entity.properties["appearances"] = appearances
+
+
+def _extract_mentioned_entities(text: str, graph: KnowledgeGraph) -> list[Entity]:
+    lowered = text.lower()
+    mentioned: list[Entity] = []
+    for entity in graph.entities:
+        name = entity.name.lower()
+        if name and name in lowered:
+            mentioned.append(entity)
+            continue
+        for alias in entity.aliases:
+            if alias.lower() in lowered:
+                mentioned.append(entity)
+                break
+    return mentioned
+
+
 class GraphExtractor:
     def __init__(self, prompt_template: PromptTemplate | None = None) -> None:
         self.prompt_template = prompt_template or PROMPT_TEMPLATE
@@ -115,12 +143,17 @@ class GraphExtractor:
         result = await self.extract_from_text(text, existing_graph)
         if result.new_entities:
             for entity in result.new_entities:
+                _add_appearance(entity, node.id)
                 if node.id not in entity.source_refs:
                     entity.source_refs.append(node.id)
         if result.new_relations:
             for relation in result.new_relations:
                 if node.id not in relation.source_refs:
                     relation.source_refs.append(node.id)
+        if text:
+            mentioned = _extract_mentioned_entities(text, existing_graph)
+            for entity in mentioned:
+                _add_appearance(entity, node.id)
         return result
 
     async def build_full_graph(

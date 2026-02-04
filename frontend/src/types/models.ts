@@ -91,6 +91,11 @@ export interface SyncNodeResponse {
   sync_status?: "pending" | "completed" | "failed"
 }
 
+export interface GraphSyncResponse {
+  sync_result: SyncResult
+  sync_status?: "pending" | "completed" | "failed"
+}
+
 export interface WorldDocument {
   id: string
   project_id: string

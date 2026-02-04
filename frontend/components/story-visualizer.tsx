@@ -52,7 +52,7 @@ const TAG_COLORS = [
   "bg-fuchsia-100/80 text-fuchsia-900 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
 ]
 
-const defaultEdgeOptions = { type: "smoothstep", animated: false, style: { stroke: "var(--border)" } }
+const defaultEdgeOptions = { type: "smoothstep", animated: false, style: { stroke: "var(--border)", strokeWidth: 2 } }
 
 type StoryNodeData = {
   title: string
@@ -115,7 +115,7 @@ function buildEdges(nodes: StoryNode[]): Edge[] {
       source: source.id,
       target: target.id,
       type: "smoothstep",
-      style: { stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1.5, opacity: 0.5 },
+      style: { stroke: "var(--muted-foreground)", strokeWidth: 2, opacity: 0.6 },
     })
   }
   return edges

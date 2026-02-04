@@ -23,7 +23,7 @@ class SyncMode(str, Enum):
 
 class SyncConfig(BaseModel):
     vector_sync_mode: SyncMode = SyncMode.IMMEDIATE
-    graph_sync_mode: SyncMode = SyncMode.DEBOUNCED
+    graph_sync_mode: SyncMode = SyncMode.MANUAL
     debounce_seconds: int = 5
     batch_size: int = 10
     batch_timeout_seconds: int = 60
