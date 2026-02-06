@@ -172,6 +172,13 @@ export interface CreateOutlineRequest {
   request_id?: string | null
 }
 
+export interface CreateEmptyProjectRequest {
+  title?: string | null
+  world_view?: string | null
+  style_tags?: string[]
+  base_project_id?: string | null
+}
+
 export interface InsertNodeRequest {
   project_id: string
   node: StoryNode

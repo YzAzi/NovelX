@@ -33,6 +33,7 @@ from langchain_openai import ChatOpenAI
 from .knowledge_graph import EntityType, delete_graph, load_graph, save_graph
 from .models import (
     CreateOutlineRequest,
+    CreateEmptyProjectRequest,
     CharacterProfile,
     CharacterAppearance,
     CharacterGraphLink,
@@ -237,6 +238,49 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"error": exc.__class__.__name__, "detail": str(exc.detail)},
     )
+
+
+@app.post(
+    "/api/projects/empty",
+    response_model=StoryProject,
+    status_code=status.HTTP_200_OK,
+)
+async def create_empty_project(
+    payload: CreateEmptyProjectRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    base_project = None
+    if payload.base_project_id:
+        base_project = await get_project(session, payload.base_project_id)
+        if base_project is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Base project not found",
+            )
+
+    title = (payload.title or "").strip() or "未命名项目"
+    world_view = (payload.world_view or "").strip()
+    if not world_view and base_project:
+        world_view = base_project.world_view
+
+    style_tags = [tag.strip() for tag in payload.style_tags if tag.strip()]
+    if not style_tags and base_project:
+        style_tags = base_project.style_tags
+
+    project = StoryProject(
+        title=title,
+        world_view=world_view,
+        style_tags=style_tags,
+        nodes=[],
+        chapters=[],
+        characters=[],
+    )
+    if base_project:
+        project.analysis_profile = base_project.analysis_profile
+        project.prompt_overrides = base_project.prompt_overrides.model_copy(deep=True)
+        project.writer_config = base_project.writer_config.model_copy(deep=True)
+    await create_project(session, project)
+    return project
 
 
 @app.post(

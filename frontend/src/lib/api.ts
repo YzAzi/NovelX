@@ -1,6 +1,7 @@
 import type { CharacterGraphResponse } from "@/src/types/character-graph"
 import type {
   CreateOutlineRequest,
+  CreateEmptyProjectRequest,
   AnalysisHistoryRequest,
   AnalysisHistoryResponse,
   InsertNodeRequest,
@@ -81,6 +82,15 @@ export async function createOutline(
   payload: CreateOutlineRequest,
 ): Promise<StoryProject> {
   return request<StoryProject>("/api/create_outline", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createEmptyProject(
+  payload: CreateEmptyProjectRequest,
+): Promise<StoryProject> {
+  return request<StoryProject>("/api/projects/empty", {
     method: "POST",
     body: JSON.stringify(payload),
   })

@@ -203,6 +203,22 @@ class CreateOutlineRequest(BaseModel):
         return value
 
 
+class CreateEmptyProjectRequest(BaseModel):
+    title: str | None = None
+    world_view: str | None = None
+    style_tags: list[str] = Field(default_factory=list)
+    base_project_id: str | None = None
+
+    @field_validator("style_tags", mode="before")
+    @classmethod
+    def normalize_style_tags(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [tag.strip() for tag in value.split(",") if tag.strip()]
+        return value
+
+
 class PromptOverrides(BaseModel):
     drafting: str | None = None
     sync: str | None = None
