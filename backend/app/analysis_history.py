@@ -8,8 +8,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from .bm25 import BM25
+from .storage_paths import project_file_candidates, resolve_project_file
 from .text_utils import keyword_score, tokenize
-from .vectorstore import search_similar
+from .vectorstore import delete_by_filter, search_similar
 
 
 def _storage_dir() -> Path:
@@ -19,7 +20,7 @@ def _storage_dir() -> Path:
 
 
 def _project_file(project_id: str) -> Path:
-    return _storage_dir() / f"{project_id}.json"
+    return resolve_project_file(_storage_dir(), project_id, ".json")
 
 
 @contextmanager
@@ -76,6 +77,20 @@ def append_messages(project_id: str, messages: list[dict]) -> list[dict]:
             json.dumps(stored, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     return records
+
+
+async def delete_history(project_id: str) -> None:
+    for path in project_file_candidates(_storage_dir(), project_id, ".json"):
+        lock_path = path.with_suffix(f"{path.suffix}.lock")
+        with _file_lock(path):
+            if path.exists():
+                path.unlink()
+        if lock_path.exists():
+            lock_path.unlink(missing_ok=True)
+    await delete_by_filter(
+        collection_name="analysis_history",
+        filter_dict={"project_id": project_id},
+    )
 
 
 async def search_history(

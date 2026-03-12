@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type FormEvent } from "react"
 import Link from "next/link"
 import {
   Layout,
@@ -29,11 +29,16 @@ import { VersionHistory } from "@/components/version-history"
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { WritingWorkspace } from "@/components/writing-workspace"
 import {
+  AUTH_EXPIRED_EVENT,
+  clearAuthToken,
   createVersion,
+  getCurrentUser,
   getModelConfig,
+  loginUser,
+  registerUser,
+  setAuthToken,
   updateModelConfig,
   updateProjectSettings,
-  updateProjectTitle,
 } from "@/src/lib/api"
 import { useWebsocket } from "@/src/hooks/use-websocket"
 import { Button } from "@/components/ui/button"
@@ -50,8 +55,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useProjectStore } from "@/src/stores/project-store"
 import { cn } from "@/lib/utils"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import type { AuthUser, ModelConfigResponse } from "@/src/types/models"
 
 const DEFAULT_TITLE = "未命名项目"
 const OUTLINE_STEPS = [
@@ -71,15 +76,14 @@ export default function Home() {
     setError,
     outlineProgressStage,
     setProject,
-    setProjectTitle,
     selectNode,
     setNodeEditorOpen,
+    resetWorkspace,
   } = useProjectStore()
   const [activeTab, setActiveTab] = useState("outline")
   const [title, setTitle] = useState(DEFAULT_TITLE)
   const [projectSidebarOpen, setProjectSidebarOpen] = useState(true)
   const [versionOpen, setVersionOpen] = useState(false)
-  const [isSavingTitle, setIsSavingTitle] = useState(false)
   const [modelConfig, setModelConfig] = useState<{
     drafting: string
     sync: string
@@ -112,8 +116,39 @@ export default function Home() {
     analysis: "",
     outline_import: "",
   })
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
+  const [authChecking, setAuthChecking] = useState(true)
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [authMode, setAuthMode] = useState<"login" | "register">("login")
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authForm, setAuthForm] = useState({
+    username: "",
+    password: "",
+    confirmPassword: "",
+  })
 
-  useWebsocket(currentProject?.id ?? null)
+  useWebsocket(authUser ? currentProject?.id ?? null : null)
+
+  const applyModelConfig = useCallback((config: ModelConfigResponse) => {
+    const nextConfig = {
+      baseUrl: config.base_url ?? "",
+      drafting: config.drafting_model,
+      sync: config.sync_model,
+      extraction: config.extraction_model,
+      hasDefaultKey: Boolean(config.has_default_key),
+      hasDraftingKey: Boolean(config.has_drafting_key),
+      hasSyncKey: Boolean(config.has_sync_key),
+      hasExtractionKey: Boolean(config.has_extraction_key),
+    }
+    setModelConfig(nextConfig)
+    setModelForm((prev) => ({
+      ...prev,
+      baseUrl: nextConfig.baseUrl,
+      drafting: nextConfig.drafting,
+      sync: nextConfig.sync,
+      extraction: nextConfig.extraction,
+    }))
+  }, [])
 
   useEffect(() => {
     setTitle(currentProject?.title ?? DEFAULT_TITLE)
@@ -138,11 +173,15 @@ export default function Home() {
       analysis: overrides.analysis ?? "",
       outline_import: overrides.outline_import ?? "",
     })
-  }, [currentProject?.id])
+  }, [currentProject])
 
   useEffect(() => {
     const handleKeyDown = async (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "h"
+      ) {
         event.preventDefault()
         setVersionOpen(true)
         return
@@ -168,35 +207,45 @@ export default function Home() {
   }, [currentProject, setError])
 
   useEffect(() => {
-    loadProjects()
-  }, [loadProjects])
-
-  useEffect(() => {
     const controller = new AbortController()
-    getModelConfig({ signal: controller.signal })
-      .then((config) => {
-        const nextConfig = {
-          baseUrl: config.base_url ?? "",
-          drafting: config.drafting_model,
-          sync: config.sync_model,
-          extraction: config.extraction_model,
-          hasDefaultKey: Boolean(config.has_default_key),
-          hasDraftingKey: Boolean(config.has_drafting_key),
-          hasSyncKey: Boolean(config.has_sync_key),
-          hasExtractionKey: Boolean(config.has_extraction_key),
+    const handleAuthExpired = () => {
+      clearAuthToken()
+      resetWorkspace()
+      setAuthUser(null)
+      setModelConfig(null)
+      setAuthError("登录已过期，请重新登录。")
+      setAuthChecking(false)
+    }
+
+    const bootstrapSession = async () => {
+      try {
+        const user = await getCurrentUser({ signal: controller.signal })
+        setAuthUser(user)
+        setAuthError(null)
+        await loadProjects()
+        const config = await getModelConfig({ signal: controller.signal })
+        applyModelConfig(config)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
         }
-        setModelConfig(nextConfig)
-        setModelForm((prev) => ({
-          ...prev,
-          baseUrl: nextConfig.baseUrl,
-          drafting: nextConfig.drafting,
-          sync: nextConfig.sync,
-          extraction: nextConfig.extraction,
-        }))
-      })
-      .catch(() => null)
-    return () => controller.abort()
-  }, [])
+        clearAuthToken()
+        resetWorkspace()
+        setAuthUser(null)
+        setModelConfig(null)
+      } finally {
+        setAuthChecking(false)
+      }
+    }
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
+    void bootstrapSession()
+
+    return () => {
+      controller.abort()
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
+    }
+  }, [applyModelConfig, loadProjects, resetWorkspace])
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => {
@@ -244,29 +293,6 @@ export default function Home() {
     setTitle(value)
   }
 
-  const handleSaveTitle = async () => {
-    if (!currentProject) {
-      return
-    }
-    const nextTitle = title.trim()
-    if (!nextTitle) {
-      setError("项目标题不能为空")
-      return
-    }
-    setIsSavingTitle(true)
-    try {
-      const updated = await updateProjectTitle(currentProject.id, { title: nextTitle })
-      setProject(updated)
-      setTitle(updated.title)
-      setProjectTitle(updated.id, updated.title, updated.updated_at)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "保存项目标题失败"
-      setError(message)
-    } finally {
-      setIsSavingTitle(false)
-    }
-  }
-
   const handleModelFieldChange = (
     key:
       | "baseUrl"
@@ -287,6 +313,63 @@ export default function Home() {
     value: string
   ) => {
     setPromptForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleAuthFieldChange = (
+    key: "username" | "password" | "confirmPassword",
+    value: string
+  ) => {
+    setAuthForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const username = authForm.username.trim()
+    const password = authForm.password
+
+    if (username.length < 3) {
+      setAuthError("用户名至少需要 3 个字符")
+      return
+    }
+    if (password.length < 6) {
+      setAuthError("密码至少需要 6 个字符")
+      return
+    }
+    if (authMode === "register" && password !== authForm.confirmPassword) {
+      setAuthError("两次输入的密码不一致")
+      return
+    }
+
+    setAuthSubmitting(true)
+    try {
+      const response =
+        authMode === "login"
+          ? await loginUser({ username, password })
+          : await registerUser({ username, password })
+      setAuthToken(response.access_token)
+      setAuthUser(response.user)
+      setAuthError(null)
+      resetWorkspace()
+      await loadProjects()
+      const config = await getModelConfig()
+      applyModelConfig(config)
+      setAuthForm({ username, password: "", confirmPassword: "" })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "登录失败"
+      setAuthError(message)
+      setAuthUser(null)
+    } finally {
+      setAuthSubmitting(false)
+    }
+  }
+
+  const handleLogout = () => {
+    clearAuthToken()
+    resetWorkspace()
+    setAuthUser(null)
+    setModelConfig(null)
+    setAuthError(null)
+    setTitle(DEFAULT_TITLE)
   }
 
   const handleSaveModels = async () => {
@@ -356,6 +439,108 @@ export default function Home() {
     } finally {
       setIsSavingPrompts(false)
     }
+  }
+
+  if (authChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
+          <div className="text-sm font-medium">正在验证登录状态...</div>
+          <div className="mt-1 text-xs text-muted-foreground">请稍候，正在连接你的项目空间。</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!authUser) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <div className="text-lg font-semibold">Novel Workspace</div>
+              <div className="text-sm text-muted-foreground">先登录，再继续创作与管理项目。</div>
+            </div>
+          </div>
+
+          <div className="mb-4 flex rounded-lg bg-muted p-1">
+            <button
+              type="button"
+              className={cn(
+                "flex-1 rounded-md px-3 py-2 text-sm transition-colors",
+                authMode === "login" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"
+              )}
+              onClick={() => {
+                setAuthMode("login")
+                setAuthError(null)
+              }}
+            >
+              登录
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex-1 rounded-md px-3 py-2 text-sm transition-colors",
+                authMode === "register" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"
+              )}
+              onClick={() => {
+                setAuthMode("register")
+                setAuthError(null)
+              }}
+            >
+              注册
+            </button>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleAuthSubmit}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">用户名</label>
+              <Input
+                value={authForm.username}
+                onChange={(event) => handleAuthFieldChange("username", event.target.value)}
+                placeholder="请输入用户名"
+                autoComplete="username"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">密码</label>
+              <Input
+                type="password"
+                value={authForm.password}
+                onChange={(event) => handleAuthFieldChange("password", event.target.value)}
+                placeholder="请输入密码"
+                autoComplete={authMode === "login" ? "current-password" : "new-password"}
+              />
+            </div>
+            {authMode === "register" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">确认密码</label>
+                <Input
+                  type="password"
+                  value={authForm.confirmPassword}
+                  onChange={(event) => handleAuthFieldChange("confirmPassword", event.target.value)}
+                  placeholder="请再次输入密码"
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
+
+            {authError && (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {authError}
+              </div>
+            )}
+
+            <Button className="w-full" type="submit" disabled={authSubmitting}>
+              {authSubmitting ? "提交中..." : authMode === "login" ? "登录" : "注册并进入"}
+            </Button>
+          </form>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -464,7 +649,7 @@ export default function Home() {
             variant="ghost"
             size="icon"
             onClick={() => setVersionOpen(true)}
-            title="版本历史"
+            title="版本历史（Ctrl/Cmd + Shift + H）"
             className="text-muted-foreground hover:text-primary"
           >
             <History size={20} />
@@ -548,6 +733,16 @@ export default function Home() {
                  </DialogFooter>
               </DialogContent>
            </Dialog>
+
+           <div className="flex flex-col items-center gap-2 px-1">
+             <div className="w-full rounded-lg border border-border bg-background/80 px-2 py-2 text-center">
+               <div className="truncate text-xs font-medium">{authUser.username}</div>
+               <div className="text-[10px] text-muted-foreground">已登录</div>
+             </div>
+             <Button variant="outline" size="sm" className="w-full" onClick={handleLogout}>
+               退出
+             </Button>
+           </div>
         </div>
       </aside>
 

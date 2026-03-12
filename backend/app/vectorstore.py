@@ -43,6 +43,10 @@ _collections = {
         name="world_knowledge",
         embedding_function=_embedding_fn,
     ),
+    "style_knowledge": _client.get_or_create_collection(
+        name="style_knowledge",
+        embedding_function=_embedding_fn,
+    ),
     "story_nodes": _client.get_or_create_collection(
         name="story_nodes",
         embedding_function=_embedding_fn,

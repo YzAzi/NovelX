@@ -1,13 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import {
   Sparkles,
   Settings2,
   PenLine,
   Save,
-  ChevronRight,
-  ChevronLeft,
   Plus,
   PencilLine,
   Trash2,
@@ -19,7 +17,20 @@ import {
 } from "lucide-react"
 
 import { useProjectStore } from "@/src/stores/project-store"
-import { createChapter, deleteChapter, updateChapter, updateProjectSettings } from "@/src/lib/api"
+import {
+  buildApiUrl,
+  buildAuthHeaders,
+  createChapter,
+  deleteChapter,
+  formatUserErrorMessage,
+  getStyleKnowledgeBase,
+  handleUnauthorized,
+  updateChapter,
+  updateProjectSettings,
+  updateStyleKnowledgeTitle,
+  deleteStyleKnowledgeDocument,
+  uploadStyleKnowledgeFile,
+} from "@/src/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -32,12 +43,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import type { WriterConfig } from "@/src/types/models"
+import type { StyleDocument, WriterConfig } from "@/src/types/models"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 
 export function WritingWorkspace() {
-  const { currentProject, setProject } = useProjectStore()
+  const { currentProject, setError, setProject } = useProjectStore()
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
   const [content, setContent] = useState("")
   const [chapterTitle, setChapterTitle] = useState("")
@@ -49,21 +59,61 @@ export function WritingWorkspace() {
     model: "",
     api_key: "",
     base_url: "",
+    polish_instruction: "",
+    expand_instruction: "",
+    style_strength: "medium",
+    style_preset: "default",
   })
+  const [styleDocs, setStyleDocs] = useState<StyleDocument[]>([])
+  const [selectedStyleIds, setSelectedStyleIds] = useState<string[]>([])
+  const [styleError, setStyleError] = useState<string | null>(null)
+  const [isStyleLoading, setIsStyleLoading] = useState(false)
+  const [isStyleUploading, setIsStyleUploading] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<StyleDocument | null>(null)
+  const [renamingDocId, setRenamingDocId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
   const [isPolishing, setIsPolishing] = useState(false)
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const styleFileRef = useRef<HTMLInputElement>(null)
   const skipCommitRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
 
+  const STYLE_PRESETS = [
+    { key: "default", label: "通用叙事" },
+    { key: "warm", label: "温柔细腻" },
+    { key: "noir", label: "冷峻硬派" },
+    { key: "poetic", label: "诗性抒情" },
+    { key: "custom", label: "自定义" },
+  ] as const
+
+  const PRESET_INSTRUCTIONS: Record<string, { polish: string; expand: string }> = {
+    default: {
+      polish: "请润色这段文本，使其描写更生动，沉浸感更强。保持原意不变。",
+      expand: "请在保持原意的基础上扩写这段文本，使情节更丰富、描写更细腻。",
+    },
+    warm: {
+      polish: "请用温柔细腻的笔触润色这段文本，强化人物情绪与氛围。",
+      expand: "请以温柔细腻的笔触扩写这段文本，补充感受与细节描写。",
+    },
+    noir: {
+      polish: "请用冷峻硬派的风格润色这段文本，节奏干净利落。",
+      expand: "请以冷峻硬派的风格扩写这段文本，突出张力与冲突。",
+    },
+    poetic: {
+      polish: "请用诗性抒情的风格润色这段文本，注重意象与节奏。",
+      expand: "请以诗性抒情的风格扩写这段文本，丰富意象与内心独白。",
+    },
+  }
+
   // Sort nodes
   const sortedChapters = useMemo(() => {
     if (!currentProject) return []
     return [...currentProject.chapters].sort((a, b) => a.order - b.order)
-  }, [currentProject?.chapters])
+  }, [currentProject])
 
   // Set initial active chapter
   useEffect(() => {
@@ -85,9 +135,39 @@ export function WritingWorkspace() {
   // Load config
   useEffect(() => {
     if (currentProject?.writer_config) {
-      setConfigForm(currentProject.writer_config)
+      setConfigForm({
+        prompt: currentProject.writer_config.prompt ?? "",
+        model: currentProject.writer_config.model ?? "",
+        api_key: currentProject.writer_config.api_key ?? "",
+        base_url: currentProject.writer_config.base_url ?? "",
+        polish_instruction: currentProject.writer_config.polish_instruction ?? "",
+        expand_instruction: currentProject.writer_config.expand_instruction ?? "",
+        style_strength: currentProject.writer_config.style_strength ?? "medium",
+        style_preset: currentProject.writer_config.style_preset ?? "default",
+      })
     }
-  }, [currentProject?.writer_config])
+  }, [currentProject])
+
+  useEffect(() => {
+    if (!currentProject) {
+      setStyleDocs([])
+      setSelectedStyleIds([])
+      return
+    }
+    const controller = new AbortController()
+    setIsStyleLoading(true)
+    setStyleError(null)
+    getStyleKnowledgeBase(currentProject.id, { signal: controller.signal })
+      .then((base) => {
+        setStyleDocs(base.documents ?? [])
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "加载文笔知识库失败"
+        setStyleError(message)
+      })
+      .finally(() => setIsStyleLoading(false))
+    return () => controller.abort()
+  }, [currentProject])
 
   const handleSaveContent = async () => {
     if (!currentProject || !activeChapterId) return
@@ -137,38 +217,79 @@ export function WritingWorkspace() {
     }
   }
 
-  const handlePolish = async (type: "selection" | "full") => {
+  const buildInstruction = (mode: "polish" | "expand") => {
+    const strengthLabel =
+      configForm.style_strength === "high"
+        ? "强烈"
+        : configForm.style_strength === "low"
+          ? "轻度"
+          : "中等"
+
+    const presetLabel =
+      STYLE_PRESETS.find((item) => item.key === configForm.style_preset)?.label ??
+      "通用叙事"
+
+    const base =
+      mode === "polish"
+        ? configForm.polish_instruction?.trim()
+        : configForm.expand_instruction?.trim()
+
+    const fallback =
+      mode === "polish"
+        ? PRESET_INSTRUCTIONS[configForm.style_preset || "default"]?.polish
+        : PRESET_INSTRUCTIONS[configForm.style_preset || "default"]?.expand
+
+    const instruction = base || fallback || PRESET_INSTRUCTIONS.default[mode]
+    const presetText =
+      configForm.style_preset && configForm.style_preset !== "custom"
+        ? `参考风格：${presetLabel}`
+        : ""
+    const strengthText = `风格强度：${strengthLabel}`
+    return [instruction, presetText, strengthText].filter(Boolean).join("\n")
+  }
+
+  const handleAssist = async (
+    mode: "polish" | "expand",
+    scope: "selection" | "full",
+  ) => {
     if (!currentProject || !activeChapterId) return
     
     let textToPolish = content
-    let instruction = "请润色这段文本，使其描写更生动，沉浸感更强。保持原意不变。"
+    const instruction = buildInstruction(mode)
     
-    if (type === "selection" && textareaRef.current) {
+    if (scope === "selection" && textareaRef.current) {
       const start = textareaRef.current.selectionStart
       const end = textareaRef.current.selectionEnd
       if (start !== end) {
         textToPolish = content.substring(start, end)
         setSelectionRange({ start, end })
       } else {
-        alert("请先选择要润色的文本")
+        alert("请先选择要处理的文本")
         return
       }
     }
 
     setIsPolishing(true)
     try {
-      const response = await fetch("/api/writing_assistant", {
+      const response = await fetch(buildApiUrl("/api/writing_assistant"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           project_id: currentProject.id,
           text: textToPolish,
           instruction,
           stream: true,
+          style_document_ids: selectedStyleIds,
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to call AI")
+      if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized()
+        }
+        const detail = await response.text()
+        throw new Error(detail || "Failed to call AI")
+      }
       
       const reader = response.body?.getReader()
       if (!reader) return
@@ -190,7 +311,7 @@ export function WritingWorkspace() {
         }
       }
       
-      if (type === "full") {
+      if (scope === "full") {
          setContent(polishedText)
       } else if (selectionRange) {
          const before = content.substring(0, selectionRange.start)
@@ -200,6 +321,7 @@ export function WritingWorkspace() {
 
     } catch (error) {
       console.error("Polish failed", error)
+      setError(formatUserErrorMessage(error, "写作助手处理失败，请稍后重试。"))
     } finally {
       setIsPolishing(false)
       setSelectionRange(null)
@@ -221,6 +343,114 @@ export function WritingWorkspace() {
       console.error("Failed to create chapter", error)
     } finally {
       setIsCreatingChapter(false)
+    }
+  }
+
+  const handlePresetChange = (value: string) => {
+    if (!value) {
+      return
+    }
+    if (value === "custom") {
+      setConfigForm((prev) => ({ ...prev, style_preset: value }))
+      return
+    }
+    const preset = PRESET_INSTRUCTIONS[value]
+    setConfigForm((prev) => ({
+      ...prev,
+      style_preset: value,
+      polish_instruction: preset?.polish ?? prev.polish_instruction,
+      expand_instruction: preset?.expand ?? prev.expand_instruction,
+    }))
+  }
+
+  const handleStyleToggle = (docId: string) => {
+    setSelectedStyleIds((prev) =>
+      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+    )
+  }
+
+  const handleStyleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!currentProject) {
+      return
+    }
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+    if (!file.name.endsWith(".txt") && !file.name.endsWith(".md")) {
+      setStyleError("仅支持 .txt / .md 文件")
+      return
+    }
+    setIsStyleUploading(true)
+    setStyleError(null)
+    try {
+      const doc = await uploadStyleKnowledgeFile(currentProject.id, file)
+      setStyleDocs((prev) => [doc, ...prev])
+      setSelectedStyleIds((prev) =>
+        prev.includes(doc.id) ? prev : [doc.id, ...prev]
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "上传失败"
+      setStyleError(message)
+    } finally {
+      setIsStyleUploading(false)
+      if (styleFileRef.current) {
+        styleFileRef.current.value = ""
+      }
+    }
+  }
+
+  const handleOpenPreview = (doc: StyleDocument) => {
+    setPreviewDoc(doc)
+  }
+
+  const handleStartRename = (doc: StyleDocument) => {
+    setRenamingDocId(doc.id)
+    setRenameValue(doc.title || "")
+  }
+
+  const handleCancelRename = () => {
+    setRenamingDocId(null)
+    setRenameValue("")
+  }
+
+  const handleConfirmRename = async (doc: StyleDocument) => {
+    if (!currentProject) {
+      return
+    }
+    const nextTitle = renameValue.trim()
+    if (!nextTitle) {
+      setStyleError("标题不能为空")
+      return
+    }
+    try {
+      const updated = await updateStyleKnowledgeTitle(currentProject.id, doc.id, {
+        title: nextTitle,
+      })
+      setStyleDocs((prev) =>
+        prev.map((item) => (item.id === doc.id ? updated : item))
+      )
+      handleCancelRename()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "重命名失败"
+      setStyleError(message)
+    }
+  }
+
+  const handleDeleteStyleDoc = async (doc: StyleDocument) => {
+    if (!currentProject) {
+      return
+    }
+    try {
+      await deleteStyleKnowledgeDocument(currentProject.id, doc.id)
+      setStyleDocs((prev) => prev.filter((item) => item.id !== doc.id))
+      setSelectedStyleIds((prev) => prev.filter((id) => id !== doc.id))
+      if (previewDoc?.id === doc.id) {
+        setPreviewDoc(null)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除失败"
+      setStyleError(message)
     }
   }
 
@@ -473,7 +703,7 @@ export function WritingWorkspace() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => handlePolish("selection")}
+                onClick={() => handleAssist("polish", "selection")}
                 disabled={isPolishing}
                 className="h-8 text-xs bg-background/50 hover:bg-background"
               >
@@ -481,13 +711,138 @@ export function WritingWorkspace() {
               </Button>
               <Button 
                 size="sm" 
-                onClick={() => handlePolish("full")}
+                onClick={() => handleAssist("polish", "full")}
                 disabled={isPolishing}
                 className="h-8 text-xs"
               >
                 <Sparkles className="h-3 w-3 mr-1.5" /> 全文润色
               </Button>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleAssist("expand", "selection")}
+                disabled={isPolishing}
+                className="h-8 text-xs bg-background/50 hover:bg-background"
+              >
+                <PenLine className="h-3 w-3 mr-1.5" /> 选中扩写
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={() => handleAssist("expand", "full")}
+                disabled={isPolishing}
+                className="h-8 text-xs"
+              >
+                <Sparkles className="h-3 w-3 mr-1.5" /> 全文扩写
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-foreground">仿写文笔知识库</h3>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  导入其他小说文本，AI 润色时会进行 RAG 检索并参考语感。
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                disabled={isStyleUploading}
+                onClick={() => styleFileRef.current?.click()}
+              >
+                {isStyleUploading ? "上传中..." : "导入 TXT"}
+              </Button>
+              <input
+                ref={styleFileRef}
+                type="file"
+                accept=".txt,.md"
+                className="hidden"
+                onChange={handleStyleUpload}
+              />
+            </div>
+
+            {styleError ? (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {styleError}
+              </div>
+            ) : null}
+
+            {isStyleLoading ? (
+              <div className="text-xs text-muted-foreground">加载中...</div>
+            ) : styleDocs.length === 0 ? (
+              <div className="text-xs text-muted-foreground">
+                暂无文笔素材，先导入一份 TXT/MD 文本。
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {styleDocs.map((doc) => {
+                  const checked = selectedStyleIds.includes(doc.id)
+                  const isRenaming = renamingDocId === doc.id
+                  return (
+                    <div
+                      key={doc.id}
+                      className={cn(
+                        "rounded-md border px-2.5 py-2 text-xs",
+                        checked ? "border-primary/40 bg-primary/5" : "border-border/60"
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={checked}
+                          onChange={() => handleStyleToggle(doc.id)}
+                        />
+                        <div className="min-w-0 flex-1">
+                          {isRenaming ? (
+                            <Input
+                              value={renameValue}
+                              onChange={(event) => setRenameValue(event.target.value)}
+                              className="h-7 text-xs"
+                            />
+                          ) : (
+                            <div className="font-medium text-foreground line-clamp-1">
+                              {doc.title || "未命名风格"}
+                            </div>
+                          )}
+                          <div className="text-[10px] text-muted-foreground">
+                            {doc.content?.length ?? 0} 字
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {isRenaming ? (
+                          <>
+                            <Button size="sm" className="h-7 text-[10px]" onClick={() => handleConfirmRename(doc)}>
+                              保存
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={handleCancelRename}>
+                              取消
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => handleOpenPreview(doc)}>
+                              预览
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => handleStartRename(doc)}>
+                              重命名
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-[10px] text-destructive hover:text-destructive" onClick={() => handleDeleteStyleDoc(doc)}>
+                              删除
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
           
           {isPolishing && (
@@ -510,11 +865,60 @@ export function WritingWorkspace() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">风格预设</label>
+              <select
+                className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs"
+                value={configForm.style_preset || "default"}
+                onChange={(event) => handlePresetChange(event.target.value)}
+              >
+                {STYLE_PRESETS.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">风格强度</label>
+              <select
+                className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs"
+                value={configForm.style_strength || "medium"}
+                onChange={(event) =>
+                  setConfigForm((prev) => ({
+                    ...prev,
+                    style_strength: event.target.value,
+                  }))
+                }
+              >
+                <option value="low">轻度</option>
+                <option value="medium">中等</option>
+                <option value="high">强烈</option>
+              </select>
+            </div>
+            <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground">系统指令 (System Prompt)</label>
               <Textarea 
                 value={configForm.prompt || ""} 
                 onChange={e => setConfigForm(prev => ({ ...prev, prompt: e.target.value }))}
                 placeholder="例如：你是一个资深小说编辑，请优化这段文字的描写..."
+                className="h-20 text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">润色提示词</label>
+              <Textarea 
+                value={configForm.polish_instruction || ""} 
+                onChange={e => setConfigForm(prev => ({ ...prev, polish_instruction: e.target.value }))}
+                placeholder="例如：请润色这段文本，使其描写更生动..."
+                className="h-20 text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">扩写提示词</label>
+              <Textarea 
+                value={configForm.expand_instruction || ""} 
+                onChange={e => setConfigForm(prev => ({ ...prev, expand_instruction: e.target.value }))}
+                placeholder="例如：请在保持原意的基础上扩写..."
                 className="h-20 text-xs"
               />
             </div>
@@ -551,6 +955,33 @@ export function WritingWorkspace() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsConfigOpen(false)}>取消</Button>
             <Button onClick={handleSaveConfig}>保存设置</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(previewDoc)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewDoc(null)
+          }
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>文笔素材预览</DialogTitle>
+            <DialogDescription>
+              {previewDoc?.title || "未命名风格"}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] rounded-md border border-border/60 bg-muted/20 p-3">
+            <div className="whitespace-pre-wrap text-sm text-foreground/90 leading-relaxed font-serif">
+              {(previewDoc?.content ?? "").slice(0, 4000)}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDoc(null)}>
+              关闭
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

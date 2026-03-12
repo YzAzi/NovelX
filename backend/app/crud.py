@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db_models import ProjectTable
 from .models import CharacterProfile, ProjectSummary, StoryChapter, StoryNode, StoryProject
+from .request_context import get_current_user_id
 
 
 def _serialize_project(project: StoryProject) -> dict:
@@ -47,9 +48,13 @@ def _deserialize_project(row: ProjectTable) -> StoryProject:
     )
 
 
-async def create_project(session: AsyncSession, project: StoryProject) -> str:
+async def create_project(
+    session: AsyncSession, project: StoryProject, owner_id: str | None = None
+) -> str:
+    resolved_owner_id = owner_id or get_current_user_id()
     record = ProjectTable(
         id=project.id,
+        owner_id=resolved_owner_id,
         title=project.title,
         world_view=project.world_view,
         style_tags=project.style_tags,
@@ -62,17 +67,37 @@ async def create_project(session: AsyncSession, project: StoryProject) -> str:
     return record.id
 
 
-async def get_project(session: AsyncSession, project_id: str) -> StoryProject | None:
-    record = await session.get(ProjectTable, project_id)
+async def get_project(
+    session: AsyncSession, project_id: str, owner_id: str | None = None
+) -> StoryProject | None:
+    resolved_owner_id = owner_id if owner_id is not None else get_current_user_id()
+    if resolved_owner_id is None:
+        record = await session.get(ProjectTable, project_id)
+    else:
+        result = await session.execute(
+            select(ProjectTable).where(
+                ProjectTable.id == project_id, ProjectTable.owner_id == resolved_owner_id
+            )
+        )
+        record = result.scalar_one_or_none()
     if record is None:
         return None
     return _deserialize_project(record)
 
 
 async def update_project(
-    session: AsyncSession, project_id: str, project: StoryProject
+    session: AsyncSession, project_id: str, project: StoryProject, owner_id: str | None = None
 ) -> StoryProject:
-    record = await session.get(ProjectTable, project_id)
+    resolved_owner_id = owner_id if owner_id is not None else get_current_user_id()
+    if resolved_owner_id is None:
+        record = await session.get(ProjectTable, project_id)
+    else:
+        result = await session.execute(
+            select(ProjectTable).where(
+                ProjectTable.id == project_id, ProjectTable.owner_id == resolved_owner_id
+            )
+        )
+        record = result.scalar_one_or_none()
     if record is None:
         raise ValueError("Project not found")
 
@@ -86,8 +111,12 @@ async def update_project(
 
 
 async def list_projects(session: AsyncSession) -> list[ProjectSummary]:
+    resolved_owner_id = get_current_user_id()
+    statement = select(ProjectTable.id, ProjectTable.title, ProjectTable.updated_at)
+    if resolved_owner_id is not None:
+        statement = statement.where(ProjectTable.owner_id == resolved_owner_id)
     result = await session.execute(
-        select(ProjectTable.id, ProjectTable.title, ProjectTable.updated_at).order_by(
+        statement.order_by(
             ProjectTable.updated_at.desc()
         )
     )
@@ -98,8 +127,10 @@ async def list_projects(session: AsyncSession) -> list[ProjectSummary]:
 
 
 async def delete_project(session: AsyncSession, project_id: str) -> bool:
-    result = await session.execute(
-        delete(ProjectTable).where(ProjectTable.id == project_id)
-    )
+    resolved_owner_id = get_current_user_id()
+    statement = delete(ProjectTable).where(ProjectTable.id == project_id)
+    if resolved_owner_id is not None:
+        statement = statement.where(ProjectTable.owner_id == resolved_owner_id)
+    result = await session.execute(statement)
     await session.commit()
     return (result.rowcount or 0) > 0

@@ -14,7 +14,16 @@ function StatusDot({ status }: { status: "connected" | "disconnected" | "reconne
 }
 
 export function SyncIndicator() {
-  const { syncStatus, wsStatus } = useProjectStore()
+  const { currentProject, syncNodeId, syncStatus, wsStatus } = useProjectStore()
+
+  const syncNode = syncNodeId
+    ? currentProject?.nodes.find((node) => node.id === syncNodeId) ?? null
+    : null
+  const syncLabel = syncNode
+    ? `${syncNode.title || "未命名节点"}`
+    : syncNodeId
+      ? syncNodeId.slice(0, 8)
+      : null
 
   return (
     <div className="flex items-center gap-3 text-xs text-slate-600">
@@ -32,15 +41,15 @@ export function SyncIndicator() {
         {syncStatus === "syncing" ? (
           <span className="flex items-center gap-2 text-amber-600">
             <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
-            同步中...
+            {syncLabel ? `同步中（${syncLabel}）` : "同步中..."}
           </span>
         ) : syncStatus === "completed" ? (
           <span className="flex items-center gap-2 text-emerald-600">
-            ✓ 已同步
+            {syncLabel ? `✓ 已同步（${syncLabel}）` : "✓ 已同步"}
           </span>
         ) : syncStatus === "failed" ? (
           <span className="flex items-center gap-2 text-red-600">
-            ! 同步失败
+            {syncLabel ? `! 同步失败（${syncLabel}）` : "! 同步失败"}
           </span>
         ) : (
           <span className="text-slate-400">待同步</span>

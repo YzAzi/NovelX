@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 
 import type { Conflict, StoryNode } from "@/src/types/models"
+import { getAuthToken } from "@/src/lib/api"
 import { WebSocketClient } from "@/src/lib/websocket"
 import { useProjectStore } from "@/src/stores/project-store"
 
@@ -18,6 +19,7 @@ export function useWebsocket(projectId: string | null) {
     clearConflicts,
     syncRequestId,
     selectedNodeId,
+    setSyncNodeId,
     setSyncRequestId,
     setSyncStatus,
     setWsStatus,
@@ -45,7 +47,7 @@ export function useWebsocket(projectId: string | null) {
 
     clearConflicts()
     const client = clientRef.current
-    client.connect(projectId)
+    client.connect(projectId, getAuthToken())
 
     const unsubscribeStatus = client.onStatus((status) => {
       setWsStatus(status)
@@ -88,12 +90,20 @@ export function useWebsocket(projectId: string | null) {
       if (!shouldHandleSync(payload as SyncPayload)) {
         return
       }
+      const nodeId = (payload as SyncPayload)?.details?.node_id ?? null
+      if (nodeId) {
+        setSyncNodeId(nodeId)
+      }
       setSyncStatus("syncing")
     })
 
     const unsubscribeSyncCompleted = client.on("sync_completed", (payload) => {
       if (!shouldHandleSync(payload as SyncPayload)) {
         return
+      }
+      const nodeId = (payload as SyncPayload)?.details?.node_id ?? null
+      if (nodeId) {
+        setSyncNodeId(nodeId)
       }
       setSyncStatus("completed")
       setSyncRequestId(null)
@@ -102,6 +112,10 @@ export function useWebsocket(projectId: string | null) {
     const unsubscribeSyncFailed = client.on("sync_failed", (payload) => {
       if (!shouldHandleSync(payload as SyncPayload)) {
         return
+      }
+      const nodeId = (payload as SyncPayload)?.details?.node_id ?? null
+      if (nodeId) {
+        setSyncNodeId(nodeId)
       }
       setSyncStatus("failed")
       setSyncRequestId(null)
@@ -121,6 +135,7 @@ export function useWebsocket(projectId: string | null) {
     addConflict,
     clearConflicts,
     projectId,
+    setSyncNodeId,
     setSyncRequestId,
     setSyncStatus,
     setWsStatus,

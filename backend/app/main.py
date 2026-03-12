@@ -6,16 +6,20 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .crud import create_project, delete_project, get_project, list_projects, update_project
 from .database import AsyncSessionLocal, get_session, init_db
-from .analysis_history import append_messages, load_history, search_history
+from .db_models import UserTable
+from .analysis_history import append_messages, delete_history, load_history, search_history
+from .auth import create_access_token, decode_access_token, hash_password, parse_bearer_token, verify_password
 from .graph_retriever import GraphRetriever
 from .conflict_detector import ConflictDetector, SyncNodeResponse
 from .config import (
@@ -56,6 +60,10 @@ from .models import (
     ProjectExportData,
     ModelConfigResponse,
     ModelConfigUpdateRequest,
+    AuthLoginRequest,
+    AuthRegisterRequest,
+    AuthTokenResponse,
+    AuthUserResponse,
     ChapterCreateRequest,
     ChapterUpdateRequest,
     StoryNode,
@@ -64,6 +72,7 @@ from .models import (
     SyncNodeRequest,
     ReorderNodesRequest,
     WritingAssistantRequest,
+    StyleKnowledgeUpdateRequest,
     VersionCreateRequest,
     VersionUpdateRequest,
 )
@@ -74,11 +83,13 @@ from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode, SyncQueue, build_defau
 from .vectorstore import SearchResult, add_documents
 from langchain.prompts import PromptTemplate
 from .world_knowledge import WorldKnowledgeBase, WorldDocument, WorldKnowledgeManager
+from .style_knowledge import StyleKnowledgeBase, StyleDocument, StyleKnowledgeManager
 from .graph_editor import GraphEditor
 from .notifier import EventNotifier
 from .websocket_manager import ConnectionManager, WSMessageType
 from .version_manager import VersionManager
 from .versioning import SnapshotType, VersionDiff, IndexSnapshot
+from .request_context import reset_current_user_id, set_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +97,7 @@ index_sync_manager = build_default_sync_manager()
 sync_queue = SyncQueue(DEFAULT_SYNC_CONFIG, index_sync_manager=index_sync_manager)
 conflict_detector = ConflictDetector()
 world_knowledge_manager = WorldKnowledgeManager()
+style_knowledge_manager = StyleKnowledgeManager()
 ws_manager = ConnectionManager()
 notifier = EventNotifier(ws_manager)
 version_manager = VersionManager()
@@ -215,6 +227,36 @@ async def startup() -> None:
     # Auto snapshots disabled: only user-triggered manual snapshots are allowed.
 
 
+def _is_auth_exempt_path(path: str) -> bool:
+    if path in {"/api/health", "/openapi.json", "/docs", "/redoc", "/docs/oauth2-redirect"}:
+        return True
+    if path.startswith("/api/auth/"):
+        return True
+    return False
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith("/api") or _is_auth_exempt_path(path):
+        return await call_next(request)
+
+    token = parse_bearer_token(request.headers.get("Authorization"))
+    payload = decode_access_token(token) if token else None
+    if not payload:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"error": "Unauthorized", "detail": "Invalid or missing access token"},
+        )
+
+    user_id = payload["sub"]
+    context_token = set_current_user_id(user_id)
+    try:
+        return await call_next(request)
+    finally:
+        reset_current_user_id(context_token)
+
+
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
     start_time = time.perf_counter()
@@ -226,9 +268,13 @@ async def request_logging_middleware(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"error": exc.__class__.__name__, "detail": str(exc)},
+        content={
+            "error": "InternalServerError",
+            "detail": "服务器内部出现异常，请稍后重试。",
+        },
     )
 
 
@@ -238,6 +284,95 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"error": exc.__class__.__name__, "detail": str(exc.detail)},
     )
+
+
+@app.post(
+    "/api/auth/register",
+    response_model=AuthTokenResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def register_user(
+    payload: AuthRegisterRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    username = payload.username.strip()
+    if len(username) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username must be at least 3 characters",
+        )
+    if len(payload.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters",
+        )
+
+    existing = await session.execute(select(UserTable).where(UserTable.username == username))
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already exists",
+        )
+
+    user = UserTable(
+        id=str(uuid4()),
+        username=username,
+        password_hash=hash_password(payload.password),
+        created_at=datetime.utcnow(),
+    )
+    session.add(user)
+    await session.commit()
+
+    return AuthTokenResponse(
+        access_token=create_access_token(user.id),
+        user=AuthUserResponse(id=user.id, username=user.username),
+    )
+
+
+@app.post(
+    "/api/auth/login",
+    response_model=AuthTokenResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def login_user(
+    payload: AuthLoginRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    username = payload.username.strip()
+    result = await session.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+        )
+    return AuthTokenResponse(
+        access_token=create_access_token(user.id),
+        user=AuthUserResponse(id=user.id, username=user.username),
+    )
+
+
+@app.get(
+    "/api/auth/me",
+    response_model=AuthUserResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def current_user(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    token = parse_bearer_token(request.headers.get("Authorization"))
+    payload = decode_access_token(token) if token else None
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing access token",
+        )
+    result = await session.execute(select(UserTable).where(UserTable.id == payload["sub"]))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return AuthUserResponse(id=user.id, username=user.username)
 
 
 @app.post(
@@ -1078,10 +1213,40 @@ async def writing_assistant(
         streaming=True,
     )
     
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"{payload.instruction}\n\n[Text Start]\n{payload.text}\n[Text End]"}
-    ]
+    style_context = ""
+    if payload.style_document_ids:
+        style_query = f"{payload.instruction}\n{payload.text}".strip()
+        style_hits = await style_knowledge_manager.search_style(
+            project_id=payload.project_id,
+            query=style_query,
+            document_ids=payload.style_document_ids,
+            top_k=6,
+        )
+        if style_hits:
+            lines: list[str] = []
+            for item in style_hits:
+                title = item.metadata.get("title") or "风格参考"
+                lines.append(f"- {title}: {item.content}")
+            style_context = "\n".join(lines)
+
+    messages = [{"role": "system", "content": system_prompt}]
+    if style_context:
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "以下是写作风格参考片段，请在润色或扩写时参考其语感与节奏，"
+                    "但不要直接抄袭原句：\n"
+                    f"{style_context}"
+                ),
+            }
+        )
+    messages.append(
+        {
+            "role": "user",
+            "content": f"{payload.instruction}\n\n[Text Start]\n{payload.text}\n[Text End]",
+        }
+    )
 
     async def event_stream():
         yield "event: start\ndata: {}\n\n"
@@ -1112,7 +1277,15 @@ async def writing_assistant(
     response_model=AnalysisHistoryResponse,
     status_code=status.HTTP_200_OK,
 )
-async def get_analysis_history(project_id: str):
+async def get_analysis_history(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
     messages = load_history(project_id)
     return AnalysisHistoryResponse(messages=messages)
 
@@ -1122,7 +1295,15 @@ async def get_analysis_history(project_id: str):
     response_model=AnalysisHistoryResponse,
     status_code=status.HTTP_200_OK,
 )
-async def save_analysis_history(payload: AnalysisHistoryRequest):
+async def save_analysis_history(
+    payload: AnalysisHistoryRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, payload.project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
     stored = append_messages(
         payload.project_id,
         [message.model_dump() for message in payload.messages],
@@ -1470,8 +1651,12 @@ async def delete_project_record(
         logger.info("Deleted project %s nodes from vector index", project_id)
         await world_knowledge_manager.delete_project_data(project_id)
         logger.info("Deleted project %s world knowledge data", project_id)
+        await style_knowledge_manager.delete_project_data(project_id)
+        logger.info("Deleted project %s style knowledge data", project_id)
         delete_graph(project_id)
         logger.info("Deleted project %s knowledge graph data", project_id)
+        await delete_history(project_id)
+        logger.info("Deleted project %s analysis history data", project_id)
         await version_manager.delete_project_data(project_id)
         logger.info("Deleted project %s version snapshots", project_id)
     return {"deleted": True}
@@ -1678,6 +1863,114 @@ async def upload_world_knowledge(
 
 
 @app.get(
+    "/api/projects/{project_id}/style_knowledge",
+    response_model=StyleKnowledgeBase,
+    status_code=status.HTTP_200_OK,
+)
+async def get_style_knowledge_base(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    return await style_knowledge_manager.get_knowledge_base(project_id)
+
+
+@app.post(
+    "/api/projects/{project_id}/style_knowledge/upload",
+    response_model=StyleDocument,
+    status_code=status.HTTP_200_OK,
+)
+async def upload_style_knowledge(
+    project_id: str,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    filename = file.filename or ""
+    if not (filename.endswith(".md") or filename.endswith(".txt")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type"
+        )
+
+    raw = await file.read()
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported file encoding (expected UTF-8)",
+        )
+
+    title = Path(filename).stem or "未命名风格"
+    return await style_knowledge_manager.add_document(
+        project_id=project_id,
+        title=title,
+        category="style",
+        content=content,
+    )
+
+
+@app.delete(
+    "/api/projects/{project_id}/style_knowledge/{doc_id}",
+    status_code=status.HTTP_200_OK,
+)
+async def delete_style_knowledge(
+    project_id: str,
+    doc_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    await style_knowledge_manager.delete_document_in_project(project_id, doc_id)
+    return {"deleted": True}
+
+
+@app.put(
+    "/api/projects/{project_id}/style_knowledge/{doc_id}",
+    response_model=StyleDocument,
+    status_code=status.HTTP_200_OK,
+)
+async def update_style_knowledge(
+    project_id: str,
+    doc_id: str,
+    payload: StyleKnowledgeUpdateRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    project = await get_project(session, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Title cannot be empty"
+        )
+    try:
+        return await style_knowledge_manager.update_document_title_in_project(
+            project_id=project_id,
+            doc_id=doc_id,
+            title=title,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
+
+
+@app.get(
     "/api/projects/{project_id}/stats",
     response_model=ProjectStatsResponse,
     status_code=status.HTTP_200_OK,
@@ -1862,9 +2155,8 @@ async def update_project_version(
     return snapshot
 
 
-@app.websocket("/ws/{project_id}")
-async def websocket_endpoint(websocket: WebSocket, project_id: str):
-    await ws_manager.connect(project_id, websocket)
+async def _serve_channel_socket(websocket: WebSocket, channel_id: str) -> None:
+    await ws_manager.connect(channel_id, websocket)
 
     async def heartbeat() -> None:
         while True:
@@ -1890,7 +2182,36 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):
         pass
     finally:
         heartbeat_task.cancel()
-        ws_manager.disconnect(project_id, websocket)
+        ws_manager.disconnect(channel_id, websocket)
+
+
+@app.websocket("/ws/{project_id}")
+async def websocket_endpoint(websocket: WebSocket, project_id: str):
+    token = websocket.query_params.get("token")
+    payload = decode_access_token(token) if token else None
+    if not payload:
+        await websocket.close(code=4401)
+        return
+    user_id = payload["sub"]
+
+    async with AsyncSessionLocal() as session:
+        project = await get_project(session, project_id, owner_id=user_id)
+    if project is None:
+        await websocket.close(code=4403)
+        return
+
+    await _serve_channel_socket(websocket, project_id)
+
+
+@app.websocket("/ws/outline/{request_id}")
+async def outline_progress_websocket(websocket: WebSocket, request_id: str):
+    token = websocket.query_params.get("token")
+    payload = decode_access_token(token) if token else None
+    if not payload:
+        await websocket.close(code=4401)
+        return
+
+    await _serve_channel_socket(websocket, request_id)
 
 
 @app.put(

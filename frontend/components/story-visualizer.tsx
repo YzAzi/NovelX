@@ -369,6 +369,25 @@ export function StoryVisualizer() {
     }
   }, [createForm, currentProject, selectNode, setNodeEditorOpen, setProject])
 
+  const formatImportError = useCallback((rawMessage: string) => {
+    const message = rawMessage || "导入失败"
+    let hint = ""
+
+    if (message.includes("OPENAI_API_KEY")) {
+      hint = "请先在模型设置或 .env 中配置 API Key。"
+    } else if (message.includes("自定义 Prompt")) {
+      hint = "请检查 Prompt 是否包含必需变量：raw_text、output_schema。"
+    } else if (message.includes("Outline content cannot be empty")) {
+      hint = "请粘贴大纲文本或上传 .txt/.md 文件。"
+    } else if (message.includes("Project not found")) {
+      hint = "项目可能已被删除，请刷新后重试。"
+    } else if (message.includes("Request failed")) {
+      hint = "后端请求失败，请检查服务是否运行。"
+    }
+
+    return hint ? `${message}\n建议：${hint}` : message
+  }, [])
+
   const handleImportOutline = useCallback(async () => {
     if (!currentProject) {
       return
@@ -389,11 +408,11 @@ export function StoryVisualizer() {
       setImportOpen(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : "导入失败"
-      setImportError(message)
+      setImportError(formatImportError(message))
     } finally {
       setIsImporting(false)
     }
-  }, [currentProject, importText, selectNode, setProject])
+  }, [currentProject, formatImportError, importText, selectNode, setProject])
 
   const handleImportFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -579,6 +598,8 @@ export function StoryVisualizer() {
     )
   }
 
+  const hasNodes = storyNodes.length > 0
+
   return (
     <div ref={wrapperRef} className="flex h-full overflow-hidden bg-background">
       <div className="flex w-[260px] shrink-0 flex-col border-r border-border bg-muted/10">
@@ -605,7 +626,22 @@ export function StoryVisualizer() {
             </Button>
           </div>
         </div>
-        
+
+        {!hasNodes ? (
+          <div className="m-3 rounded-lg border border-dashed border-border/60 bg-background/60 p-3 text-xs text-muted-foreground">
+            <div className="font-medium text-foreground">还没有场景节点</div>
+            <div className="mt-1">先新增一个场景，或导入已有大纲。</div>
+            <div className="mt-3 flex items-center gap-2">
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                新增场景
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                导入大纲
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="p-3">
             <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -658,62 +694,81 @@ export function StoryVisualizer() {
       </div>
 
       <div className="relative flex-1 bg-background">
-        <ReactFlow
-          nodes={flowNodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          className="h-full w-full"
-          defaultEdgeOptions={defaultEdgeOptions}
-          onNodeClick={handleNodeClick}
-          onNodeDoubleClick={handleNodeDoubleClick}
-          onNodeDragStop={handleNodeDragStop}
-          onMove={handleMove}
-          onInit={(instance) => {
-            flowInstanceRef.current = instance as any
-          }}
-          panOnScroll
-          zoomOnScroll
-          fitView
-          minZoom={ZOOM_MIN}
-          maxZoom={ZOOM_MAX}
-          nodesDraggable={true}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background gap={24} size={1} color="currentColor" className="text-border/40" />
-          <Controls position="bottom-right" className="!bg-card !border !border-border !rounded-lg !shadow-sm [&>button]:!border-border/40 [&>button:hover]:!bg-muted" />
-          <MiniMap 
-            pannable 
-            zoomable 
-            className="!bg-card !border !border-border !rounded-lg !shadow-sm" 
-            nodeColor={(n) => {
-                 if (n.selected) return 'hsl(var(--primary))';
-                 return 'hsl(var(--muted))';
-            }}
-            maskColor="hsl(var(--background) / 0.7)"
-          />
-        </ReactFlow>
-        
-        <div className="absolute right-4 top-4 flex items-center gap-1 rounded-lg border border-border bg-card/80 backdrop-blur p-1 shadow-sm">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => applyZoom(zoomLevel - ZOOM_STEP)}
-          >
-            <Minus size={14} />
-          </Button>
-          <div className="w-12 text-center text-xs font-medium tabular-nums text-muted-foreground">
-            {Math.round(zoomLevel * 100)}%
+        {hasNodes ? (
+          <>
+            <ReactFlow
+              nodes={flowNodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              className="h-full w-full"
+              defaultEdgeOptions={defaultEdgeOptions}
+              onNodeClick={handleNodeClick}
+              onNodeDoubleClick={handleNodeDoubleClick}
+              onNodeDragStop={handleNodeDragStop}
+              onMove={handleMove}
+              onInit={(instance) => {
+                flowInstanceRef.current = instance as any
+              }}
+              panOnScroll
+              zoomOnScroll
+              fitView
+              minZoom={ZOOM_MIN}
+              maxZoom={ZOOM_MAX}
+              nodesDraggable={true}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background gap={24} size={1} color="currentColor" className="text-border/40" />
+              <Controls position="bottom-right" className="!bg-card !border !border-border !rounded-lg !shadow-sm [&>button]:!border-border/40 [&>button:hover]:!bg-muted" />
+              <MiniMap 
+                pannable 
+                zoomable 
+                className="!bg-card !border !border-border !rounded-lg !shadow-sm" 
+                nodeColor={(n) => {
+                     if (n.selected) return 'hsl(var(--primary))';
+                     return 'hsl(var(--muted))';
+                }}
+                maskColor="hsl(var(--background) / 0.7)"
+              />
+            </ReactFlow>
+
+            <div className="absolute right-4 top-4 flex items-center gap-1 rounded-lg border border-border bg-card/80 backdrop-blur p-1 shadow-sm">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => applyZoom(zoomLevel - ZOOM_STEP)}
+              >
+                <Minus size={14} />
+              </Button>
+              <div className="w-12 text-center text-xs font-medium tabular-nums text-muted-foreground">
+                {Math.round(zoomLevel * 100)}%
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => applyZoom(zoomLevel + ZOOM_STEP)}
+              >
+                <Plus size={14} />
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="rounded-xl border border-dashed border-border/70 bg-background/80 px-6 py-8 text-center text-sm shadow-sm">
+              <div className="text-base font-semibold text-foreground">开始构建你的故事</div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                先新增一个场景节点，或导入已有大纲。
+              </div>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <Button onClick={() => setCreateOpen(true)}>新增场景</Button>
+                <Button variant="outline" onClick={() => setImportOpen(true)}>
+                  导入大纲
+                </Button>
+              </div>
+            </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => applyZoom(zoomLevel + ZOOM_STEP)}
-          >
-            <Plus size={14} />
-          </Button>
-        </div>
+        )}
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -842,7 +897,7 @@ export function StoryVisualizer() {
               />
             </div>
             {importError ? (
-               <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive">
+               <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive whitespace-pre-line">
                 <span className="font-semibold">错误：</span>{importError}
               </div>
             ) : null}

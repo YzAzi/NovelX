@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { createEmptyProject, createOutline } from "@/src/lib/api"
+import { createEmptyProject, createOutline, getAuthToken } from "@/src/lib/api"
 import { WebSocketClient } from "@/src/lib/websocket"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
@@ -131,7 +131,7 @@ export function CreateDialog() {
             }
           }
         )
-        wsClient.connect(requestId)
+        wsClient.connect(requestId, getAuthToken(), { route: "outline" })
         project = await createOutline(payload)
       }
       setProject(project)

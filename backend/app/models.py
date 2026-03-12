@@ -102,6 +102,10 @@ class WriterConfig(BaseModel):
     model: str | None = None
     api_key: str | None = None
     base_url: str | None = None
+    polish_instruction: str | None = None
+    expand_instruction: str | None = None
+    style_strength: str | None = None
+    style_preset: str | None = None
 
 
 class StoryProject(BaseModel):
@@ -381,6 +385,11 @@ class WritingAssistantRequest(BaseModel):
     text: str
     instruction: str
     stream: bool = True
+    style_document_ids: list[str] = Field(default_factory=list)
+
+
+class StyleKnowledgeUpdateRequest(BaseModel):
+    title: str
 
 
 class HealthResponse(BaseModel):
@@ -488,6 +497,27 @@ class ModelConfigUpdateRequest(BaseModel):
     drafting_model: str | None = None
     sync_model: str | None = None
     extraction_model: str | None = None
+
+
+class AuthRegisterRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthUserResponse(BaseModel):
+    id: str
+    username: str
+
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: AuthUserResponse
 
 
 class CharacterAppearance(BaseModel):

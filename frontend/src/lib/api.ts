@@ -20,16 +20,89 @@ import type {
   WorldKnowledgeBase,
   ModelConfigResponse,
   ModelConfigUpdateRequest,
+  AuthTokenResponse,
+  AuthUser,
   WriterConfig,
-  WritingAssistantRequest,
+  StyleKnowledgeBase,
+  StyleDocument,
 } from "@/src/types/models"
 import type { CharacterGraphNode, CharacterGraphLink } from "@/src/types/character-graph"
 import { useProjectStore } from "@/src/stores/project-store"
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+const AUTH_TOKEN_KEY = "novel_auth_token"
+export const AUTH_EXPIRED_EVENT = "novel-auth-expired"
+
+export function buildApiUrl(path: string): string {
+  return `${BASE_URL}${path}`
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") {
+    return null
+  }
+  return window.localStorage.getItem(AUTH_TOKEN_KEY)
+}
+
+export function setAuthToken(token: string) {
+  if (typeof window === "undefined") {
+    return
+  }
+  window.localStorage.setItem(AUTH_TOKEN_KEY, token)
+}
+
+export function clearAuthToken() {
+  if (typeof window === "undefined") {
+    return
+  }
+  window.localStorage.removeItem(AUTH_TOKEN_KEY)
+}
+
+export function buildAuthHeaders(headers?: HeadersInit): Headers {
+  const nextHeaders = new Headers(headers)
+  const authToken = getAuthToken()
+  if (authToken) {
+    nextHeaders.set("Authorization", `Bearer ${authToken}`)
+  }
+  return nextHeaders
+}
+
+export function handleUnauthorized() {
+  clearAuthToken()
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+  }
+}
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
+}
+
+export function formatUserErrorMessage(
+  error: unknown,
+  fallback = "操作失败，请稍后重试。",
+): string {
+  if (error instanceof Error) {
+    const message = error.message.trim()
+    if (!message) {
+      return fallback
+    }
+    if (
+      message.includes("Failed to fetch") ||
+      message.includes("Load failed") ||
+      message.includes("NetworkError")
+    ) {
+      return "无法连接到后端服务，请确认后端已启动且网络可用。"
+    }
+    if (message === "Failed to fetch response") {
+      return "获取分析结果失败，请稍后重试。"
+    }
+    if (message === "Failed to call AI") {
+      return "写作助手暂时不可用，请检查模型配置后重试。"
+    }
+    return message
+  }
+  return fallback
 }
 
 async function request<T>(
@@ -46,17 +119,20 @@ async function request<T>(
   setError(null)
 
   try {
-    const response = await fetch(`${BASE_URL}${path}`, {
-      headers: {
+    const response = await fetch(buildApiUrl(path), {
+      headers: buildAuthHeaders({
         "Content-Type": "application/json",
         ...(options.headers ?? {}),
-      },
+      }),
       ...options,
     })
 
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => null)
       const detail = errorPayload?.detail ?? `Request failed with ${response.status}`
+      if (response.status === 401) {
+        handleUnauthorized()
+      }
       throw new Error(detail)
     }
 
@@ -64,7 +140,7 @@ async function request<T>(
   } catch (error) {
     if (!isAbortError(error)) {
       if (!config.suppressGlobalError) {
-        const message = error instanceof Error ? error.message : "Unknown error"
+        const message = formatUserErrorMessage(error)
         setError(message)
       } else {
         console.warn(`Suppressed global error for ${path}:`, error)
@@ -461,28 +537,119 @@ export async function uploadWorldKnowledgeFile(
   setError(null)
   try {
     const response = await fetch(
-      `${BASE_URL}/api/projects/${encodeURIComponent(projectId)}/knowledge/upload`,
+      buildApiUrl(`/api/projects/${encodeURIComponent(projectId)}/knowledge/upload`),
       {
         method: "POST",
         body: formData,
+        headers: buildAuthHeaders(),
         signal: options.signal,
       }
     )
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => null)
       const detail = errorPayload?.detail ?? `Request failed with ${response.status}`
+      if (response.status === 401) {
+        handleUnauthorized()
+      }
       throw new Error(detail)
     }
     return (await response.json()) as WorldDocument[]
   } catch (error) {
     if (!isAbortError(error)) {
-      const message = error instanceof Error ? error.message : "Unknown error"
+      const message = formatUserErrorMessage(error)
       setError(message)
     }
     throw error
   } finally {
     setLoading(false)
   }
+}
+
+export async function getStyleKnowledgeBase(
+  projectId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<StyleKnowledgeBase> {
+  return request<StyleKnowledgeBase>(
+    `/api/projects/${encodeURIComponent(projectId)}/style_knowledge`,
+    {
+      method: "GET",
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function uploadStyleKnowledgeFile(
+  projectId: string,
+  file: File,
+  options: { signal?: AbortSignal } = {},
+): Promise<StyleDocument> {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const { setLoading, setError } = useProjectStore.getState()
+  setLoading(true)
+  setError(null)
+  try {
+    const response = await fetch(
+      buildApiUrl(`/api/projects/${encodeURIComponent(projectId)}/style_knowledge/upload`),
+      {
+        method: "POST",
+        body: formData,
+        headers: buildAuthHeaders(),
+        signal: options.signal,
+      }
+    )
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null)
+      const detail = errorPayload?.detail ?? `Request failed with ${response.status}`
+      if (response.status === 401) {
+        handleUnauthorized()
+      }
+      throw new Error(detail)
+    }
+    return (await response.json()) as StyleDocument
+  } catch (error) {
+    if (!isAbortError(error)) {
+      const message = formatUserErrorMessage(error)
+      setError(message)
+    }
+    throw error
+  } finally {
+    setLoading(false)
+  }
+}
+
+export async function updateStyleKnowledgeTitle(
+  projectId: string,
+  docId: string,
+  payload: { title: string },
+  options: { signal?: AbortSignal } = {},
+): Promise<StyleDocument> {
+  return request<StyleDocument>(
+    `/api/projects/${encodeURIComponent(projectId)}/style_knowledge/${encodeURIComponent(docId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
+}
+
+export async function deleteStyleKnowledgeDocument(
+  projectId: string,
+  docId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>(
+    `/api/projects/${encodeURIComponent(projectId)}/style_knowledge/${encodeURIComponent(docId)}`,
+    {
+      method: "DELETE",
+      signal: options.signal,
+    },
+    { showLoading: false },
+  )
 }
 
 export async function getProjectStats(
@@ -797,5 +964,46 @@ export async function reorderNodes(
       signal: options.signal,
     },
     { showLoading: false },
+  )
+}
+
+export async function registerUser(payload: {
+  username: string
+  password: string
+}): Promise<AuthTokenResponse> {
+  return request<AuthTokenResponse>(
+    "/api/auth/register",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { showLoading: false },
+  )
+}
+
+export async function loginUser(payload: {
+  username: string
+  password: string
+}): Promise<AuthTokenResponse> {
+  return request<AuthTokenResponse>(
+    "/api/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { showLoading: false },
+  )
+}
+
+export async function getCurrentUser(
+  options: { signal?: AbortSignal } = {},
+): Promise<AuthUser> {
+  return request<AuthUser>(
+    "/api/auth/me",
+    {
+      method: "GET",
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
   )
 }

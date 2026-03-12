@@ -8,6 +8,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from .storage_paths import project_file_candidates, resolve_project_file
+
 
 class EntityType(str, Enum):
     CHARACTER = "character"
@@ -66,7 +68,7 @@ def _storage_dir() -> Path:
 
 
 def _graph_file(project_id: str) -> Path:
-    return _storage_dir() / f"{project_id}.json"
+    return resolve_project_file(_storage_dir(), project_id, ".json")
 
 
 def load_graph(project_id: str) -> KnowledgeGraph:
@@ -92,9 +94,9 @@ def save_graph(graph: KnowledgeGraph) -> None:
 
 
 def delete_graph(project_id: str) -> None:
-    path = _graph_file(project_id)
-    if path.exists():
-        path.unlink()
+    for path in project_file_candidates(_storage_dir(), project_id, ".json"):
+        if path.exists():
+            path.unlink()
 
 
 def new_entity_id() -> str:

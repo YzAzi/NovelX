@@ -30,6 +30,7 @@ export function NodeEditor() {
     saveStatus,
     setSaveStatus,
     setNodeEditorOpen,
+    setSyncNodeId,
     setSyncRequestId,
     setSyncStatus,
     setProject,
@@ -178,6 +179,7 @@ export function NodeEditor() {
       const saveId = saveCounterRef.current
       const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
       setSyncRequestId(requestId)
+      setSyncNodeId(selectedNode.id)
 
       setSaveStatus("saving")
       setSyncStatus("syncing")
@@ -401,6 +403,54 @@ export function NodeEditor() {
               </div>
             ) : (
               <>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+                  <span className="text-muted-foreground">状态</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5",
+                      saveStatus === "saving"
+                        ? "bg-amber-100 text-amber-700"
+                        : saveStatus === "saved"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : isDirty
+                            ? "bg-slate-100 text-slate-700"
+                            : "bg-slate-100 text-slate-500"
+                    )}
+                  >
+                    {saveStatus === "saving"
+                      ? "保存中"
+                      : saveStatus === "saved"
+                        ? "已保存"
+                        : isDirty
+                          ? "未保存"
+                          : "待保存"}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5",
+                      syncStatus === "syncing"
+                        ? "bg-amber-100 text-amber-700"
+                        : syncStatus === "completed"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : syncStatus === "failed"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-slate-100 text-slate-500"
+                    )}
+                  >
+                    {syncStatus === "syncing"
+                      ? "同步中"
+                      : syncStatus === "completed"
+                        ? "已同步"
+                        : syncStatus === "failed"
+                          ? "同步失败"
+                          : "待同步"}
+                  </span>
+                  {conflicts.length > 0 ? (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">
+                      发现冲突 {conflicts.length}
+                    </span>
+                  ) : null}
+                </div>
                 {newCharacterNotice ? (
                   <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
                     {newCharacterNotice}

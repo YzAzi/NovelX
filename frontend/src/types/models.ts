@@ -27,6 +27,10 @@ export interface WriterConfig {
   model?: string | null
   api_key?: string | null
   base_url?: string | null
+  polish_instruction?: string | null
+  expand_instruction?: string | null
+  style_strength?: string | null
+  style_preset?: string | null
 }
 
 export interface PromptOverrides {
@@ -235,9 +239,30 @@ export interface ModelConfigUpdateRequest {
   extraction_model?: string | null
 }
 
+export interface AuthUser {
+  id: string
+  username: string
+}
+
+export interface AuthTokenResponse {
+  access_token: string
+  token_type: "bearer"
+  user: AuthUser
+}
+
 export interface WritingAssistantRequest {
   project_id: string
   text: string
   instruction: string
   stream?: boolean
+  style_document_ids?: string[]
+}
+
+export type StyleDocument = WorldDocument
+
+export interface StyleKnowledgeBase {
+  project_id: string
+  documents: StyleDocument[]
+  total_chunks: number
+  total_characters: number
 }

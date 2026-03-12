@@ -11,6 +11,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from .chunking import ChunkConfig, ChunkingStrategy, chunk_text
+from .storage_paths import project_file_candidates, resolve_project_file
 from .vectorstore import SearchResult, add_documents, delete_by_filter, delete_by_ids, search_similar
 from .bm25 import BM25
 from .text_utils import keyword_score, tokenize
@@ -49,7 +50,7 @@ def _storage_dir() -> Path:
 
 
 def _project_file(project_id: str) -> Path:
-    return _storage_dir() / f"{project_id}.json"
+    return resolve_project_file(_storage_dir(), project_id, ".json")
 
 
 @contextmanager
@@ -257,6 +258,9 @@ class WorldKnowledgeManager:
         categories: list[str] | None = None,
         top_k: int = 10,
     ) -> list[SearchResult]:
+        if not query.strip():
+            return []
+
         filter_dict: dict | None
         if categories:
             filter_dict = {
@@ -267,12 +271,93 @@ class WorldKnowledgeManager:
             }
         else:
             filter_dict = {"project_id": project_id}
-        return await search_similar(
+
+        vector_hits = await search_similar(
             collection_name="world_knowledge",
             query=query,
-            top_k=top_k,
+            top_k=top_k + 2,
             filter_dict=filter_dict,
         )
+
+        documents = _load_project_documents(project_id)
+        if categories:
+            documents = [doc for doc in documents if doc.category in categories]
+
+        tokens = tokenize(query)
+        scores: dict[str, dict] = {}
+        snippets: dict[str, tuple[str, dict]] = {}
+
+        for hit in vector_hits:
+            key = f"vec:{hit.id}"
+            scores[key] = {"vector": float(hit.score), "keyword": 0.0, "bm25": 0.0}
+            snippets[key] = (hit.content, hit.metadata or {})
+
+        if documents and tokens:
+            for doc in documents:
+                text = f"{doc.title}\n{doc.category}\n{doc.content}"
+                score = keyword_score(tokens, text)
+                if score > 0:
+                    key = f"kw:{doc.id}"
+                    entry = scores.setdefault(
+                        key, {"vector": 0.0, "keyword": 0.0, "bm25": 0.0}
+                    )
+                    entry["keyword"] = max(entry["keyword"], float(score))
+                    snippets[key] = (
+                        _build_snippet(doc),
+                        {
+                            "title": doc.title,
+                            "category": doc.category,
+                            "document_id": doc.id,
+                        },
+                    )
+
+            corpus = [tokenize(f"{doc.title}\n{doc.category}\n{doc.content}") for doc in documents]
+            bm25 = BM25(corpus)
+            for index, doc in enumerate(documents):
+                score = bm25.score(tokens, index)
+                if score <= 0:
+                    continue
+                key = f"bm25:{doc.id}"
+                entry = scores.setdefault(
+                    key, {"vector": 0.0, "keyword": 0.0, "bm25": 0.0}
+                )
+                entry["bm25"] = max(entry["bm25"], float(score))
+                if key not in snippets:
+                    snippets[key] = (
+                        _build_snippet(doc),
+                        {
+                            "title": doc.title,
+                            "category": doc.category,
+                            "document_id": doc.id,
+                        },
+                    )
+
+        if not scores:
+            return []
+
+        max_keyword = max((entry["keyword"] for entry in scores.values()), default=0.0)
+        max_bm25 = max((entry["bm25"] for entry in scores.values()), default=0.0)
+
+        ranked: list[tuple[float, str]] = []
+        for key, entry in scores.items():
+            keyword_norm = entry["keyword"] / max(1.0, max_keyword) if max_keyword else 0.0
+            bm25_norm = entry["bm25"] / max(1.0, max_bm25) if max_bm25 else 0.0
+            combined = entry["vector"] * 0.6 + keyword_norm * 0.2 + bm25_norm * 0.2
+            ranked.append((combined, key))
+
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        results: list[SearchResult] = []
+        for score, key in ranked[:top_k]:
+            content, metadata = snippets.get(key, ("", {}))
+            results.append(
+                SearchResult(
+                    id=key,
+                    content=content,
+                    metadata=metadata,
+                    score=float(score),
+                )
+            )
+        return results
 
     async def search_knowledge_keyword(
         self,
@@ -407,10 +492,10 @@ class WorldKnowledgeManager:
         if chunk_ids:
             await delete_by_ids("world_knowledge", chunk_ids)
         await delete_by_filter("world_knowledge", {"project_id": project_id})
-        path = _project_file(project_id)
-        with _file_lock(path):
-            if path.exists():
-                path.unlink()
+        for path in project_file_candidates(_storage_dir(), project_id, ".json"):
+            with _file_lock(path):
+                if path.exists():
+                    path.unlink()
 
     async def replace_project_documents(
         self,

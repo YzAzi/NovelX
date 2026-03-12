@@ -7,7 +7,14 @@ import dynamic from "next/dynamic"
 import "@uiw/react-markdown-preview/markdown.css";
 
 import type { AnalysisMessage } from "@/src/types/models"
-import { getAnalysisHistory, saveAnalysisHistory, updateProjectSettings } from "@/src/lib/api"
+import {
+  buildApiUrl,
+  buildAuthHeaders,
+  getAnalysisHistory,
+  handleUnauthorized,
+  saveAnalysisHistory,
+  updateProjectSettings,
+} from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { normalizeMarkdown } from "@/src/lib/markdown"
 import { Button } from "@/components/ui/button"
@@ -20,7 +27,6 @@ const MarkdownPreview = dynamic(
   { ssr: false }
 );
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 const QUICK_PROMPT = "请分析当前大纲的一致性问题，并给出修改与扩写建议。"
 const stripFencedCodeBlocks = (input: string) =>
   input.replace(/```[\w-]*\n([\s\S]*?)```/g, (_match, code: string) =>
@@ -78,9 +84,9 @@ export default function OutlineAnalysisPage() {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }])
 
     try {
-      const response = await fetch(`${BASE_URL}/api/outline_analysis_stream`, {
+      const response = await fetch(buildApiUrl("/api/outline_analysis_stream"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           project_id: currentProject.id,
           messages: nextMessages,
@@ -89,6 +95,9 @@ export default function OutlineAnalysisPage() {
       })
 
       if (!response.ok || !response.body) {
+        if (response.status === 401) {
+          handleUnauthorized()
+        }
         const detail = await response.text()
         throw new Error(detail || "请求失败")
       }

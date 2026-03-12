@@ -7,6 +7,12 @@ import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import {
+  buildApiUrl,
+  buildAuthHeaders,
+  formatUserErrorMessage,
+  handleUnauthorized,
+} from "@/src/lib/api"
 import { normalizeMarkdown } from "@/src/lib/markdown"
 import "@uiw/react-markdown-preview/markdown.css"
 
@@ -86,11 +92,11 @@ export function ChatSidebar() {
     abortControllerRef.current = new AbortController()
 
     try {
-      const response = await fetch("/api/outline_analysis_stream", {
+      const response = await fetch(buildApiUrl("/api/outline_analysis_stream"), {
         method: "POST",
-        headers: {
+        headers: buildAuthHeaders({
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({
           project_id: currentProject.id,
           messages: historyPayload,
@@ -99,6 +105,9 @@ export function ChatSidebar() {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized()
+        }
         throw new Error("Failed to fetch response")
       }
 
@@ -159,7 +168,11 @@ export function ChatSidebar() {
         console.error("Chat error:", error)
         setMessages((prev) => [
           ...prev,
-          { id: Date.now().toString(), role: "assistant", content: "抱歉，遇到了一些错误，请稍后重试。" },
+          {
+            id: Date.now().toString(),
+            role: "assistant",
+            content: `抱歉，当前请求失败：${formatUserErrorMessage(error)}`,
+          },
         ])
       }
     } finally {

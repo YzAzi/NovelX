@@ -8,8 +8,10 @@ from pathlib import Path
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert
+
 from .database import AsyncSessionLocal
 from .db_models import VersionIndex
+from .storage_paths import project_dir_candidates, resolve_project_dir
 from .versioning import IndexSnapshot
 
 
@@ -18,7 +20,7 @@ class VersionStorage:
         self._base_dir = base_dir or (Path(__file__).resolve().parent.parent / "data" / "versions")
 
     def _project_dir(self, project_id: str) -> Path:
-        path = self._base_dir / project_id
+        path = resolve_project_dir(self._base_dir, project_id)
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -199,6 +201,6 @@ class VersionStorage:
             if path.exists():
                 path.unlink()
 
-        project_dir = self._base_dir / project_id
-        if project_dir.exists():
-            shutil.rmtree(project_dir, ignore_errors=True)
+        for project_dir in project_dir_candidates(self._base_dir, project_id):
+            if project_dir.exists():
+                shutil.rmtree(project_dir, ignore_errors=True)

@@ -14,7 +14,11 @@ export class WebSocketClient {
   private shouldReconnect = true
   private statusHandlers: Set<StatusHandler> = new Set()
 
-  connect(projectId: string) {
+  connect(
+    channelId: string,
+    token?: string | null,
+    options: { route?: "project" | "outline" } = {},
+  ) {
     if (this.socket) {
       this.disconnect()
     }
@@ -24,7 +28,9 @@ export class WebSocketClient {
       return
     }
 
-    const url = `${baseUrl}/ws/${encodeURIComponent(projectId)}`
+    const query = token ? `?token=${encodeURIComponent(token)}` : ""
+    const routePrefix = options.route === "outline" ? "/ws/outline" : "/ws"
+    const url = `${baseUrl}${routePrefix}/${encodeURIComponent(channelId)}${query}`
     this.shouldReconnect = true
     this.socket = new WebSocket(url)
 
@@ -56,13 +62,13 @@ export class WebSocketClient {
     this.socket.onclose = () => {
       this.stopHeartbeat()
       this.emitStatus("disconnected")
-      this.scheduleReconnect(projectId)
+      this.scheduleReconnect(channelId, token ?? null, options)
     }
 
     this.socket.onerror = () => {
       this.stopHeartbeat()
       this.emitStatus("disconnected")
-      this.scheduleReconnect(projectId)
+      this.scheduleReconnect(channelId, token ?? null, options)
     }
   }
 
@@ -126,7 +132,11 @@ export class WebSocketClient {
     }
   }
 
-  private scheduleReconnect(projectId: string) {
+  private scheduleReconnect(
+    channelId: string,
+    token: string | null,
+    options: { route?: "project" | "outline" },
+  ) {
     if (!this.shouldReconnect) {
       return
     }
@@ -137,7 +147,7 @@ export class WebSocketClient {
       }
       this.reconnectTimer = window.setTimeout(() => {
         this.reconnectAttempts = 0
-        this.connect(projectId)
+        this.connect(channelId, token, options)
       }, 60000)
       return
     }
@@ -148,7 +158,7 @@ export class WebSocketClient {
       window.clearTimeout(this.reconnectTimer)
     }
     this.reconnectTimer = window.setTimeout(() => {
-      this.connect(projectId)
+      this.connect(channelId, token, options)
     }, delay)
   }
 
