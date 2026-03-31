@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .knowledge_graph import KnowledgeGraph
 from .models import StoryProject
-from .world_knowledge import WorldDocument
+from .style_knowledge import StyleDocument
 
 
 class SnapshotType(str, Enum):
+    # Legacy values are kept for backward-compatible loading of old snapshots.
     AUTO = "auto"
     MANUAL = "manual"
     MILESTONE = "milestone"
@@ -25,10 +25,20 @@ class IndexSnapshot(BaseModel):
     description: str | None = None
     story_project: StoryProject
     knowledge_graph: KnowledgeGraph
-    world_documents: list[WorldDocument] = Field(default_factory=list)
+    style_documents: list[StyleDocument] = Field(default_factory=list)
     node_count: int
     entity_count: int
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_snapshot_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+        if "style_documents" not in value and "world_documents" in value:
+            value = dict(value)
+            value["style_documents"] = value.pop("world_documents")
+        return value
 
 
 class VersionDiff(BaseModel):
@@ -41,11 +51,3 @@ class VersionDiff(BaseModel):
     relations_deleted: list[str] = Field(default_factory=list)
     words_added: int = 0
     words_removed: int = 0
-
-
-@dataclass
-class VersioningConfig:
-    auto_snapshot_interval: int = 300
-    major_change_threshold: int = 500
-    max_auto_snapshots: int = 50
-    compress_old_snapshots: bool = False

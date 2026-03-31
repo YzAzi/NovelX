@@ -142,49 +142,6 @@ class VersionStorage:
             await session.commit()
             return compressed_count
 
-    async def update_snapshot_metadata(
-        self,
-        project_id: str,
-        version: int,
-        name: str | None = None,
-        snapshot_type: str | None = None,
-        description: str | None = None,
-    ) -> IndexSnapshot:
-        snapshot = await self.load_snapshot(project_id, version)
-        if name is not None:
-            snapshot.name = name
-        if description is not None:
-            snapshot.description = description
-        if snapshot_type is not None:
-            snapshot.snapshot_type = snapshot.snapshot_type.__class__(snapshot_type)
-
-        path = self._snapshot_path(project_id, version)
-        compressed = path.with_suffix(".json.gz")
-        payload = snapshot.model_dump(mode="json")
-        if compressed.exists():
-            with gzip.open(compressed, "wt", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-        else:
-            path.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                update(VersionIndex)
-                .where(
-                    VersionIndex.project_id == project_id,
-                    VersionIndex.version == version,
-                )
-                .values(
-                    snapshot_type=snapshot.snapshot_type.value,
-                    name=snapshot.name,
-                    description=snapshot.description,
-                )
-            )
-            await session.commit()
-        return snapshot
-
     async def delete_project_data(self, project_id: str) -> None:
         async with AsyncSessionLocal() as session:
             result = await session.execute(

@@ -10,7 +10,6 @@ from .graph_extractor import GraphExtractor
 from .knowledge_graph import Entity, KnowledgeGraph, Relation
 from .models import StoryNode, StoryProject
 from .node_indexer import NodeIndexer
-from .world_knowledge import WorldKnowledgeManager
 
 
 class SyncResult(BaseModel):
@@ -37,11 +36,9 @@ class IndexSyncManager:
         self,
         node_indexer: NodeIndexer,
         graph_extractor: GraphExtractor,
-        knowledge_manager: WorldKnowledgeManager,
     ):
         self.node_indexer = node_indexer
         self.graph_extractor = graph_extractor
-        self.knowledge_manager = knowledge_manager
 
     async def sync_node_update(
         self,

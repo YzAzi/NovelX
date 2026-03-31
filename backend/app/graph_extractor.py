@@ -9,11 +9,11 @@ from uuid import uuid4
 
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .config import get_api_key, get_base_url, get_model_name
 from .knowledge_graph import Entity, KnowledgeGraph, Relation
-from .models import StoryNode, StoryProject
+from .models import StoryNode, StoryProject, normalize_maybe_json_list
 from .schema_utils import pydantic_json_schema_inline, pydantic_to_openai_function_inline
 
 
@@ -22,6 +22,17 @@ class ExtractionResult(BaseModel):
     new_relations: list[Relation] = Field(default_factory=list)
     alias_mappings: list[dict] = Field(default_factory=list)
     confidence_notes: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "new_entities",
+        "new_relations",
+        "alias_mappings",
+        "confidence_notes",
+        mode="before",
+    )
+    @classmethod
+    def normalize_list_fields(cls, value):
+        return normalize_maybe_json_list(value)
 
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "entity_extraction_prompt.txt"

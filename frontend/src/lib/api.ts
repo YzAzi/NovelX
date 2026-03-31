@@ -8,16 +8,15 @@ import type {
   ProjectExportData,
   ProjectSummary,
   ProjectStatsResponse,
-  SearchResult,
   IndexSnapshot,
   VersionDiff,
+  StyleRetrievalPreviewResponse,
+  StyleKnowledgeUploadResponse,
   StoryNode,
   StoryProject,
   PromptOverrides,
   GraphSyncResponse,
   SyncNodeResponse,
-  WorldDocument,
-  WorldKnowledgeBase,
   ModelConfigResponse,
   ModelConfigUpdateRequest,
   AuthTokenResponse,
@@ -415,156 +414,6 @@ export async function deleteProject(
   )
 }
 
-export async function getWorldKnowledgeBase(
-  projectId: string,
-  options: { signal?: AbortSignal } = {},
-): Promise<WorldKnowledgeBase> {
-  return request<WorldKnowledgeBase>(
-    `/api/projects/${encodeURIComponent(projectId)}/knowledge`,
-    {
-      method: "GET",
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function getWorldDocument(
-  projectId: string,
-  docId: string,
-  options: { signal?: AbortSignal } = {},
-): Promise<WorldDocument> {
-  return request<WorldDocument>(
-    `/api/projects/${encodeURIComponent(projectId)}/knowledge/${encodeURIComponent(docId)}`,
-    {
-      method: "GET",
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function createWorldDocument(
-  projectId: string,
-  payload: { title: string; category: string; content: string },
-  options: { signal?: AbortSignal } = {},
-): Promise<WorldDocument> {
-  return request<WorldDocument>(
-    `/api/projects/${encodeURIComponent(projectId)}/knowledge`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function updateWorldDocument(
-  projectId: string,
-  docId: string,
-  payload: { content: string },
-  options: { signal?: AbortSignal } = {},
-): Promise<WorldDocument> {
-  return request<WorldDocument>(
-    `/api/projects/${encodeURIComponent(projectId)}/knowledge/${encodeURIComponent(docId)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(payload),
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function deleteWorldDocument(
-  projectId: string,
-  docId: string,
-  options: { signal?: AbortSignal } = {},
-): Promise<{ deleted: boolean }> {
-  return request<{ deleted: boolean }>(
-    `/api/projects/${encodeURIComponent(projectId)}/knowledge/${encodeURIComponent(docId)}`,
-    {
-      method: "DELETE",
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function importWorldKnowledge(
-  projectId: string,
-  payload: { markdown_content: string },
-  options: { signal?: AbortSignal } = {},
-): Promise<WorldDocument[]> {
-  return request<WorldDocument[]>(
-    `/api/projects/${encodeURIComponent(projectId)}/knowledge/import`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function searchWorldKnowledge(
-  projectId: string,
-  payload: { query: string; categories?: string[]; top_k?: number },
-  options: { signal?: AbortSignal } = {},
-): Promise<SearchResult[]> {
-  return request<SearchResult[]>(
-    `/api/projects/${encodeURIComponent(projectId)}/knowledge/search`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function uploadWorldKnowledgeFile(
-  projectId: string,
-  file: File,
-  options: { signal?: AbortSignal } = {},
-): Promise<WorldDocument[]> {
-  const formData = new FormData()
-  formData.append("file", file)
-
-  const { setLoading, setError } = useProjectStore.getState()
-  setLoading(true)
-  setError(null)
-  try {
-    const response = await fetch(
-      buildApiUrl(`/api/projects/${encodeURIComponent(projectId)}/knowledge/upload`),
-      {
-        method: "POST",
-        body: formData,
-        headers: buildAuthHeaders(),
-        signal: options.signal,
-      }
-    )
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null)
-      const detail = errorPayload?.detail ?? `Request failed with ${response.status}`
-      if (response.status === 401) {
-        handleUnauthorized()
-      }
-      throw new Error(detail)
-    }
-    return (await response.json()) as WorldDocument[]
-  } catch (error) {
-    if (!isAbortError(error)) {
-      const message = formatUserErrorMessage(error)
-      setError(message)
-    }
-    throw error
-  } finally {
-    setLoading(false)
-  }
-}
-
 export async function getStyleKnowledgeBase(
   projectId: string,
   options: { signal?: AbortSignal } = {},
@@ -583,7 +432,7 @@ export async function uploadStyleKnowledgeFile(
   projectId: string,
   file: File,
   options: { signal?: AbortSignal } = {},
-): Promise<StyleDocument> {
+): Promise<StyleKnowledgeUploadResponse> {
   const formData = new FormData()
   formData.append("file", file)
 
@@ -602,13 +451,16 @@ export async function uploadStyleKnowledgeFile(
     )
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => null)
-      const detail = errorPayload?.detail ?? `Request failed with ${response.status}`
+      const detail =
+        typeof errorPayload?.detail === "string"
+          ? errorPayload.detail
+          : errorPayload?.detail?.message ?? `Request failed with ${response.status}`
       if (response.status === 401) {
         handleUnauthorized()
       }
       throw new Error(detail)
     }
-    return (await response.json()) as StyleDocument
+    return (await response.json()) as StyleKnowledgeUploadResponse
   } catch (error) {
     if (!isAbortError(error)) {
       const message = formatUserErrorMessage(error)
@@ -618,6 +470,27 @@ export async function uploadStyleKnowledgeFile(
   } finally {
     setLoading(false)
   }
+}
+
+export async function previewStyleReferences(
+  projectId: string,
+  payload: {
+    instruction: string
+    text: string
+    style_document_ids: string[]
+    top_k?: number
+  },
+  options: { signal?: AbortSignal } = {},
+): Promise<StyleRetrievalPreviewResponse> {
+  return request<StyleRetrievalPreviewResponse>(
+    `/api/projects/${encodeURIComponent(projectId)}/style_knowledge/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
+  )
 }
 
 export async function updateStyleKnowledgeTitle(
@@ -726,7 +599,7 @@ export async function compareVersions(
 
 export async function createVersion(
   projectId: string,
-  payload: { name?: string | null; description?: string | null; type?: string },
+  payload: { name?: string | null; description?: string | null },
   options: { signal?: AbortSignal } = {},
 ): Promise<IndexSnapshot> {
   return request<IndexSnapshot>(
@@ -764,27 +637,6 @@ export async function deleteVersion(
     `/api/projects/${encodeURIComponent(projectId)}/versions/${version}`,
     {
       method: "DELETE",
-      signal: options.signal,
-    },
-    { showLoading: false },
-  )
-}
-
-export async function updateVersion(
-  projectId: string,
-  version: number,
-  payload: {
-    name?: string | null
-    description?: string | null
-    promote_to_milestone?: boolean
-  },
-  options: { signal?: AbortSignal } = {},
-): Promise<IndexSnapshot> {
-  return request<IndexSnapshot>(
-    `/api/projects/${encodeURIComponent(projectId)}/versions/${version}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(payload),
       signal: options.signal,
     },
     { showLoading: false },

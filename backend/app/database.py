@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from sqlalchemy import text
@@ -9,9 +10,9 @@ from .db_models import Base
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "stories.db"
+DEFAULT_DB_PATH = DATA_DIR / "stories.db"
 
-DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+DATABASE_URL = os.getenv("NOVEL_DATABASE_URL") or f"sqlite+aiosqlite:///{DEFAULT_DB_PATH}"
 
 engine = create_async_engine(DATABASE_URL, future=True)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)

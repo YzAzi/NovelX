@@ -31,34 +31,40 @@ class SentenceTransformerEmbedding:
 _CHROMA_PATH = Path(settings.chroma_persist_path)
 _CHROMA_PATH.mkdir(parents=True, exist_ok=True)
 
-_client = chromadb.PersistentClient(
-    path=str(_CHROMA_PATH),
-    settings=ChromaSettings(anonymized_telemetry=False),
-)
+_client: chromadb.PersistentClient | None = None
+_embedding_fn: SentenceTransformerEmbedding | None = None
+_collections: dict[str, object] | None = None
 
-_embedding_fn = SentenceTransformerEmbedding(settings.embedding_model)
 
-_collections = {
-    "world_knowledge": _client.get_or_create_collection(
-        name="world_knowledge",
-        embedding_function=_embedding_fn,
-    ),
-    "style_knowledge": _client.get_or_create_collection(
-        name="style_knowledge",
-        embedding_function=_embedding_fn,
-    ),
-    "story_nodes": _client.get_or_create_collection(
-        name="story_nodes",
-        embedding_function=_embedding_fn,
-    ),
-    "analysis_history": _client.get_or_create_collection(
-        name="analysis_history",
-        embedding_function=_embedding_fn,
-    ),
-}
+def _ensure_initialized() -> None:
+    global _client, _embedding_fn, _collections
+    if _client is not None and _embedding_fn is not None and _collections is not None:
+        return
+
+    _client = chromadb.PersistentClient(
+        path=str(_CHROMA_PATH),
+        settings=ChromaSettings(anonymized_telemetry=False),
+    )
+    _embedding_fn = SentenceTransformerEmbedding(settings.embedding_model)
+    _collections = {
+        "style_knowledge": _client.get_or_create_collection(
+            name="style_knowledge",
+            embedding_function=_embedding_fn,
+        ),
+        "story_nodes": _client.get_or_create_collection(
+            name="story_nodes",
+            embedding_function=_embedding_fn,
+        ),
+        "analysis_history": _client.get_or_create_collection(
+            name="analysis_history",
+            embedding_function=_embedding_fn,
+        ),
+    }
 
 
 def _get_collection(collection_name: str):
+    _ensure_initialized()
+    assert _collections is not None
     collection = _collections.get(collection_name)
     if not collection:
         raise ValueError(f"Unknown collection: {collection_name}")

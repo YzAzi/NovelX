@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Layout,
   PenTool,
   Network,
-  Book,
   Settings,
   History,
   Sparkles,
@@ -18,16 +18,12 @@ import {
 } from "lucide-react"
 
 import { CreateDialog } from "@/components/create-dialog"
-import { CharacterGraph } from "@/components/character-graph"
 import { ConflictAlert } from "@/components/conflict-alert"
-import { KnowledgeWorkspace } from "@/components/knowledge-workspace"
 import { ProjectList } from "@/components/project-list"
 import { NodeEditor } from "@/components/node-editor"
 import { StoryVisualizer } from "@/components/story-visualizer"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VersionHistory } from "@/components/version-history"
-import { ChatSidebar } from "@/components/chat-sidebar"
-import { WritingWorkspace } from "@/components/writing-workspace"
 import {
   AUTH_EXPIRED_EVENT,
   clearAuthToken,
@@ -80,7 +76,6 @@ export default function Home() {
     setNodeEditorOpen,
     resetWorkspace,
   } = useProjectStore()
-  const [activeTab, setActiveTab] = useState("outline")
   const [title, setTitle] = useState(DEFAULT_TITLE)
   const [projectSidebarOpen, setProjectSidebarOpen] = useState(true)
   const [versionOpen, setVersionOpen] = useState(false)
@@ -92,9 +87,8 @@ export default function Home() {
     hasDefaultKey: boolean
     hasDraftingKey: boolean
     hasSyncKey: boolean
-    hasExtractionKey: boolean
+      hasExtractionKey: boolean
   } | null>(null)
-  const [modelDialogOpen, setModelDialogOpen] = useState(false)
   const [isSavingModels, setIsSavingModels] = useState(false)
   const [outlineStepIndex, setOutlineStepIndex] = useState(0)
   const [promptDialogOpen, setPromptDialogOpen] = useState(false)
@@ -126,6 +120,7 @@ export default function Home() {
     password: "",
     confirmPassword: "",
   })
+  const router = useRouter()
 
   useWebsocket(authUser ? currentProject?.id ?? null : null)
 
@@ -193,7 +188,7 @@ export default function Home() {
         }
         const name = `手动快照 ${new Date().toLocaleString()}`
         try {
-          await createVersion(currentProject.id, { name, type: "manual" })
+          await createVersion(currentProject.id, { name })
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "创建快照失败"
@@ -252,14 +247,12 @@ export default function Home() {
       window.dispatchEvent(new Event("resize"))
     })
     return () => window.cancelAnimationFrame(id)
-  }, [activeTab, currentProject?.id])
+  }, [currentProject?.id])
 
   useEffect(() => {
-    if (activeTab !== "outline") {
-      selectNode(null)
-      setNodeEditorOpen(false)
-    }
-  }, [activeTab, selectNode, setNodeEditorOpen])
+    selectNode(null)
+    setNodeEditorOpen(false)
+  }, [selectNode, setNodeEditorOpen])
 
   useEffect(() => {
     if (!isLoading) {
@@ -407,7 +400,6 @@ export default function Home() {
         extraction: nextConfig.extraction,
         extractionKey: "",
       }))
-      setModelDialogOpen(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : "更新模型失败"
       setError(message)
@@ -439,6 +431,18 @@ export default function Home() {
     } finally {
       setIsSavingPrompts(false)
     }
+  }
+
+  const openProjectRoute = (section: "writing" | "relations" | "analysis") => {
+    if (!currentProject) {
+      setError("请先选择一个项目")
+      return
+    }
+    if (section === "analysis") {
+      router.push(`/analysis/${currentProject.id}`)
+      return
+    }
+    router.push(`/projects/${currentProject.id}/${section}`)
   }
 
   if (authChecking) {
@@ -555,95 +559,35 @@ export default function Home() {
         
         <nav className="flex flex-1 flex-col items-center gap-4 w-full px-2">
           <NavButton 
-            active={activeTab === "outline"} 
-            onClick={() => setActiveTab("outline")} 
+            active
+            onClick={() => router.push("/")} 
             icon={<Layout size={20} />} 
             label="大纲" 
           />
           <NavButton 
-            active={activeTab === "writing"} 
-            onClick={() => setActiveTab("writing")} 
+            active={false}
+            onClick={() => openProjectRoute("writing")} 
             icon={<PenTool size={20} />} 
             label="写作" 
           />
           <NavButton 
-            active={activeTab === "relations"} 
-            onClick={() => setActiveTab("relations")} 
+            active={false}
+            onClick={() => openProjectRoute("relations")} 
             icon={<Network size={20} />} 
             label="关系" 
-          />
-          <NavButton 
-            active={activeTab === "knowledge"} 
-            onClick={() => setActiveTab("knowledge")} 
-            icon={<Book size={20} />} 
-            label="设定" 
           />
           
           <Separator className="my-2 bg-border/50 w-8" />
           
-          <Button asChild variant="ghost" size="icon" title="分析大纲" className="text-muted-foreground hover:text-primary">
-            <Link href="/analysis">
-              <Sparkles size={20} />
-            </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="分析大纲"
+            className="text-muted-foreground hover:text-primary"
+            onClick={() => openProjectRoute("analysis")}
+          >
+            <Sparkles size={20} />
           </Button>
-
-          <Dialog open={modelDialogOpen} onOpenChange={setModelDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" title="模型设置" className="text-muted-foreground hover:text-primary">
-                <Settings size={20} />
-              </Button>
-            </DialogTrigger>
-            {/* ... Model Dialog Content ... */}
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>模型配置</DialogTitle>
-                  <DialogDescription>
-                    配置项目使用的 LLM 模型及 API Key。
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">API Base URL</label>
-                    <Input
-                      value={modelForm.baseUrl}
-                      onChange={(e) => handleModelFieldChange("baseUrl", e.target.value)}
-                      placeholder="https://api.openai.com/v1"
-                    />
-                  </div>
-                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Default API Key</label>
-                    <Input
-                      type="password"
-                      value={modelForm.defaultKey}
-                      onChange={(e) => handleModelFieldChange("defaultKey", e.target.value)}
-                      placeholder={modelConfig?.hasDefaultKey ? "已配置 (隐藏)" : "sk-..."}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Drafting Model</label>
-                        <Input
-                          value={modelForm.drafting}
-                          onChange={(e) => handleModelFieldChange("drafting", e.target.value)}
-                          placeholder="gpt-4o"
-                        />
-                     </div>
-                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Sync Model</label>
-                        <Input
-                          value={modelForm.sync}
-                          onChange={(e) => handleModelFieldChange("sync", e.target.value)}
-                          placeholder="gpt-4o-mini"
-                        />
-                     </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setModelDialogOpen(false)}>取消</Button>
-                  <Button onClick={handleSaveModels} disabled={isSavingModels}>保存配置</Button>
-                </DialogFooter>
-              </DialogContent>
-          </Dialog>
 
           <Button
             variant="ghost"
@@ -657,83 +601,6 @@ export default function Home() {
         </nav>
 
         <div className="mt-auto flex flex-col gap-4">
-           {/* Prompt Button reused logic */}
-           <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" disabled={!currentProject} title="Prompt 设置" className="text-muted-foreground hover:text-primary">
-                  <div className="font-serif text-lg font-bold">P</div>
-                </Button>
-              </DialogTrigger>
-              {/* ... Prompt Dialog Content ... */}
-              <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-                 <DialogHeader>
-                  <DialogTitle>Prompt 微调</DialogTitle>
-                  <DialogDescription>
-                     针对当前项目覆盖默认提示词。留空则使用系统默认设定。
-                  </DialogDescription>
-                </DialogHeader>
-                 <div className="grid gap-6 py-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-baseline">
-                        <label className="text-xs font-medium text-foreground">大纲生成 (Drafting)</label>
-                        <span className="text-[10px] text-muted-foreground">可用变量: {"{world_view} {style_tags} {user_input}"}</span>
-                    </div>
-                    <Textarea
-                      value={promptForm.drafting}
-                      onChange={(e) => handlePromptFieldChange("drafting", e.target.value)}
-                      rows={5}
-                      className="font-mono text-xs leading-relaxed"
-                      placeholder={`示例：
-你是一个擅长悬疑风格的小说家。请根据用户提供的核心创意 "{user_input}"，结合世界观 "{world_view}"，创作一份扣人心弦的大纲。
-风格要求：{style_tags}。
-请包含：
-1. 主要冲突
-2. 三幕式结构
-3. 核心角色动机`}
-                    />
-                  </div>
-                   <div className="space-y-2">
-                    <div className="flex justify-between items-baseline">
-                        <label className="text-xs font-medium text-foreground">同步分析 (Sync)</label>
-                        <span className="text-[10px] text-muted-foreground">可用变量: {"{modified_node} {retrieved_context}"}</span>
-                    </div>
-                    <Textarea
-                      value={promptForm.sync}
-                      onChange={(e) => handlePromptFieldChange("sync", e.target.value)}
-                      rows={5}
-                      className="font-mono text-xs leading-relaxed"
-                      placeholder={`示例：
-你是一个严谨的连载小说编辑。用户刚刚更新了章节 "{modified_node}"。
-请分析这段新内容，并更新知识库中相关的角色状态和地点信息。
-参考上下文：
-{retrieved_context}`}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-baseline">
-                        <label className="text-xs font-medium text-foreground">实体抽取 (Extraction)</label>
-                        <span className="text-[10px] text-muted-foreground">可用变量: {"{text} {existing_entities}"}</span>
-                    </div>
-                    <Textarea
-                      value={promptForm.extraction}
-                      onChange={(e) => handlePromptFieldChange("extraction", e.target.value)}
-                      rows={4}
-                      className="font-mono text-xs leading-relaxed"
-                      placeholder={`示例：
-阅读以下文本：
-"{text}"
-请从中提取所有新登场的角色、地点和关键道具。
-已知实体列表：{existing_entities}（请避免重复提取）`}
-                    />
-                  </div>
-                </div>
-                 <DialogFooter>
-                   <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>取消</Button>
-                   <Button onClick={handleSavePrompts} disabled={isSavingPrompts}>保存 Prompt</Button>
-                 </DialogFooter>
-              </DialogContent>
-           </Dialog>
-
            <div className="flex flex-col items-center gap-2 px-1">
              <div className="w-full rounded-lg border border-border bg-background/80 px-2 py-2 text-center">
                <div className="truncate text-xs font-medium">{authUser.username}</div>
@@ -765,6 +632,157 @@ export default function Home() {
            </div>
            
            <div className="flex items-center gap-2">
+              <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="高级设置"
+                  >
+                    <Settings size={16} className="mr-1.5" />
+                    高级设置
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>高级设置</DialogTitle>
+                    <DialogDescription>
+                      默认创作流程只保留必要入口；模型和 Prompt 微调统一收在这里。
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-6 py-4">
+                    <div className="space-y-3 rounded-lg border border-border/60 p-4">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-medium text-foreground">模型配置</h3>
+                        <p className="text-xs text-muted-foreground">
+                          仅在需要覆盖默认模型或补充 API Key 时修改。
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">API Base URL</label>
+                        <Input
+                          value={modelForm.baseUrl}
+                          onChange={(e) => handleModelFieldChange("baseUrl", e.target.value)}
+                          placeholder="https://api.openai.com/v1"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Default API Key</label>
+                        <Input
+                          type="password"
+                          value={modelForm.defaultKey}
+                          onChange={(e) => handleModelFieldChange("defaultKey", e.target.value)}
+                          placeholder={modelConfig?.hasDefaultKey ? "已配置 (隐藏)" : "sk-..."}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Drafting Model</label>
+                          <Input
+                            value={modelForm.drafting}
+                            onChange={(e) => handleModelFieldChange("drafting", e.target.value)}
+                            placeholder="gpt-4o"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Sync Model</label>
+                          <Input
+                            value={modelForm.sync}
+                            onChange={(e) => handleModelFieldChange("sync", e.target.value)}
+                            placeholder="gpt-4o-mini"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Extraction Model</label>
+                          <Input
+                            value={modelForm.extraction}
+                            onChange={(e) => handleModelFieldChange("extraction", e.target.value)}
+                            placeholder="gpt-4o-mini"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-medium text-foreground">项目 Prompt 微调</h3>
+                        <p className="text-xs text-muted-foreground">
+                          仅对当前项目生效。未选项目时不建议修改。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-baseline">
+                        <label className="text-xs font-medium text-foreground">大纲生成 (Drafting)</label>
+                        <span className="text-[10px] text-muted-foreground">可用变量: {"{world_view} {style_tags} {user_input}"}</span>
+                      </div>
+                      <Textarea
+                        value={promptForm.drafting}
+                        onChange={(e) => handlePromptFieldChange("drafting", e.target.value)}
+                        rows={5}
+                        className="font-mono text-xs leading-relaxed"
+                        placeholder={`示例：
+你是一个擅长悬疑风格的小说家。请根据用户提供的核心创意 "{user_input}"，结合世界观 "{world_view}"，创作一份扣人心弦的大纲。
+风格要求：{style_tags}。
+请包含：
+1. 主要冲突
+2. 三幕式结构
+3. 核心角色动机`}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-baseline">
+                        <label className="text-xs font-medium text-foreground">同步分析 (Sync)</label>
+                        <span className="text-[10px] text-muted-foreground">可用变量: {"{modified_node} {retrieved_context}"}</span>
+                      </div>
+                      <Textarea
+                        value={promptForm.sync}
+                        onChange={(e) => handlePromptFieldChange("sync", e.target.value)}
+                        rows={5}
+                        className="font-mono text-xs leading-relaxed"
+                        placeholder={`示例：
+你是一个严谨的连载小说编辑。用户刚刚更新了章节 "{modified_node}"。
+请分析这段新内容，并更新知识库中相关的角色状态和地点信息。
+参考上下文：
+{retrieved_context}`}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-baseline">
+                        <label className="text-xs font-medium text-foreground">实体抽取 (Extraction)</label>
+                        <span className="text-[10px] text-muted-foreground">可用变量: {"{text} {existing_entities}"}</span>
+                      </div>
+                      <Textarea
+                        value={promptForm.extraction}
+                        onChange={(e) => handlePromptFieldChange("extraction", e.target.value)}
+                        rows={4}
+                        className="font-mono text-xs leading-relaxed"
+                        placeholder={`示例：
+阅读以下文本：
+"{text}"
+请从中提取所有新登场的角色、地点和关键道具。
+已知实体列表：{existing_entities}（请避免重复提取）`}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>取消</Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleSaveModels}
+                      disabled={isSavingModels}
+                    >
+                      保存模型
+                    </Button>
+                    <Button
+                      onClick={handleSavePrompts}
+                      disabled={isSavingPrompts || !currentProject}
+                    >
+                      保存 Prompt
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <CreateDialog />
               <Button 
                 variant="ghost" 
@@ -779,15 +797,7 @@ export default function Home() {
 
         {/* Workspace Content */}
         <main className="flex-1 overflow-hidden relative">
-           {activeTab === "outline" ? (
-              <StoryVisualizer />
-            ) : activeTab === "writing" ? (
-              <WritingWorkspace />
-            ) : activeTab === "relations" ? (
-              <CharacterGraph />
-            ) : (
-              <KnowledgeWorkspace />
-            )}
+          <StoryVisualizer />
         </main>
       </div>
 
@@ -811,7 +821,6 @@ export default function Home() {
 
       {/* Overlays */}
       <NodeEditor />
-      <ChatSidebar />
       <ConflictAlert />
       <VersionHistory open={versionOpen} onClose={() => setVersionOpen(false)} />
 

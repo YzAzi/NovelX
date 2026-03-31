@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+import re
 
 from pydantic import BaseModel, Field
 
 from .knowledge_graph import Entity, EntityType, KnowledgeGraph, Relation
 from .models import StoryNode
 from .node_indexer import NodeIndexer
-from .world_knowledge import WorldKnowledgeManager
 from .text_utils import tokenize
 
 
@@ -45,31 +45,8 @@ def _keyword_score(tokens: set[str], text: str) -> int:
     return len(tokens.intersection(text_tokens))
 
 
-def _format_knowledge_snippet(content: str, title: str | None, category: str | None) -> str:
-    snippet = content.strip().replace("\n", " ")
-    if len(snippet) > 180:
-        snippet = f"{snippet[:177]}..."
-    title_part = title or "知识片段"
-    category_part = category or "general"
-    return f"{title_part}（{category_part}）：{snippet}"
-
-
-class KnowledgeEvidence(BaseModel):
-    source_id: str
-    title: str | None = None
-    category: str | None = None
-    snippet: str
-    score: float | None = None
-
-    def to_text(self) -> str:
-        title_part = self.title or "知识片段"
-        category_part = self.category or "general"
-        return f"{title_part}（{category_part}）：{self.snippet}"
-
-
 class RetrievalContext(BaseModel):
     relevant_nodes: list[StoryNode] = Field(default_factory=list)
-    relevant_knowledge: list["KnowledgeEvidence"] = Field(default_factory=list)
     relevant_entities: list[Entity] = Field(default_factory=list)
     relevant_relations: list[Relation] = Field(default_factory=list)
     token_count: int = 0
@@ -77,9 +54,6 @@ class RetrievalContext(BaseModel):
     def to_prompt_text(self) -> str:
         nodes_text = "\n".join(
             f"- {node.id}: {_node_summary(node)}" for node in self.relevant_nodes
-        )
-        knowledge_text = "\n".join(
-            f"- {item.to_text()}" for item in self.relevant_knowledge
         )
         entities_text = "\n".join(
             f"- {entity.name} ({entity.type.value}): {entity.description}"
@@ -92,8 +66,6 @@ class RetrievalContext(BaseModel):
         return (
             "【相关节点】\n"
             f"{nodes_text or '无'}\n\n"
-            "【世界观知识】\n"
-            f"{knowledge_text or '无'}\n\n"
             "【实体】\n"
             f"{entities_text or '无'}\n\n"
             "【关系】\n"
@@ -128,11 +100,9 @@ class GraphRetriever:
         self,
         knowledge_graph: KnowledgeGraph,
         node_indexer: NodeIndexer,
-        world_knowledge: WorldKnowledgeManager,
     ):
         self._graph = knowledge_graph
         self._node_indexer = node_indexer
-        self._world_knowledge = world_knowledge
 
     async def retrieve_context(
         self,
@@ -204,99 +174,12 @@ class GraphRetriever:
         ranked_nodes.sort(key=lambda item: item[0], reverse=True)
         nodes = [node for _score, node in ranked_nodes[:10]]
 
-        knowledge_map: dict[str, dict] = {}
-        knowledge_evidence: dict[str, KnowledgeEvidence] = {}
-        for q in queries:
-            knowledge_hits = await self._world_knowledge.search_knowledge(
-                project_id=project_id,
-                query=q,
-                top_k=8,
-            )
-            for result in knowledge_hits:
-                entry = knowledge_map.setdefault(
-                    str(result.id), {"vector": 0.0, "keyword": 0.0, "bm25": 0.0}
-                )
-                entry["vector"] = max(entry["vector"], float(result.score))
-                evidence_key = str(result.id)
-                knowledge_evidence[evidence_key] = KnowledgeEvidence(
-                    source_id=evidence_key,
-                    title=result.metadata.get("title"),
-                    category=result.metadata.get("category"),
-                    snippet=_format_knowledge_snippet(
-                        result.content,
-                        result.metadata.get("title"),
-                        result.metadata.get("category"),
-                    ),
-                    score=float(result.score),
-                )
-
-            keyword_hits = await self._world_knowledge.search_knowledge_keyword(
-                project_id=project_id,
-                query=q,
-                top_k=6,
-            )
-            for snippet in keyword_hits:
-                key = f"kw:{snippet[:32]}"
-                entry = knowledge_map.setdefault(
-                    key, {"vector": 0.0, "keyword": 0.0, "bm25": 0.0}
-                )
-                entry["keyword"] = max(entry["keyword"], 0.2)
-                knowledge_evidence[key] = KnowledgeEvidence(
-                    source_id=key,
-                    title=None,
-                    category=None,
-                    snippet=snippet,
-                    score=0.2,
-                )
-
-            bm25_hits = await self._world_knowledge.search_bm25_snippets(
-                project_id=project_id,
-                query=q,
-                top_k=6,
-            )
-            for snippet, score, doc in bm25_hits:
-                key = f"bm25:{doc.id}"
-                entry = knowledge_map.setdefault(
-                    key, {"vector": 0.0, "keyword": 0.0, "bm25": 0.0}
-                )
-                entry["bm25"] = max(entry["bm25"], float(score))
-                knowledge_evidence[key] = KnowledgeEvidence(
-                    source_id=str(doc.id),
-                    title=doc.title,
-                    category=doc.category,
-                    snippet=snippet,
-                    score=float(score),
-                )
-
-        max_vector = max(
-            (entry["vector"] for entry in knowledge_map.values()), default=0.0
-        )
-        max_keyword = max(
-            (entry["keyword"] for entry in knowledge_map.values()), default=0.0
-        )
-        max_bm25 = max(
-            (entry["bm25"] for entry in knowledge_map.values()), default=0.0
-        )
-        combined_knowledge = []
-        for key, entry in knowledge_map.items():
-            vector_norm = entry["vector"] / max(1.0, max_vector) if max_vector else 0.0
-            keyword_norm = entry["keyword"] / max(1.0, max_keyword) if max_keyword else 0.0
-            bm25_norm = entry["bm25"] / max(1.0, max_bm25) if max_bm25 else 0.0
-            score = vector_norm * 0.6 + keyword_norm * 0.2 + bm25_norm * 0.2
-            combined_knowledge.append((key, score))
-
-        combined_knowledge.sort(key=lambda item: item[1], reverse=True)
-        knowledge_texts = [
-            knowledge_evidence[item_id] for item_id, _score in combined_knowledge[:10]
-        ]
-
         entity_hits = self._match_entities(query)
         relation_hits = self._match_relations(entity_hits)
         relation_layers, entity_layers = self._expand_relations(entity_hits, depth=2)
 
         context = RetrievalContext(
             relevant_nodes=nodes,
-            relevant_knowledge=knowledge_texts,
             relevant_entities=entity_hits + entity_layers,
             relevant_relations=relation_hits + relation_layers,
         )
@@ -330,17 +213,12 @@ class GraphRetriever:
             project_id=self._graph.project_id,
             character_id=character_id,
         )
-        background = await self._world_knowledge.search_knowledge(
-            project_id=self._graph.project_id,
-            query=entity.name,
-            top_k=5,
-        )
         return CharacterContext(
             character=entity,
             relations=related_relations,
             related_characters=related_characters,
             appearances=appearances,
-            background_knowledge=[item.content for item in background],
+            background_knowledge=[],
         )
 
     async def get_event_context(
@@ -352,18 +230,13 @@ class GraphRetriever:
             query=event_description,
             top_k=8,
         )
-        knowledge_hits = await self._world_knowledge.search_knowledge(
-            project_id=self._graph.project_id,
-            query=event_description,
-            top_k=6,
-        )
         entities = self._match_entities(event_description)
         relations = self._match_relations(entities)
         return EventContext(
             related_nodes=nodes,
             related_entities=entities,
             related_relations=relations,
-            background_knowledge=[item.content for item in knowledge_hits],
+            background_knowledge=[],
         )
 
     async def find_path(

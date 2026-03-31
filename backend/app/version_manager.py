@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 
-from .knowledge_graph import KnowledgeGraph, load_graph
+from .knowledge_graph import KnowledgeGraph
 from .models import StoryNode, StoryProject
 from .version_storage import VersionStorage
-from .versioning import IndexSnapshot, SnapshotType, VersionDiff, VersioningConfig
-from .crud import get_project, list_projects
-from .database import AsyncSessionLocal
-from .world_knowledge import WorldKnowledgeManager, WorldDocument
+from .versioning import IndexSnapshot, SnapshotType, VersionDiff
+from .style_knowledge import StyleKnowledgeManager, StyleDocument
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +16,10 @@ class VersionManager:
     def __init__(
         self,
         storage: VersionStorage | None = None,
-        config: VersioningConfig | None = None,
-        world_knowledge: WorldKnowledgeManager | None = None,
+        style_knowledge: StyleKnowledgeManager | None = None,
     ) -> None:
         self._storage = storage or VersionStorage()
-        self._config = config or VersioningConfig()
-        self._world_knowledge = world_knowledge or WorldKnowledgeManager()
+        self._style_knowledge = style_knowledge or StyleKnowledgeManager()
 
     async def create_snapshot(
         self,
@@ -36,7 +31,7 @@ class VersionManager:
     ) -> IndexSnapshot:
         latest_version = await self._get_latest_version(project.id)
         version = latest_version + 1
-        world_documents = await self._world_knowledge.list_project_documents(project.id)
+        style_documents = await self._style_knowledge.list_project_documents(project.id)
         snapshot = IndexSnapshot(
             version=version,
             snapshot_type=snapshot_type,
@@ -44,23 +39,22 @@ class VersionManager:
             description=description,
             story_project=project,
             knowledge_graph=graph,
-            world_documents=world_documents,
+            style_documents=style_documents,
             node_count=len(project.nodes),
             entity_count=len(graph.entities),
             created_at=datetime.utcnow(),
         )
         await self._storage.save_snapshot(snapshot)
-        await self._cleanup_auto_snapshots(project.id)
         return snapshot
 
     async def restore_snapshot(
         self, project_id: str, version: int
-    ) -> tuple[StoryProject, KnowledgeGraph, list[WorldDocument]]:
+    ) -> tuple[StoryProject, KnowledgeGraph, list[StyleDocument]]:
         snapshot = await self._storage.load_snapshot(project_id, version)
         return (
             snapshot.story_project,
             snapshot.knowledge_graph,
-            snapshot.world_documents,
+            snapshot.style_documents,
         )
 
     async def load_snapshot(self, project_id: str, version: int) -> IndexSnapshot:
@@ -170,8 +164,6 @@ class VersionManager:
         target = next((item for item in snapshots if item["version"] == version), None)
         if not target:
             raise FileNotFoundError("Snapshot not found")
-        if target.get("snapshot_type") == SnapshotType.MILESTONE.value:
-            raise ValueError("Milestone snapshots cannot be deleted")
         await self._storage.delete_snapshot(project_id, version)
 
     async def delete_project_data(self, project_id: str) -> None:
@@ -181,78 +173,11 @@ class VersionManager:
         for snapshot in snapshots:
             await self._storage.save_snapshot(snapshot)
 
-    async def create_pre_sync_snapshot_if_needed(
-        self,
-        project: StoryProject,
-        old_node: StoryNode | None,
-        new_node: StoryNode,
-    ) -> bool:
-        if not old_node:
-            return False
-        change_size = abs(len(old_node.content) - len(new_node.content))
-        if change_size < self._config.major_change_threshold:
-            return False
-        graph = load_graph(project.id)
-        await self.create_snapshot(
-            project,
-            graph,
-            SnapshotType.PRE_SYNC,
-            name="Pre-sync backup",
-        )
-        return True
-
-    async def update_version_metadata(
-        self,
-        project_id: str,
-        version: int,
-        name: str | None = None,
-        snapshot_type: SnapshotType | None = None,
-        description: str | None = None,
-    ) -> IndexSnapshot:
-        snapshots = await self._storage.list_snapshots(project_id)
-        target = next((item for item in snapshots if item["version"] == version), None)
-        if not target:
-            raise FileNotFoundError("Snapshot not found")
-        if target.get("snapshot_type") == SnapshotType.MILESTONE.value:
-            snapshot_type = SnapshotType.MILESTONE
-        return await self._storage.update_snapshot_metadata(
-            project_id=project_id,
-            version=version,
-            name=name,
-            snapshot_type=snapshot_type.value if snapshot_type else None,
-            description=description,
-        )
-
-    async def auto_snapshot_loop(self) -> None:
-        while True:
-            await asyncio.sleep(self._config.auto_snapshot_interval)
-            await self._create_auto_snapshots()
-
     async def _get_latest_version(self, project_id: str) -> int:
         snapshots = await self._storage.list_snapshots(project_id)
         if not snapshots:
             return 0
         return max(item["version"] for item in snapshots)
-
-    async def _cleanup_auto_snapshots(self, project_id: str) -> None:
-        snapshots = await self._storage.list_snapshots(project_id)
-        autos = [item for item in snapshots if item["snapshot_type"] == SnapshotType.AUTO.value]
-        if len(autos) <= self._config.max_auto_snapshots:
-            return
-        autos_sorted = sorted(autos, key=lambda item: item["version"])
-        to_delete = autos_sorted[: len(autos_sorted) - self._config.max_auto_snapshots]
-        for item in to_delete:
-            await self._storage.delete_snapshot(project_id, item["version"])
-
-    async def _create_auto_snapshots(self) -> None:
-        async with AsyncSessionLocal() as session:
-            projects = await list_projects(session)
-            for summary in projects:
-                project = await get_project(session, summary.id)
-                if not project:
-                    continue
-                graph = load_graph(project.id)
-                await self.create_snapshot(project, graph, SnapshotType.AUTO)
 
     @staticmethod
     def _nodes_equal(first: StoryNode, second: StoryNode) -> bool:

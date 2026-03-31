@@ -263,6 +263,16 @@ export default function OutlineAnalysisPage() {
         </div>
         
         <div className="flex items-center gap-2">
+            {currentProject ? (
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/projects/${currentProject.id}/writing`}>写作</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/projects/${currentProject.id}/relations`}>关系图</Link>
+                </Button>
+              </>
+            ) : null}
             <select
               className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground shadow-sm focus:border-primary focus:outline-none"
               value={selectedProfile}

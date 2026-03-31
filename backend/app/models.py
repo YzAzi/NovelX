@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+import json
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
@@ -7,7 +9,39 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .knowledge_graph import KnowledgeGraph
-from .world_knowledge import WorldDocument
+from .style_knowledge import StyleDocument
+
+
+def normalize_maybe_json_list(value: Any) -> Any:
+    current = value
+    for _ in range(3):
+        if current is None:
+            return []
+        if not isinstance(current, str):
+            return current
+
+        stripped = current.strip()
+        if not stripped:
+            return []
+
+        if stripped.startswith("```"):
+            stripped = stripped.removeprefix("```json").removeprefix("```").strip()
+            if stripped.endswith("```"):
+                stripped = stripped[:-3].strip()
+
+        try:
+            current = json.loads(stripped)
+            continue
+        except json.JSONDecodeError:
+            pass
+
+        try:
+            current = ast.literal_eval(stripped)
+            continue
+        except (SyntaxError, ValueError):
+            return value
+
+    return current
 
 class StoryNode(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
@@ -167,6 +201,11 @@ class StoryProject(BaseModel):
         if self.updated_at < self.created_at:
             self.updated_at = self.created_at
         return self
+
+    @field_validator("style_tags", "nodes", "chapters", "characters", mode="before")
+    @classmethod
+    def normalize_project_list_fields(cls, value: Any) -> Any:
+        return normalize_maybe_json_list(value)
 
 
 class CreateOutlineRequest(BaseModel):
@@ -336,26 +375,6 @@ class AnalysisHistoryResponse(BaseModel):
     messages: list[AnalysisHistoryMessage] = Field(default_factory=list)
 
 
-class KnowledgeDocumentRequest(BaseModel):
-    title: str
-    category: str
-    content: str
-
-
-class KnowledgeUpdateRequest(BaseModel):
-    content: str
-
-
-class KnowledgeImportRequest(BaseModel):
-    markdown_content: str
-
-
-class KnowledgeSearchRequest(BaseModel):
-    query: str
-    categories: list[str] | None = None
-    top_k: int | None = None
-
-
 class OutlineImportNode(BaseModel):
     title: str
     content: str | None = None
@@ -379,6 +398,11 @@ class OutlineImportResult(BaseModel):
     nodes: list[OutlineImportNode] = Field(default_factory=list)
     characters: list[OutlineImportCharacter] = Field(default_factory=list)
 
+    @field_validator("nodes", "characters", mode="before")
+    @classmethod
+    def normalize_outline_import_lists(cls, value: Any) -> Any:
+        return normalize_maybe_json_list(value)
+
 
 class WritingAssistantRequest(BaseModel):
     project_id: str
@@ -386,6 +410,36 @@ class WritingAssistantRequest(BaseModel):
     instruction: str
     stream: bool = True
     style_document_ids: list[str] = Field(default_factory=list)
+
+
+class StyleRetrievalPreviewRequest(BaseModel):
+    instruction: str
+    text: str
+    style_document_ids: list[str] = Field(default_factory=list)
+    top_k: int = 5
+
+
+class StyleReferencePreview(BaseModel):
+    id: str
+    title: str
+    document_id: str | None = None
+    focus: str | None = None
+    techniques: list[str] = Field(default_factory=list)
+    content: str
+    score: float
+
+
+class StyleRetrievalPreviewResponse(BaseModel):
+    preferred_focuses: list[str] = Field(default_factory=list)
+    references: list[StyleReferencePreview] = Field(default_factory=list)
+
+
+class StyleKnowledgeUploadResponse(BaseModel):
+    document: StyleDocument
+    total_batches: int = 0
+    successful_batches: int = 0
+    failed_batches: int = 0
+    warnings: list[str] = Field(default_factory=list)
 
 
 class StyleKnowledgeUpdateRequest(BaseModel):
@@ -420,7 +474,7 @@ class ProjectSummary(BaseModel):
 class ProjectStatsResponse(BaseModel):
     total_nodes: int
     total_characters: int
-    total_knowledge_docs: int
+    total_style_docs: int
     total_words: int
     graph_entities: int
     graph_relations: int
@@ -473,8 +527,18 @@ class ChapterUpdateRequest(BaseModel):
 class ProjectExportData(BaseModel):
     project: StoryProject
     knowledge_graph: KnowledgeGraph
-    world_documents: list[WorldDocument] = Field(default_factory=list)
+    style_documents: list[StyleDocument] = Field(default_factory=list)
     snapshots: list[dict] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_export_fields(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        if "style_documents" not in value and "world_documents" in value:
+            value = dict(value)
+            value["style_documents"] = value.pop("world_documents")
+        return value
 
 
 class ModelConfigResponse(BaseModel):
@@ -555,13 +619,6 @@ class CharacterGraphResponse(BaseModel):
 class VersionCreateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
-    type: str | None = None
-
-
-class VersionUpdateRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    promote_to_milestone: bool | None = None
 
 
 class TimelineUpdate(BaseModel):
@@ -617,3 +674,8 @@ class SyncAnalysisResult(BaseModel):
             }
         }
     )
+
+    @field_validator("new_characters", "timeline_updates", "conflicts", mode="before")
+    @classmethod
+    def normalize_sync_analysis_lists(cls, value: Any) -> Any:
+        return normalize_maybe_json_list(value)

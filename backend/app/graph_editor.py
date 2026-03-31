@@ -8,6 +8,7 @@ from .knowledge_graph import (
     KnowledgeGraph,
     Relation,
     RelationType,
+    normalize_relation_type,
     new_entity_id,
     new_relation_id,
 )
@@ -231,13 +232,7 @@ class GraphEditor:
                 raise ValueError("Relation must connect character entities")
 
             raw_type = payload.get("relation_type") or RelationType.RELATED_TO
-            if isinstance(raw_type, str):
-                try:
-                    relation_type = RelationType(raw_type)
-                except ValueError:
-                    relation_type = RelationType.RELATED_TO
-            else:
-                relation_type = raw_type
+            relation_type = normalize_relation_type(raw_type)
 
             relation_name = payload.get("relation_name") or ""
             description = payload.get("description") or ""

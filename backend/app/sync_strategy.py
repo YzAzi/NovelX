@@ -11,7 +11,6 @@ from .index_sync import IndexSyncManager, SyncResult
 from .knowledge_graph import load_graph, save_graph
 from .models import StoryNode
 from .node_indexer import NodeIndexer
-from .world_knowledge import WorldKnowledgeManager
 
 
 class SyncMode(str, Enum):
@@ -159,5 +158,4 @@ def build_default_sync_manager() -> IndexSyncManager:
     return IndexSyncManager(
         node_indexer=NodeIndexer(),
         graph_extractor=GraphExtractor(),
-        knowledge_manager=WorldKnowledgeManager(),
     )

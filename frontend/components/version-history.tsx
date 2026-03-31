@@ -10,7 +10,6 @@ import {
   getVersionSnapshot,
   listVersions,
   restoreVersion,
-  updateVersion,
 } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
@@ -24,8 +23,15 @@ type VersionHistoryProps = {
 const TYPE_STYLES: Record<SnapshotType, string> = {
   auto: "bg-slate-100 text-slate-500",
   manual: "bg-blue-100 text-blue-700",
-  milestone: "bg-amber-100 text-amber-700",
-  pre_sync: "bg-purple-100 text-purple-700",
+  milestone: "bg-slate-100 text-slate-500",
+  pre_sync: "bg-slate-100 text-slate-500",
+}
+
+const TYPE_LABELS: Record<SnapshotType, string> = {
+  auto: "历史快照",
+  manual: "手动快照",
+  milestone: "历史快照",
+  pre_sync: "历史快照",
 }
 
 export function VersionHistory({ open, onClose }: VersionHistoryProps) {
@@ -143,7 +149,7 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
       return
     }
     try {
-      await createVersion(currentProject.id, { name, type: "manual" })
+      await createVersion(currentProject.id, { name })
       loadVersions()
     } catch (error) {
       const message = error instanceof Error ? error.message : "创建快照失败"
@@ -165,21 +171,6 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
       onClose()
     } catch (error) {
       const message = error instanceof Error ? error.message : "恢复版本失败"
-      setError(message)
-    }
-  }
-
-  const handlePromote = async () => {
-    if (!currentProject || selectedVersion === null) {
-      return
-    }
-    try {
-      await updateVersion(currentProject.id, selectedVersion, {
-        promote_to_milestone: true,
-      })
-      loadVersions()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "更新版本失败"
       setError(message)
     }
   }
@@ -324,7 +315,7 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
                           </div>
                         </div>
                         <span className={`rounded-full px-2 py-0.5 text-[11px] ${TYPE_STYLES[item.snapshot_type]}`}>
-                          {item.snapshot_type}
+                          {TYPE_LABELS[item.snapshot_type]}
                         </span>
                       </div>
                       <div className="mt-1 text-[11px] text-slate-500">
@@ -358,13 +349,13 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
                 <Button size="sm" variant="outline" onClick={handleRestore} disabled={!selectedVersion}>
                   恢复到此版本
                 </Button>
-                <Button size="sm" variant="outline" onClick={handlePromote} disabled={!selectedVersion}>
-                  标记为里程碑
-                </Button>
                 <Button size="sm" variant="ghost" onClick={handleDelete} disabled={!selectedVersion}>
                   删除
                 </Button>
               </div>
+            </div>
+            <div className="rounded-xl border bg-white px-4 py-3 text-xs text-muted-foreground">
+              当前版本系统只保留手动快照。旧项目中的自动、预同步和里程碑快照都会作为历史快照兼容显示。
             </div>
             <div className="flex-1 overflow-y-auto">
               <VersionDiff base={baseSnapshot} target={selectedSnapshot} diff={diff} />

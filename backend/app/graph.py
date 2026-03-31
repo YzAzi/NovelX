@@ -17,7 +17,6 @@ from .knowledge_graph import KnowledgeGraph, load_graph, save_graph
 from .models import CreateOutlineRequest, PromptOverrides, StoryNode, StoryProject, SyncAnalysisResult
 from .node_indexer import NodeIndexer
 from .schema_utils import pydantic_to_openai_function_inline
-from .world_knowledge import WorldKnowledgeManager
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode
 
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
@@ -98,7 +97,6 @@ async def retrieval_node(state: AgentState) -> AgentState:
         retriever = GraphRetriever(
             knowledge_graph=knowledge_graph,
             node_indexer=NodeIndexer(),
-            world_knowledge=WorldKnowledgeManager(),
         )
 
         if state.get("modified_node"):

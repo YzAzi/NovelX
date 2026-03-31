@@ -217,36 +217,6 @@ export function CreateDialog() {
               <p className="text-sm text-red-600">{errors.worldView.message}</p>
             ) : null}
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="styleTags">
-              风格标签
-            </label>
-            <Input
-              id="styleTags"
-              placeholder="悬疑, 非线性叙事"
-              {...register("styleTags")}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="baseProjectId">
-              继承项目（续作/前作）
-            </label>
-            <select
-              id="baseProjectId"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              {...register("baseProjectId")}
-            >
-              <option value="">不继承</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              仅在续作/前作时选择，用于继承世界观与关系线索。
-            </p>
-          </div>
           {createMode === "ai" ? (
             <>
               <div className="space-y-1">
@@ -260,24 +230,63 @@ export function CreateDialog() {
                   {...register("initialPrompt")}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium" htmlFor="draftingPrompt">
-                  自定义大纲 Prompt（可选）
-                </label>
-                <Textarea
-                  id="draftingPrompt"
-                  placeholder={
-                    "可使用变量：{world_view} {style_tags} {user_input} {retrieved_context}\n留空则使用默认模板"
-                  }
-                  rows={5}
-                  {...register("draftingPrompt")}
-                />
-                <p className="text-xs text-muted-foreground">
-                  用于控制大纲生成风格与结构，支持上述变量占位符。
-                </p>
-              </div>
             </>
           ) : null}
+          <details className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              高级选项
+            </summary>
+            <div className="mt-3 space-y-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium" htmlFor="styleTags">
+                  风格标签
+                </label>
+                <Input
+                  id="styleTags"
+                  placeholder="悬疑, 非线性叙事"
+                  {...register("styleTags")}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium" htmlFor="baseProjectId">
+                  继承项目（续作/前作）
+                </label>
+                <select
+                  id="baseProjectId"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("baseProjectId")}
+                >
+                  <option value="">不继承</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  仅在续作/前作时选择，用于继承世界观与关系线索。
+                </p>
+              </div>
+              {createMode === "ai" ? (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium" htmlFor="draftingPrompt">
+                    自定义大纲 Prompt（可选）
+                  </label>
+                  <Textarea
+                    id="draftingPrompt"
+                    placeholder={
+                      "可使用变量：{world_view} {style_tags} {user_input} {retrieved_context}\n留空则使用默认模板"
+                    }
+                    rows={5}
+                    {...register("draftingPrompt")}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    仅在需要精细控制大纲结构与语气时再展开修改。
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </details>
           <DialogFooter className="gap-2 sm:gap-0">
             <DialogClose asChild>
               <Button type="button" variant="ghost" disabled={submitting}>

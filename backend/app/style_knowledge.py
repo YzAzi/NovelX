@@ -23,6 +23,9 @@ class StyleDocument(BaseModel):
     category: str
     content: str
     chunks: list[str] = Field(default_factory=list)
+    source_characters: int = 0
+    curated_characters: int = 0
+    curated_segments: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -107,6 +110,72 @@ def _build_snippet(document: StyleDocument, limit: int = 180) -> str:
     return f"{document.title}：{content}"
 
 
+def _normalize_focus_values(preferred_focuses: list[str] | None) -> list[str]:
+    if not preferred_focuses:
+        return []
+    mapping = {
+        "dialogue": "对话型",
+        "dialog": "对话型",
+        "对话": "对话型",
+        "对话型": "对话型",
+        "environment": "环境型",
+        "scene": "环境型",
+        "环境": "环境型",
+        "环境型": "环境型",
+        "hybrid": "混合型",
+        "mixed": "混合型",
+        "混合": "混合型",
+        "混合型": "混合型",
+        "general": "通用型",
+        "通用": "通用型",
+        "通用型": "通用型",
+    }
+    normalized: list[str] = []
+    for item in preferred_focuses:
+        value = mapping.get((item or "").strip().lower())
+        if value and value not in normalized:
+            normalized.append(value)
+    return normalized
+
+
+def _focus_bonus(text: str, preferred_focuses: list[str]) -> float:
+    if not text or not preferred_focuses:
+        return 0.0
+    bonus_map = {
+        "对话型": 0.16,
+        "环境型": 0.16,
+        "混合型": 0.20,
+        "通用型": 0.08,
+    }
+    matched = [focus for focus in preferred_focuses if f"类型：{focus}" in text]
+    if not matched:
+        return 0.0
+    return max(bonus_map.get(focus, 0.0) for focus in matched)
+
+
+def _extract_focus(text: str) -> str | None:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("类型："):
+            return stripped.removeprefix("类型：").strip() or None
+    return None
+
+
+def _extract_techniques(text: str) -> list[str]:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("技法："):
+            payload = stripped.removeprefix("技法：").strip()
+            if not payload:
+                return []
+            return [item.strip() for item in payload.split("、") if item.strip()]
+    return []
+
+
+def _content_signature(text: str) -> str:
+    return "".join(text.split())
+
+
 class StyleKnowledgeManager:
     async def list_project_documents(self, project_id: str) -> list[StyleDocument]:
         return _load_project_documents(project_id)
@@ -117,6 +186,9 @@ class StyleKnowledgeManager:
         title: str,
         category: str,
         content: str,
+        source_characters: int = 0,
+        curated_characters: int | None = None,
+        curated_segments: int = 0,
         chunking_config: ChunkConfig | None = None,
     ) -> StyleDocument:
         config = chunking_config or _default_chunking_config()
@@ -127,6 +199,9 @@ class StyleKnowledgeManager:
             category=category,
             content=content,
             chunks=[],
+            source_characters=max(source_characters, 0),
+            curated_characters=max(curated_characters or len(content), 0),
+            curated_segments=max(curated_segments, 0),
             created_at=_now(),
             updated_at=_now(),
         )
@@ -214,15 +289,70 @@ class StyleKnowledgeManager:
             total_characters=total_characters,
         )
 
+    async def replace_project_documents(
+        self,
+        project_id: str,
+        documents: list[StyleDocument],
+        chunking_config: ChunkConfig | None = None,
+    ) -> list[StyleDocument]:
+        await self.delete_project_data(project_id)
+        if not documents:
+            return []
+
+        config = chunking_config or _default_chunking_config()
+        restored: list[StyleDocument] = []
+        for doc in documents:
+            restored_doc = StyleDocument(
+                id=doc.id,
+                project_id=project_id,
+                title=doc.title,
+                category=doc.category,
+                content=doc.content,
+                chunks=[],
+                source_characters=doc.source_characters,
+                curated_characters=doc.curated_characters or len(doc.content),
+                curated_segments=doc.curated_segments,
+                created_at=doc.created_at,
+                updated_at=doc.updated_at,
+            )
+            chunks = chunk_text(
+                doc.content,
+                config,
+                source_metadata={"project_id": project_id, "document_id": restored_doc.id},
+            )
+            if chunks:
+                restored_doc.chunks = [chunk.id for chunk in chunks]
+                await add_documents(
+                    collection_name="style_knowledge",
+                    documents=[chunk.content for chunk in chunks],
+                    metadatas=[
+                        _build_chunk_metadata(
+                            project_id,
+                            restored_doc,
+                            index,
+                            chunk.start_index,
+                            chunk.end_index,
+                        )
+                        for index, chunk in enumerate(chunks)
+                    ],
+                    ids=[chunk.id for chunk in chunks],
+                )
+            restored.append(restored_doc)
+
+        _save_project_documents(project_id, restored)
+        return restored
+
     async def search_style(
         self,
         project_id: str,
         query: str,
         document_ids: list[str],
         top_k: int = 6,
+        preferred_focuses: list[str] | None = None,
     ) -> list[SearchResult]:
         if not document_ids or not query.strip():
             return []
+        normalized_focuses = _normalize_focus_values(preferred_focuses)
         filter_dict = {
             "$and": [
                 {"project_id": project_id},
@@ -249,8 +379,16 @@ class StyleKnowledgeManager:
 
         for hit in vector_hits:
             key = f"vec:{hit.id}"
-            scores[key] = {"vector": float(hit.score), "keyword": 0.0, "bm25": 0.0}
-            snippets[key] = (hit.content, hit.metadata or {})
+            metadata = dict(hit.metadata or {})
+            metadata.setdefault("focus", _extract_focus(hit.content))
+            metadata.setdefault("techniques", _extract_techniques(hit.content))
+            scores[key] = {
+                "vector": float(hit.score),
+                "keyword": 0.0,
+                "bm25": 0.0,
+                "focus": _focus_bonus(hit.content, normalized_focuses),
+            }
+            snippets[key] = (hit.content, metadata)
 
         if documents and tokens:
             for doc in documents:
@@ -259,15 +397,27 @@ class StyleKnowledgeManager:
                 if score > 0:
                     key = f"kw:{doc.id}"
                     entry = scores.setdefault(
-                        key, {"vector": 0.0, "keyword": 0.0, "bm25": 0.0}
+                        key,
+                        {
+                            "vector": 0.0,
+                            "keyword": 0.0,
+                            "bm25": 0.0,
+                            "focus": _focus_bonus(doc.content, normalized_focuses),
+                        },
                     )
                     entry["keyword"] = max(entry["keyword"], float(score))
+                    entry["focus"] = max(
+                        entry.get("focus", 0.0),
+                        _focus_bonus(doc.content, normalized_focuses),
+                    )
                     snippets[key] = (
                         _build_snippet(doc),
                         {
                             "title": doc.title,
                             "category": doc.category,
                             "document_id": doc.id,
+                            "focus": _extract_focus(doc.content),
+                            "techniques": _extract_techniques(doc.content),
                         },
                     )
 
@@ -282,9 +432,19 @@ class StyleKnowledgeManager:
                     continue
                 key = f"bm25:{doc.id}"
                 entry = scores.setdefault(
-                    key, {"vector": 0.0, "keyword": 0.0, "bm25": 0.0}
+                    key,
+                    {
+                        "vector": 0.0,
+                        "keyword": 0.0,
+                        "bm25": 0.0,
+                        "focus": _focus_bonus(doc.content, normalized_focuses),
+                    },
                 )
                 entry["bm25"] = max(entry["bm25"], float(score))
+                entry["focus"] = max(
+                    entry.get("focus", 0.0),
+                    _focus_bonus(doc.content, normalized_focuses),
+                )
                 if key not in snippets:
                     snippets[key] = (
                         _build_snippet(doc),
@@ -292,6 +452,8 @@ class StyleKnowledgeManager:
                             "title": doc.title,
                             "category": doc.category,
                             "document_id": doc.id,
+                            "focus": _extract_focus(doc.content),
+                            "techniques": _extract_techniques(doc.content),
                         },
                     )
 
@@ -305,13 +467,40 @@ class StyleKnowledgeManager:
         for key, entry in scores.items():
             keyword_norm = entry["keyword"] / max(1.0, max_keyword) if max_keyword else 0.0
             bm25_norm = entry["bm25"] / max(1.0, max_bm25) if max_bm25 else 0.0
-            combined = entry["vector"] * 0.6 + keyword_norm * 0.2 + bm25_norm * 0.2
+            combined = (
+                entry["vector"] * 0.55
+                + keyword_norm * 0.2
+                + bm25_norm * 0.15
+                + entry.get("focus", 0.0) * 0.1
+            )
             ranked.append((combined, key))
 
         ranked.sort(key=lambda item: item[0], reverse=True)
         results: list[SearchResult] = []
-        for score, key in ranked[:top_k]:
+        seen_signatures: set[str] = set()
+        document_counts: dict[str, int] = {}
+        focus_counts: dict[str, int] = {}
+        document_limit = 2 if top_k > 3 else 1
+        focus_limit = max(2, top_k // 2 + 1)
+
+        for score, key in ranked:
             content, metadata = snippets.get(key, ("", {}))
+            if not content:
+                continue
+            signature = _content_signature(content)
+            if signature in seen_signatures:
+                continue
+            document_id = str(metadata.get("document_id") or "")
+            focus = str(metadata.get("focus") or "")
+            if document_id and document_counts.get(document_id, 0) >= document_limit and len(results) + 1 < top_k:
+                continue
+            if focus and focus_counts.get(focus, 0) >= focus_limit and len(results) + 1 < top_k:
+                continue
+            seen_signatures.add(signature)
+            if document_id:
+                document_counts[document_id] = document_counts.get(document_id, 0) + 1
+            if focus:
+                focus_counts[focus] = focus_counts.get(focus, 0) + 1
             results.append(
                 SearchResult(
                     id=key,
@@ -320,4 +509,6 @@ class StyleKnowledgeManager:
                     score=float(score),
                 )
             )
+            if len(results) >= top_k:
+                break
         return results

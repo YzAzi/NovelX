@@ -25,6 +25,7 @@ import {
   formatUserErrorMessage,
   getStyleKnowledgeBase,
   handleUnauthorized,
+  previewStyleReferences,
   updateChapter,
   updateProjectSettings,
   updateStyleKnowledgeTitle,
@@ -43,7 +44,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import type { StyleDocument, WriterConfig } from "@/src/types/models"
+import type {
+  StyleDocument,
+  StyleKnowledgeUploadResponse,
+  StyleRetrievalPreviewResponse,
+  WriterConfig,
+} from "@/src/types/models"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 export function WritingWorkspace() {
@@ -67,12 +73,16 @@ export function WritingWorkspace() {
   const [styleDocs, setStyleDocs] = useState<StyleDocument[]>([])
   const [selectedStyleIds, setSelectedStyleIds] = useState<string[]>([])
   const [styleError, setStyleError] = useState<string | null>(null)
+  const [styleUploadNotice, setStyleUploadNotice] = useState<string | null>(null)
   const [isStyleLoading, setIsStyleLoading] = useState(false)
   const [isStyleUploading, setIsStyleUploading] = useState(false)
+  const [styleUploadStage, setStyleUploadStage] = useState("等待上传")
   const [previewDoc, setPreviewDoc] = useState<StyleDocument | null>(null)
   const [renamingDocId, setRenamingDocId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
   const [isPolishing, setIsPolishing] = useState(false)
+  const [stylePreview, setStylePreview] = useState<StyleRetrievalPreviewResponse | null>(null)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const styleFileRef = useRef<HTMLInputElement>(null)
@@ -152,6 +162,7 @@ export function WritingWorkspace() {
     if (!currentProject) {
       setStyleDocs([])
       setSelectedStyleIds([])
+      setStylePreview(null)
       return
     }
     const controller = new AbortController()
@@ -168,6 +179,30 @@ export function WritingWorkspace() {
       .finally(() => setIsStyleLoading(false))
     return () => controller.abort()
   }, [currentProject])
+
+  useEffect(() => {
+    setStylePreview(null)
+  }, [activeChapterId, selectedStyleIds])
+
+  useEffect(() => {
+    if (!isStyleUploading) {
+      setStyleUploadStage("等待上传")
+      return
+    }
+    const stages = [
+      "读取文件",
+      "分批清洗文本",
+      "合并清洗结果",
+      "构建文笔知识库",
+    ]
+    let index = 0
+    setStyleUploadStage(stages[index])
+    const timer = window.setInterval(() => {
+      index = Math.min(index + 1, stages.length - 1)
+      setStyleUploadStage(stages[index])
+    }, 1800)
+    return () => window.clearInterval(timer)
+  }, [isStyleUploading])
 
   const handleSaveContent = async () => {
     if (!currentProject || !activeChapterId) return
@@ -271,6 +306,16 @@ export function WritingWorkspace() {
 
     setIsPolishing(true)
     try {
+      if (selectedStyleIds.length > 0) {
+        const preview = await previewStyleReferences(currentProject.id, {
+          instruction,
+          text: textToPolish,
+          style_document_ids: selectedStyleIds,
+          top_k: 5,
+        })
+        setStylePreview(preview)
+      }
+
       const response = await fetch(buildApiUrl("/api/writing_assistant"), {
         method: "POST",
         headers: buildAuthHeaders({ "Content-Type": "application/json" }),
@@ -328,6 +373,39 @@ export function WritingWorkspace() {
     }
   }
 
+  const handlePreviewReferences = async (mode: "polish" | "expand") => {
+    if (!currentProject) return
+    if (selectedStyleIds.length === 0) {
+      setStyleError("请先勾选至少一份文笔素材")
+      return
+    }
+    const instruction = buildInstruction(mode)
+    let previewText = content
+    if (textareaRef.current) {
+      const start = textareaRef.current.selectionStart
+      const end = textareaRef.current.selectionEnd
+      if (start !== end) {
+        previewText = content.substring(start, end)
+      }
+    }
+    setIsPreviewLoading(true)
+    setStyleError(null)
+    try {
+      const preview = await previewStyleReferences(currentProject.id, {
+        instruction,
+        text: previewText,
+        style_document_ids: selectedStyleIds,
+        top_k: 5,
+      })
+      setStylePreview(preview)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "预览参考失败"
+      setStyleError(message)
+    } finally {
+      setIsPreviewLoading(false)
+    }
+  }
+
   const handleCreateChapter = async () => {
     if (!currentProject) return
     setIsCreatingChapter(true)
@@ -369,6 +447,24 @@ export function WritingWorkspace() {
     )
   }
 
+  const formatCuratedStats = (doc: StyleDocument) => {
+    const parts: string[] = []
+    if (doc.curated_segments && doc.curated_segments > 0) {
+      parts.push(`${doc.curated_segments} 段`)
+    }
+    if (
+      typeof doc.source_characters === "number" &&
+      doc.source_characters > 0 &&
+      typeof doc.curated_characters === "number" &&
+      doc.curated_characters > 0
+    ) {
+      parts.push(`${doc.source_characters} -> ${doc.curated_characters} 字`)
+    } else {
+      parts.push(`${doc.content?.length ?? 0} 字`)
+    }
+    return parts.join(" | ")
+  }
+
   const handleStyleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!currentProject) {
       return
@@ -383,12 +479,25 @@ export function WritingWorkspace() {
     }
     setIsStyleUploading(true)
     setStyleError(null)
+    setStyleUploadNotice(null)
     try {
-      const doc = await uploadStyleKnowledgeFile(currentProject.id, file)
+      const result: StyleKnowledgeUploadResponse = await uploadStyleKnowledgeFile(
+        currentProject.id,
+        file,
+      )
+      const doc = result.document
       setStyleDocs((prev) => [doc, ...prev])
       setSelectedStyleIds((prev) =>
         prev.includes(doc.id) ? prev : [doc.id, ...prev]
       )
+      const summary = `已完成 ${result.successful_batches}/${result.total_batches} 个批次，保留 ${doc.curated_segments ?? 0} 个片段。`
+      if (result.warnings.length > 0 || result.failed_batches > 0) {
+        setStyleUploadNotice(
+          `${summary} 存在部分批次失败，但系统已用成功批次完成构建。`
+        )
+      } else {
+        setStyleUploadNotice(summary)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "上传失败"
       setStyleError(message)
@@ -737,6 +846,71 @@ export function WritingWorkspace() {
                 <Sparkles className="h-3 w-3 mr-1.5" /> 全文扩写
               </Button>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handlePreviewReferences("polish")}
+                disabled={isPreviewLoading || selectedStyleIds.length === 0}
+                className="h-8 text-xs"
+              >
+                预览润色参考
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handlePreviewReferences("expand")}
+                disabled={isPreviewLoading || selectedStyleIds.length === 0}
+                className="h-8 text-xs"
+              >
+                预览扩写参考
+              </Button>
+            </div>
+            {stylePreview ? (
+              <div className="rounded-md border border-border/60 bg-background/70 p-3 space-y-3">
+                <div className="space-y-1">
+                  <div className="text-[11px] font-medium text-foreground">
+                    本次优先参考
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {stylePreview.preferred_focuses.length > 0
+                      ? stylePreview.preferred_focuses.join(" / ")
+                      : "通用型"}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {stylePreview.references.length > 0 ? (
+                    stylePreview.references.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-md border border-border/50 bg-muted/20 p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 text-[11px] font-medium text-foreground line-clamp-1">
+                            {item.title}
+                          </div>
+                          <div className="shrink-0 text-[10px] text-muted-foreground">
+                            {item.score.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="mt-1 text-[10px] text-muted-foreground">
+                          {[item.focus, ...(item.techniques || [])]
+                            .filter(Boolean)
+                            .join(" | ") || "通用型"}
+                        </div>
+                        <div className="mt-1 text-[11px] leading-relaxed text-foreground/85 line-clamp-4">
+                          {item.content}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[11px] text-muted-foreground">
+                      当前没有召回到合适的参考片段。
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 rounded-lg border border-border/60 bg-background/60 p-4 space-y-3">
@@ -744,7 +918,7 @@ export function WritingWorkspace() {
               <div>
                 <h3 className="text-sm font-medium text-foreground">仿写文笔知识库</h3>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  导入其他小说文本，AI 润色时会进行 RAG 检索并参考语感。
+                  导入小说后会先分批交给 AI 清洗，再用清洗结果构建更适合风格学习的 RAG。
                 </p>
               </div>
               <Button
@@ -754,7 +928,7 @@ export function WritingWorkspace() {
                 disabled={isStyleUploading}
                 onClick={() => styleFileRef.current?.click()}
               >
-                {isStyleUploading ? "上传中..." : "导入 TXT"}
+                {isStyleUploading ? "处理中..." : "导入小说"}
               </Button>
               <input
                 ref={styleFileRef}
@@ -771,11 +945,23 @@ export function WritingWorkspace() {
               </div>
             ) : null}
 
+            {styleUploadNotice ? (
+              <div className="rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+                {styleUploadNotice}
+              </div>
+            ) : null}
+
+            {isStyleUploading ? (
+              <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
+                正在处理：{styleUploadStage}
+              </div>
+            ) : null}
+
             {isStyleLoading ? (
               <div className="text-xs text-muted-foreground">加载中...</div>
             ) : styleDocs.length === 0 ? (
               <div className="text-xs text-muted-foreground">
-                暂无文笔素材，先导入一份 TXT/MD 文本。
+                暂无文笔素材，先导入一份 TXT/MD 小说文本。
               </div>
             ) : (
               <div className="space-y-2">
@@ -810,7 +996,7 @@ export function WritingWorkspace() {
                             </div>
                           )}
                           <div className="text-[10px] text-muted-foreground">
-                            {doc.content?.length ?? 0} 字
+                            {formatCuratedStats(doc)}
                           </div>
                         </div>
                       </div>
@@ -970,7 +1156,7 @@ export function WritingWorkspace() {
           <DialogHeader>
             <DialogTitle>文笔素材预览</DialogTitle>
             <DialogDescription>
-              {previewDoc?.title || "未命名风格"}
+              {previewDoc ? `${previewDoc.title || "未命名风格"} · ${formatCuratedStats(previewDoc)}` : ""}
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] rounded-md border border-border/60 bg-muted/20 p-3">

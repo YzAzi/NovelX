@@ -97,7 +97,7 @@ function nodeLabel(node: CharacterGraphNode) {
 }
 
 export function CharacterGraph() {
-  const { currentProject, graphUpdateVersion } = useProjectStore()
+  const { currentProject, graphUpdateVersion, loadProject } = useProjectStore()
   const [graphData, setGraphData] = useState<CharacterGraphResponse>({
     nodes: [],
     links: [],
@@ -298,11 +298,13 @@ export function CharacterGraph() {
       },
     }
     await updateGraphEntity(currentProject.id, selectedCharacter.id, payload)
+    await loadProject(currentProject.id)
     await loadGraph()
     setEditMode(false)
   }, [
     characterDraft,
     currentProject?.id,
+    loadProject,
     loadGraph,
     selectedCharacter,
   ])
@@ -321,9 +323,10 @@ export function CharacterGraph() {
       },
     }
     await createGraphEntity(currentProject.id, payload)
+    await loadProject(currentProject.id)
     await loadGraph()
     setShowAddCharacter(false)
-  }, [characterDraft, currentProject?.id, loadGraph])
+  }, [characterDraft, currentProject?.id, loadGraph, loadProject])
 
   const handleCreateRelation = useCallback(async () => {
     if (!currentProject?.id) {
@@ -336,9 +339,10 @@ export function CharacterGraph() {
       relation_name: relationDraft.relationName,
       description: relationDraft.description,
     })
+    await loadProject(currentProject.id)
     await loadGraph()
     setShowAddRelation(false)
-  }, [currentProject?.id, loadGraph, relationDraft])
+  }, [currentProject?.id, loadGraph, loadProject, relationDraft])
 
   const handleSync = useCallback(
     async (mode: "full" | "node") => {
@@ -354,12 +358,13 @@ export function CharacterGraph() {
               ? selectedChapterId
               : undefined,
         })
+        await loadProject(currentProject.id)
         await loadGraph()
       } finally {
         setSyncing(false)
       }
     },
-    [currentProject?.id, loadGraph, selectedChapterId],
+    [currentProject?.id, loadGraph, loadProject, selectedChapterId],
   )
 
   const selectChapterOptions = chapters.map((node) => ({

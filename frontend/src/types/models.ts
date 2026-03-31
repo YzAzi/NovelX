@@ -100,22 +100,18 @@ export interface GraphSyncResponse {
   sync_status?: "pending" | "completed" | "failed"
 }
 
-export interface WorldDocument {
+export interface StyleDocument {
   id: string
   project_id: string
   title: string
   category: string
   content: string
   chunks: string[]
+  source_characters?: number
+  curated_characters?: number
+  curated_segments?: number
   created_at: string
   updated_at: string
-}
-
-export interface WorldKnowledgeBase {
-  project_id: string
-  documents: WorldDocument[]
-  total_chunks: number
-  total_characters: number
 }
 
 export interface KnowledgeGraph {
@@ -132,10 +128,33 @@ export interface SearchResult {
   score: number
 }
 
+export interface StyleReferencePreview {
+  id: string
+  title: string
+  document_id?: string | null
+  focus?: string | null
+  techniques: string[]
+  content: string
+  score: number
+}
+
+export interface StyleRetrievalPreviewResponse {
+  preferred_focuses: string[]
+  references: StyleReferencePreview[]
+}
+
+export interface StyleKnowledgeUploadResponse {
+  document: StyleDocument
+  total_batches: number
+  successful_batches: number
+  failed_batches: number
+  warnings: string[]
+}
+
 export interface ProjectStatsResponse {
   total_nodes: number
   total_characters: number
-  total_knowledge_docs: number
+  total_style_docs: number
   total_words: number
   graph_entities: number
   graph_relations: number
@@ -150,7 +169,7 @@ export interface IndexSnapshot {
   description: string | null
   story_project: StoryProject
   knowledge_graph: KnowledgeGraph
-  world_documents?: WorldDocument[]
+  style_documents?: StyleDocument[]
   node_count: number
   entity_count: number
   created_at: string
@@ -213,7 +232,7 @@ export interface AnalysisHistoryRequest {
 export interface ProjectExportData {
   project: StoryProject
   knowledge_graph: KnowledgeGraph
-  world_documents: WorldDocument[]
+  style_documents: StyleDocument[]
   snapshots: IndexSnapshot[]
 }
 
@@ -257,8 +276,6 @@ export interface WritingAssistantRequest {
   stream?: boolean
   style_document_ids?: string[]
 }
-
-export type StyleDocument = WorldDocument
 
 export interface StyleKnowledgeBase {
   project_id: string
