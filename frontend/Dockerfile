@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
@@ -7,6 +7,14 @@ RUN corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 
 RUN pnpm install --frozen-lockfile
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+RUN corepack enable
+
+COPY --from=deps /app/node_modules /app/node_modules
 
 COPY frontend ./
 
@@ -19,17 +27,18 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    PORT=3000
 
-RUN corepack enable
+RUN addgroup -S nodejs \
+  && adduser -S nextjs -G nodejs
 
-COPY --from=builder /app/.next /app/.next
 COPY --from=builder /app/public /app/public
-COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
-COPY --from=builder /app/next.config.ts /app/next.config.ts
-COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/.next/standalone /app/
+COPY --from=builder /app/.next/static /app/.next/static
+
+USER nextjs
 
 EXPOSE 3000
 
-CMD ["pnpm", "start", "-p", "3000"]
+CMD ["node", "server.js"]

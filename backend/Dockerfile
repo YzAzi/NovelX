@@ -1,6 +1,10 @@
 FROM python:3.12-slim
 
-ENV POETRY_VERSION=1.8.3
+ENV POETRY_VERSION=1.8.3 \
+    POETRY_NO_INTERACTION=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
@@ -9,7 +13,7 @@ RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 COPY backend/pyproject.toml backend/poetry.lock* /app/
 
 RUN poetry config virtualenvs.create false \
-  && poetry install --no-interaction --no-ansi --no-root
+  && poetry install --only main --no-ansi --no-root
 
 COPY backend /app
 

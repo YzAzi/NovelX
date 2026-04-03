@@ -10,6 +10,12 @@ services:
     environment:
       CHROMA_PERSIST_PATH: /app/data/chroma_db
       EMBEDDING_MODEL: /app/models/paraphrase-multilingual-MiniLM-L12-v2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     volumes:
       - ./backend/data:/app/data
       - ./backend/models:/app/models
@@ -20,13 +26,12 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8000
-        INTERNAL_API_URL: http://backend:8000
     ports:
       - "3000:3000"
     env_file:
       - .env
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
-      INTERNAL_API_URL: http://backend:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
