@@ -197,7 +197,7 @@ class GraphEditor:
                 raise ValueError("Relation not found")
             
             if "relation_type" in updates:
-                relation.relation_type = updates["relation_type"]
+                relation.relation_type = normalize_relation_type(updates["relation_type"])
             if "relation_name" in updates:
                 relation.relation_name = updates["relation_name"]
             if "description" in updates:

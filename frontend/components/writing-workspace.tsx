@@ -102,20 +102,28 @@ export function WritingWorkspace() {
 
   const PRESET_INSTRUCTIONS: Record<string, { polish: string; expand: string }> = {
     default: {
-      polish: "请润色这段文本，使其描写更生动，沉浸感更强。保持原意不变。",
-      expand: "请在保持原意的基础上扩写这段文本，使情节更丰富、描写更细腻。",
+      polish:
+        "请做克制润色：保持剧情事实、人称、时态和语气不变。优先删掉套话，理顺句子，补足必要动作与感官细节，不要刻意拔高文风，不要写成明显的 AI 文学腔。",
+      expand:
+        "请做自然扩写：只沿当前段落补足必要的动作、环境、心理或对话反应，不新增重大剧情，不提前解释伏笔，不要为了显得有文采而堆砌修辞。",
     },
     warm: {
-      polish: "请用温柔细腻的笔触润色这段文本，强化人物情绪与氛围。",
-      expand: "请以温柔细腻的笔触扩写这段文本，补充感受与细节描写。",
+      polish:
+        "请用温柔细腻但克制的方式润色这段文本。重点放在人物感受、动作停顿和场景温度，不要堆叠抒情句，不要写成空泛鸡汤。",
+      expand:
+        "请用温柔细腻但不过分抒情的方式扩写这段文本，补足人物反应与场景细节，保持自然，不要把情绪说满。",
     },
     noir: {
-      polish: "请用冷峻硬派的风格润色这段文本，节奏干净利落。",
-      expand: "请以冷峻硬派的风格扩写这段文本，突出张力与冲突。",
+      polish:
+        "请用冷峻硬派的方式润色这段文本。句子要干净，动作要利落，少空话，少形容词，避免煽情和解释。",
+      expand:
+        "请用冷峻硬派的方式扩写这段文本，补足动作、压迫感和冲突张力，但不要无端变得中二或口号化。",
     },
     poetic: {
-      polish: "请用诗性抒情的风格润色这段文本，注重意象与节奏。",
-      expand: "请以诗性抒情的风格扩写这段文本，丰富意象与内心独白。",
+      polish:
+        "请用节制的诗性语言润色这段文本，允许有意象和节奏变化，但必须服务当前场景，不要连续堆砌比喻，不要写成悬浮散文。",
+      expand:
+        "请用节制的诗性语言扩写这段文本，补足意象、呼吸感和内心波动，但不要脱离情节现场，不要把句子全部拉长。",
     },
   }
 
@@ -277,10 +285,19 @@ export function WritingWorkspace() {
     const instruction = base || fallback || PRESET_INSTRUCTIONS.default[mode]
     const presetText =
       configForm.style_preset && configForm.style_preset !== "custom"
-        ? `参考风格：${presetLabel}`
+        ? `目标语感：${presetLabel}`
         : ""
-    const strengthText = `风格强度：${strengthLabel}`
-    return [instruction, presetText, strengthText].filter(Boolean).join("\n")
+    const strengthText =
+      configForm.style_strength === "high"
+        ? "改写幅度：可以明显调整句式和节奏，但不要改变剧情事实，不要整段换成统一腔调。"
+        : configForm.style_strength === "low"
+          ? "改写幅度：尽量少改，能不重写就不重写，以局部修顺为主。"
+          : "改写幅度：允许调整句序和措辞，但保留原段落的大体质感。"
+    const outputRules = [
+      "输出要求：只返回正文，不要解释、总结、标题、分点或括号说明。",
+      "避免常见 AI 痕迹：不要空泛抒情，不要堆砌比喻，不要频繁使用套板表达。",
+    ]
+    return [instruction, presetText, strengthText, ...outputRules].filter(Boolean).join("\n")
   }
 
   const handleAssist = async (
@@ -1086,7 +1103,7 @@ export function WritingWorkspace() {
               <Textarea 
                 value={configForm.prompt || ""} 
                 onChange={e => setConfigForm(prev => ({ ...prev, prompt: e.target.value }))}
-                placeholder="例如：你是一个资深小说编辑，请优化这段文字的描写..."
+                placeholder="例如：你是中文长篇小说编辑。保持人称、时态、语气与情节事实不变，只输出处理后的正文，避免套板 AI 腔。"
                 className="h-20 text-xs"
               />
             </div>
@@ -1095,7 +1112,7 @@ export function WritingWorkspace() {
               <Textarea 
                 value={configForm.polish_instruction || ""} 
                 onChange={e => setConfigForm(prev => ({ ...prev, polish_instruction: e.target.value }))}
-                placeholder="例如：请润色这段文本，使其描写更生动..."
+                placeholder="例如：做克制润色，删套话、顺句子、补必要动作与感官细节，不要拔高文风。"
                 className="h-20 text-xs"
               />
             </div>
@@ -1104,7 +1121,7 @@ export function WritingWorkspace() {
               <Textarea 
                 value={configForm.expand_instruction || ""} 
                 onChange={e => setConfigForm(prev => ({ ...prev, expand_instruction: e.target.value }))}
-                placeholder="例如：请在保持原意的基础上扩写..."
+                placeholder="例如：只沿当前段落自然扩写，补足动作、环境、心理或对话反应，不新增重大剧情。"
                 className="h-20 text-xs"
               />
             </div>

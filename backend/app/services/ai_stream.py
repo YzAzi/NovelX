@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import HTTPException, status
 from fastapi.responses import StreamingResponse
 from langchain.prompts import PromptTemplate
@@ -21,6 +23,12 @@ from ..knowledge_graph import load_graph
 from ..models import OutlineAnalysisRequest, StoryNode, WritingAssistantRequest
 from ..node_indexer import NodeIndexer
 from ..runtime import conflict_detector
+
+WRITING_ASSISTANT_SYSTEM_PROMPT = (
+    Path(__file__).resolve().parent.parent
+    / "prompts"
+    / "writing_assistant_system_prompt.txt"
+).read_text(encoding="utf-8")
 
 
 def _build_streaming_response(event_stream) -> StreamingResponse:
@@ -160,7 +168,7 @@ async def writing_assistant_stream_response(
     )
     system_prompt = (
         config.prompt
-        or "You are a professional novel editor. Polish the text to be more immersive and vivid."
+        or WRITING_ASSISTANT_SYSTEM_PROMPT
     )
     guardrails = conflict_detector.build_generation_guardrails(project, graph, payload.text)
     existing_conflicts = await conflict_detector.detect_conflicts(

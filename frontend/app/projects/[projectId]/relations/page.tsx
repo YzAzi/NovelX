@@ -15,20 +15,28 @@ export default function ProjectRelationsPage() {
 
   return (
     <ProjectRouteGuard projectId={projectId}>
-      <div className="flex min-h-screen flex-col bg-background">
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/">返回大纲</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href={`/projects/${projectId}/writing`}>写作</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href={`/analysis/${projectId}`}>分析</Link>
-          </Button>
-        </div>
-        <div className="flex-1 px-4 py-4">
-          <CharacterGraph />
+      <div className="min-h-screen bg-[linear-gradient(180deg,#fbf7f1_0%,#f4eee5_45%,#efe5d8_100%)]">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col px-4 pb-6 pt-4 md:px-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[28px] border border-black/5 bg-white/65 px-4 py-3 shadow-[0_18px_48px_rgba(38,24,14,0.08)] backdrop-blur-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/">返回大纲</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href={`/projects/${projectId}/writing`}>写作</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href={`/analysis/${projectId}`}>分析</Link>
+              </Button>
+            </div>
+            <p className="text-sm text-slate-600">
+              关系页支持章节筛选、主图搜索联动和角色档案编辑
+            </p>
+          </div>
+
+          <div className="flex-1">
+            <CharacterGraph />
+          </div>
         </div>
       </div>
     </ProjectRouteGuard>
