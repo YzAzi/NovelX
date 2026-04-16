@@ -5,9 +5,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .request_context import get_current_user_id
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_ENV_FILE = REPO_ROOT / ".env"
+FALLBACK_ENV_FILE = BACKEND_ROOT / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=str(DEFAULT_ENV_FILE if DEFAULT_ENV_FILE.exists() else FALLBACK_ENV_FILE),
+        env_file_encoding="utf-8",
+    )
     openai_api_key: str | None = None
     openai_api_key_drafting: str | None = None
     openai_api_key_sync: str | None = None

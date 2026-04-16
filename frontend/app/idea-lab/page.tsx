@@ -66,6 +66,7 @@ export default function IdeaLabPage() {
 
   const wsRef = useRef<WebSocketClient | null>(null)
   const outlineProgressUnsubRef = useRef<(() => void) | null>(null)
+  const stageRequestLockRef = useRef(false)
 
   const activeStage = IDEA_STAGES[activeStageIndex]
   const activeResponse = stageResults[activeStage] ?? null
@@ -103,6 +104,7 @@ export default function IdeaLabPage() {
       }).filter((item): item is { stage: IdeaLabStage; label: string; option: IdeaLabStageOption } => Boolean(item?.option)),
     [selectedIndices, stageResults],
   )
+  const canStartIdeaLab = Boolean(seedInput.trim() || worldView.trim())
 
   useEffect(() => {
     let cancelled = false
@@ -166,6 +168,10 @@ export default function IdeaLabPage() {
   }
 
   const requestStage = async (stage: IdeaLabStage, selectedOption?: IdeaLabStageOption | null) => {
+    if (stageRequestLockRef.current) {
+      return
+    }
+    stageRequestLockRef.current = true
     setIsGeneratingStage(true)
     setStageError(null)
     try {
@@ -189,11 +195,19 @@ export default function IdeaLabPage() {
     } catch (error) {
       setStageError(formatUserErrorMessage(error, "生成阶段方案失败，请稍后重试。"))
     } finally {
+      stageRequestLockRef.current = false
       setIsGeneratingStage(false)
     }
   }
 
   const handleStart = async () => {
+    if (stageRequestLockRef.current || isCreatingProject) {
+      return
+    }
+    if (!canStartIdeaLab) {
+      setStageError("请先填写一个创意起点或世界观，再开始第一步。")
+      return
+    }
     setActiveStageIndex(0)
     setStageError(null)
     setStageFeedback("")
@@ -402,7 +416,7 @@ export default function IdeaLabPage() {
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <Button
                   onClick={handleStart}
-                  disabled={isGeneratingStage || isCreatingProject}
+                  disabled={isGeneratingStage || isCreatingProject || !canStartIdeaLab}
                   className="rounded-xl"
                 >
                   {isGeneratingStage && !activeResponse ? "启动中..." : "开始第一步"}
@@ -410,6 +424,11 @@ export default function IdeaLabPage() {
                 <Button asChild variant="outline" className="rounded-xl">
                   <Link href="/">返回工作台</Link>
                 </Button>
+                {!canStartIdeaLab ? (
+                  <div className="text-sm text-muted-foreground">
+                    先填写一个创意起点或世界观后再开始。
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -452,6 +471,12 @@ export default function IdeaLabPage() {
             </div>
 
             <div className="px-4 py-4 sm:px-6 sm:py-6">
+              {stageError ? (
+                <div className="mb-5 rounded-[24px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                  {stageError}
+                </div>
+              ) : null}
+
               {activeResponse ? (
                 <div className="space-y-5">
                   <div className="rounded-[28px] border border-border/60 bg-background/55 px-4 py-4">
@@ -542,12 +567,6 @@ export default function IdeaLabPage() {
                       )
                     })}
                   </div>
-
-                  {stageError ? (
-                    <div className="rounded-[24px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                      {stageError}
-                    </div>
-                  ) : null}
 
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
                     <div className="text-sm text-muted-foreground">

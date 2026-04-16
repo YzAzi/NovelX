@@ -104,7 +104,7 @@ async def generate_story_directions(
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OPENAI_API_KEY is not configured",
+            detail="未配置 AI 服务密钥，请先在设置中填写默认模型或大纲模型的 API Key。",
         )
 
     schema = pydantic_to_openai_function_inline(StoryDirectionResponse)
@@ -213,7 +213,7 @@ async def generate_idea_lab_stage(
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OPENAI_API_KEY is not configured",
+            detail="未配置 AI 服务密钥，请先在设置中填写默认模型或大纲模型的 API Key。",
         )
 
     schema = pydantic_to_openai_function_inline(IdeaLabStageResponse)
