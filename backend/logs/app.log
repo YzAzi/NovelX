@@ -28,3 +28,241 @@
 2026-04-16 13:48:45,377 INFO app.main GET /api/projects 8.49ms
 2026-04-16 13:48:45,403 INFO app.main GET /api/models 3.14ms
 2026-04-16 13:48:45,446 INFO app.main GET /api/projects 3.79ms
+2026-04-16 14:16:30,866 INFO app.main GET /api/auth/me 8.35ms
+2026-04-16 14:16:30,922 INFO app.main GET /api/projects 5.25ms
+2026-04-16 14:16:30,951 INFO app.main GET /api/models 3.28ms
+2026-04-16 14:16:30,987 INFO app.main GET /api/projects 3.76ms
+2026-04-16 14:16:41,908 INFO app.main GET /api/projects 4.54ms
+2026-04-16 14:16:53,261 INFO app.main GET /api/projects 3.38ms
+2026-04-16 14:16:59,782 INFO app.main GET /api/auth/me 3.84ms
+2026-04-16 14:16:59,800 INFO app.main GET /api/projects 3.60ms
+2026-04-16 14:21:47,979 INFO app.main GET /api/auth/me 0.45ms
+2026-04-16 14:21:56,241 INFO app.main POST /api/auth/login 63.28ms
+2026-04-16 14:21:56,332 INFO app.main GET /api/projects 3.57ms
+2026-04-16 14:21:56,426 INFO app.main GET /api/projects 3.69ms
+2026-04-16 14:21:56,615 INFO app.main GET /api/models 2.53ms
+2026-04-16 14:22:08,961 INFO app.main GET /api/auth/me 3.47ms
+2026-04-16 14:22:09,026 INFO app.main GET /api/projects 3.23ms
+2026-04-16 14:22:15,241 INFO app.main GET /api/auth/me 3.10ms
+2026-04-16 14:22:15,306 INFO app.main GET /api/projects 3.15ms
+2026-04-16 14:22:15,350 INFO app.main GET /api/models 2.53ms
+2026-04-16 14:22:15,406 INFO app.main GET /api/projects 3.68ms
+2026-04-16 14:22:19,887 INFO app.main GET /api/projects/project_lingmai_town_001 9.40ms
+2026-04-16 14:22:23,163 INFO app.main GET /api/projects/project_lingmai_town_001 3.70ms
+2026-04-16 14:22:25,681 INFO app.main GET /api/projects/project_lingmai_town_001 3.75ms
+2026-04-16 14:22:26,301 INFO app.main GET /api/projects/project_lingmai_town_001 4.00ms
+2026-04-16 14:22:26,901 INFO app.main GET /api/projects/project_lingmai_town_001 3.70ms
+2026-04-16 14:22:27,324 INFO app.main GET /api/projects/project_lingmai_town_001 3.84ms
+2026-04-16 14:22:27,520 INFO app.main GET /api/projects/project_lingmai_town_001 3.64ms
+2026-04-16 14:22:27,704 INFO app.main GET /api/projects/project_lingmai_town_001 3.88ms
+2026-04-16 14:22:27,820 INFO app.main GET /api/projects/project_lingmai_town_001 3.72ms
+2026-04-16 14:22:27,967 INFO app.main GET /api/projects/project_lingmai_town_001 4.03ms
+2026-04-16 14:22:28,141 INFO app.main GET /api/projects/project_lingmai_town_001 4.09ms
+2026-04-16 14:22:28,301 INFO app.main GET /api/projects/project_lingmai_town_001 3.87ms
+2026-04-16 14:22:32,109 INFO app.main GET /api/style_libraries 5.82ms
+2026-04-16 14:22:32,114 ERROR app.main Unhandled error on GET /api/projects/project_lingmai_town_001/style_knowledge
+  + Exception Group Traceback (most recent call last):
+  |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+  |     yield
+  |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 190, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/anyio/_backends/_asyncio.py", line 799, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 189, in __call__
+    |     with collapse_excgroups():
+    |   File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 93, in collapse_excgroups
+    |     raise exc
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/app/main.py", line 151, in request_logging_middleware
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 165, in call_next
+    |     raise app_exc
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 151, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 189, in __call__
+    |     with collapse_excgroups():
+    |   File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 93, in collapse_excgroups
+    |     raise exc
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/app/main.py", line 143, in auth_middleware
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 165, in call_next
+    |     raise app_exc
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 151, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 65, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 756, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 776, in app
+    |     await route.handle(scope, receive, send)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 297, in handle
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 77, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 72, in app
+    |     response = await func(request)
+    |                ^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 278, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 191, in run_endpoint_function
+    |     return await dependant.call(**values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/app/routers/style.py", line 30, in get_style_knowledge_base
+    |     return await style_knowledge_manager.get_knowledge_base(project_id)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 419, in get_knowledge_base
+    |     documents = _load_project_documents(project_id)
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 100, in _load_project_documents
+    |     return _load_documents(_project_file(project_id))
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 84, in _load_documents
+    |     with _file_lock(path):
+    |   File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/contextlib.py", line 137, in __enter__
+    |     return next(self.gen)
+    |            ^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 75, in _file_lock
+    |     with lock_path.open("a", encoding="utf-8") as handle:
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/pathlib.py", line 1044, in open
+    |     return io.open(self, mode, buffering, encoding, errors, newline)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | PermissionError: [Errno 13] Permission denied: '/home/ubuntu/novel/backend/data/style_knowledge/project_lingmai_town_001-f9a970933740d213.json.lock'
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 189, in __call__
+    with collapse_excgroups():
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 93, in collapse_excgroups
+    raise exc
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/app/main.py", line 151, in request_logging_middleware
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 165, in call_next
+    raise app_exc
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 189, in __call__
+    with collapse_excgroups():
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 93, in collapse_excgroups
+    raise exc
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/app/main.py", line 143, in auth_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 165, in call_next
+    raise app_exc
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/starlette/routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/app/routers/style.py", line 30, in get_style_knowledge_base
+    return await style_knowledge_manager.get_knowledge_base(project_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 419, in get_knowledge_base
+    documents = _load_project_documents(project_id)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 100, in _load_project_documents
+    return _load_documents(_project_file(project_id))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 84, in _load_documents
+    with _file_lock(path):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "/home/ubuntu/novel/backend/app/style_knowledge.py", line 75, in _file_lock
+    with lock_path.open("a", encoding="utf-8") as handle:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/pathlib.py", line 1044, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/home/ubuntu/novel/backend/data/style_knowledge/project_lingmai_town_001-f9a970933740d213.json.lock'
+2026-04-16 14:22:49,516 INFO app.main GET /api/auth/me 3.29ms
+2026-04-16 14:22:49,596 INFO app.main GET /api/projects 3.36ms
+2026-04-16 14:22:49,646 INFO app.main GET /api/models 2.43ms
+2026-04-16 14:22:49,707 INFO app.main GET /api/projects 3.33ms
+2026-04-16 14:22:54,211 INFO app.main GET /api/auth/me 3.30ms
+2026-04-16 14:22:54,276 INFO app.main GET /api/projects 3.22ms
+2026-04-16 14:22:56,852 INFO app.main GET /api/auth/me 3.51ms
+2026-04-16 14:22:56,927 INFO app.main GET /api/projects 3.48ms
+2026-04-16 14:22:56,976 INFO app.main GET /api/models 2.72ms
+2026-04-16 14:22:57,037 INFO app.main GET /api/projects 3.54ms
+2026-04-16 14:34:19,084 INFO app.main GET /api/auth/me 0.44ms
+2026-04-16 14:34:36,658 INFO app.main GET /api/auth/me 0.41ms
+2026-04-16 14:34:49,635 INFO app.main GET /api/auth/me 0.55ms
+2026-04-16 14:35:14,427 INFO app.main GET /api/auth/me 0.43ms
+2026-04-16 14:36:45,080 INFO app.main GET /api/auth/me 3.14ms
+2026-04-16 14:36:45,380 INFO app.main GET /api/projects 3.43ms
+2026-04-16 14:36:45,450 INFO app.main GET /api/models 2.77ms
+2026-04-16 14:36:45,550 INFO app.main GET /api/projects 3.21ms
+2026-04-16 14:37:26,119 INFO app.main GET /api/auth/me 0.42ms
+2026-04-16 14:37:39,023 INFO app.main GET /api/auth/me 0.41ms
+2026-04-16 14:37:41,934 INFO app.main GET /api/auth/me 0.41ms
+2026-04-16 14:37:48,100 INFO app.main GET /api/auth/me 0.42ms
