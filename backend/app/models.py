@@ -3,13 +3,15 @@ from __future__ import annotations
 import ast
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .knowledge_graph import KnowledgeGraph
 from .style_knowledge import StyleDocument
+
+CHARACTER_BIO_MAX_LENGTH = 300
 
 
 def normalize_maybe_json_list(value: Any) -> Any:
@@ -126,9 +128,10 @@ class CharacterProfile(BaseModel):
     @field_validator("bio")
     @classmethod
     def bio_length_limit(cls, value: str) -> str:
-        if len(value) > 100:
-            raise ValueError("bio must be within 100 characters")
-        return value
+        trimmed = value.strip()
+        if len(trimmed) > CHARACTER_BIO_MAX_LENGTH:
+            return trimmed[:CHARACTER_BIO_MAX_LENGTH]
+        return trimmed
 
 
 class WriterConfig(BaseModel):
@@ -208,6 +211,35 @@ class StoryProject(BaseModel):
         return normalize_maybe_json_list(value)
 
 
+class StyleLibrary(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    owner_id: str | None = None
+    name: str
+    description: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_library_name(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Library name cannot be empty")
+        return trimmed
+
+    @field_validator("description")
+    @classmethod
+    def normalize_library_description(cls, value: str) -> str:
+        return value.strip()
+
+
+class StyleLibraryBundle(BaseModel):
+    library: StyleLibrary
+    documents: list[StyleDocument] = Field(default_factory=list)
+    total_chunks: int = 0
+    total_characters: int = 0
+
+
 class CreateOutlineRequest(BaseModel):
     world_view: str
     style_tags: list[str] = Field(default_factory=list)
@@ -244,6 +276,90 @@ class CreateOutlineRequest(BaseModel):
             trimmed = value.strip()
             return trimmed or None
         return value
+
+
+class StoryDirectionRequest(BaseModel):
+    user_input: str | None = None
+    world_view: str | None = None
+    style_tags: list[str] = Field(default_factory=list)
+    base_project_id: str | None = None
+
+    @field_validator("style_tags", mode="before")
+    @classmethod
+    def normalize_story_direction_style_tags(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [tag.strip() for tag in value.split(",") if tag.strip()]
+        return value
+
+
+class StoryDirectionOption(BaseModel):
+    title: str
+    logline: str
+    world_view: str
+    style_tags: list[str] = Field(default_factory=list)
+    initial_prompt: str
+
+    @field_validator("style_tags", mode="before")
+    @classmethod
+    def normalize_story_direction_option_tags(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [tag.strip() for tag in value.split(",") if tag.strip()]
+        return value
+
+
+class StoryDirectionResponse(BaseModel):
+    directions: list[StoryDirectionOption]
+
+
+class IdeaLabStageOption(BaseModel):
+    project_title: str
+    hook: str
+    premise: str
+    protagonist: str
+    conflict: str
+    world_view: str
+    style_tags: list[str] = Field(default_factory=list)
+    initial_prompt: str
+
+    @field_validator("style_tags", mode="before")
+    @classmethod
+    def normalize_idea_lab_option_tags(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [tag.strip() for tag in value.split(",") if tag.strip()]
+        return value
+
+
+class IdeaLabStageRequest(BaseModel):
+    stage: Literal["concept", "protagonist", "conflict", "outline"]
+    seed_input: str | None = None
+    world_view: str | None = None
+    style_tags: list[str] = Field(default_factory=list)
+    base_project_id: str | None = None
+    feedback: str | None = None
+    selected_option: IdeaLabStageOption | None = None
+
+    @field_validator("style_tags", mode="before")
+    @classmethod
+    def normalize_idea_lab_request_tags(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [tag.strip() for tag in value.split(",") if tag.strip()]
+        return value
+
+
+class IdeaLabStageResponse(BaseModel):
+    stage: Literal["concept", "protagonist", "conflict", "outline"]
+    stage_title: str
+    stage_instruction: str
+    is_final_stage: bool = False
+    options: list[IdeaLabStageOption]
 
 
 class CreateEmptyProjectRequest(BaseModel):
@@ -442,8 +558,24 @@ class StyleKnowledgeUploadResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class StyleKnowledgeImportResponse(BaseModel):
+    documents: list[StyleDocument] = Field(default_factory=list)
+    imported_count: int = 0
+    warnings: list[str] = Field(default_factory=list)
+
+
 class StyleKnowledgeUpdateRequest(BaseModel):
     title: str
+
+
+class StyleLibraryCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+
+
+class StyleLibraryUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -576,12 +708,27 @@ class AuthLoginRequest(BaseModel):
 class AuthUserResponse(BaseModel):
     id: str
     username: str
+    created_at: datetime | None = None
 
 
 class AuthTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: AuthUserResponse
+
+
+class AuthOutlineChannelResponse(BaseModel):
+    request_id: str
+    channel_token: str
+
+
+class AuthUpdateProfileRequest(BaseModel):
+    username: str
+
+
+class AuthChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class CharacterAppearance(BaseModel):

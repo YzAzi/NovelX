@@ -29,6 +29,7 @@ class UserTable(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     username: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
 
@@ -46,3 +47,14 @@ class VersionIndex(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     file_path: Mapped[str] = mapped_column(String, nullable=False)
     is_compressed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class StyleLibraryTable(Base):
+    __tablename__ = "style_libraries"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

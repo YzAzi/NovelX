@@ -19,18 +19,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from langchain.prompts import PromptTemplate
 
 from .analysis_history import append_messages, load_history
-from .auth import decode_access_token, parse_bearer_token
+from .auth import authenticate_access_token, parse_bearer_token
 from .config import settings
 from .conflict_detector import SyncNodeResponse
-from .database import get_session, init_db
+from .database import AsyncSessionLocal, get_session, init_db
 from .helpers import get_project_or_404
 from .models import (
     AnalysisHistoryRequest,
     AnalysisHistoryResponse,
     CreateOutlineRequest,
+    IdeaLabStageRequest,
+    IdeaLabStageResponse,
     InsertNodeRequest,
     OutlineAnalysisRequest,
     OutlineImportRequest,
+    StoryDirectionRequest,
+    StoryDirectionResponse,
     StoryProject,
     SyncNodeRequest,
     WritingAssistantRequest,
@@ -40,6 +44,7 @@ from .routers.auth import router as auth_router
 from .routers.graph import router as graph_router
 from .routers.projects import router as projects_router
 from .routers.style import router as style_router
+from .routers.style_libraries import router as style_libraries_router
 from .routers.system import router as system_router
 from .routers.versions import router as versions_router
 from .services.ai_stream import (
@@ -47,7 +52,12 @@ from .services.ai_stream import (
     writing_assistant_stream_response,
 )
 from .services.node_sync import insert_node_request, sync_node_request
-from .services.outline import create_outline_project, import_outline_into_project
+from .services.outline import (
+    create_outline_project,
+    generate_idea_lab_stage,
+    generate_story_directions,
+    import_outline_into_project,
+)
 from .services.ws import (
     outline_progress_websocket_channel,
     project_websocket,
@@ -62,6 +72,14 @@ OUTLINE_IMPORT_PROMPT_PATH = Path(__file__).parent / "prompts" / "outline_import
 OUTLINE_IMPORT_PROMPT_TEMPLATE = PromptTemplate.from_template(
     OUTLINE_IMPORT_PROMPT_PATH.read_text(encoding="utf-8")
 )
+STORY_DIRECTION_PROMPT_PATH = Path(__file__).parent / "prompts" / "story_direction_prompt.txt"
+STORY_DIRECTION_PROMPT_TEMPLATE = PromptTemplate.from_template(
+    STORY_DIRECTION_PROMPT_PATH.read_text(encoding="utf-8")
+)
+IDEA_LAB_STAGE_PROMPT_PATH = Path(__file__).parent / "prompts" / "idea_lab_stage_prompt.txt"
+IDEA_LAB_STAGE_PROMPT_TEMPLATE = PromptTemplate.from_template(
+    IDEA_LAB_STAGE_PROMPT_PATH.read_text(encoding="utf-8")
+)
 
 app = FastAPI(
     title="Novel Outline Service",
@@ -74,6 +92,7 @@ for router in (
     system_router,
     projects_router,
     style_router,
+    style_libraries_router,
     versions_router,
     graph_router,
 ):
@@ -97,7 +116,7 @@ async def startup() -> None:
 def _is_auth_exempt_path(path: str) -> bool:
     if path in {"/api/health", "/openapi.json", "/docs", "/redoc", "/docs/oauth2-redirect"}:
         return True
-    if path.startswith("/api/auth/"):
+    if path in {"/api/auth/register", "/api/auth/login"}:
         return True
     return False
 
@@ -111,15 +130,15 @@ async def auth_middleware(request: Request, call_next):
         return await call_next(request)
 
     token = parse_bearer_token(request.headers.get("Authorization"))
-    payload = decode_access_token(token) if token else None
-    if not payload:
+    async with AsyncSessionLocal() as session:
+        user = await authenticate_access_token(session, token)
+    if user is None:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"error": "Unauthorized", "detail": "Invalid or missing access token"},
         )
 
-    user_id = payload["sub"]
-    context_token = set_current_user_id(user_id)
+    context_token = set_current_user_id(user.id)
     try:
         return await call_next(request)
     finally:
@@ -165,6 +184,38 @@ async def create_outline(
     session: AsyncSession = Depends(get_session),
 ):
     return await create_outline_project(payload, session)
+
+
+@app.post(
+    "/api/story_directions",
+    response_model=StoryDirectionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def story_directions(
+    payload: StoryDirectionRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    return await generate_story_directions(
+        payload=payload,
+        session=session,
+        prompt_template=STORY_DIRECTION_PROMPT_TEMPLATE,
+    )
+
+
+@app.post(
+    "/api/idea_lab/stage",
+    response_model=IdeaLabStageResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def idea_lab_stage(
+    payload: IdeaLabStageRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    return await generate_idea_lab_stage(
+        payload=payload,
+        session=session,
+        prompt_template=IDEA_LAB_STAGE_PROMPT_TEMPLATE,
+    )
 
 
 @app.post(

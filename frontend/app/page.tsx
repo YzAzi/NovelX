@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 import {
   Layout,
   PenTool,
@@ -12,27 +12,27 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle2,
-  FolderOpen,
-  PanelRightClose,
-  PanelRightOpen,
+  LogOut,
+  ArrowUpRight,
 } from "lucide-react"
 
 import { CreateDialog } from "@/components/create-dialog"
 import { ConflictAlert } from "@/components/conflict-alert"
 import { ProjectList } from "@/components/project-list"
 import { NodeEditor } from "@/components/node-editor"
-import { StoryVisualizer } from "@/components/story-visualizer"
-import { SyncIndicator } from "@/components/sync-indicator"
 import { VersionHistory } from "@/components/version-history"
 import {
   AUTH_EXPIRED_EVENT,
+  changePassword,
   clearAuthToken,
   createVersion,
   getCurrentUser,
   getModelConfig,
   loginUser,
+  logoutAllSessions,
   registerUser,
   setAuthToken,
+  updateCurrentUser,
   updateModelConfig,
   updateProjectSettings,
 } from "@/src/lib/api"
@@ -51,10 +51,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useProjectStore } from "@/src/stores/project-store"
 import { cn } from "@/lib/utils"
-import { Separator } from "@/components/ui/separator"
 import type { AuthUser, ModelConfigResponse } from "@/src/types/models"
 
-const DEFAULT_TITLE = "未命名项目"
 const OUTLINE_STEPS = [
   { key: "retrieval", title: "解析需求", detail: "整理世界观与写作风格" },
   { key: "drafting", title: "构建框架", detail: "搭建主线结构与冲突" },
@@ -62,13 +60,27 @@ const OUTLINE_STEPS = [
   { key: "graph_update", title: "润色检查", detail: "统一节奏与逻辑" },
 ]
 
+function formatHomeDate(value?: string | null) {
+  if (!value) {
+    return "刚刚"
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleDateString("zh-CN", {
+    month: "long",
+    day: "numeric",
+  })
+}
+
 export default function Home() {
   const {
     currentProject,
     isLoading,
     error,
     loadProjects,
-    saveStatus,
+    projects,
     setError,
     outlineProgressStage,
     setProject,
@@ -76,9 +88,8 @@ export default function Home() {
     setNodeEditorOpen,
     resetWorkspace,
   } = useProjectStore()
-  const [title, setTitle] = useState(DEFAULT_TITLE)
-  const [projectSidebarOpen, setProjectSidebarOpen] = useState(true)
   const [versionOpen, setVersionOpen] = useState(false)
+
   const [modelConfig, setModelConfig] = useState<{
     drafting: string
     sync: string
@@ -87,12 +98,16 @@ export default function Home() {
     hasDefaultKey: boolean
     hasDraftingKey: boolean
     hasSyncKey: boolean
-      hasExtractionKey: boolean
+    hasExtractionKey: boolean
   } | null>(null)
   const [isSavingModels, setIsSavingModels] = useState(false)
   const [outlineStepIndex, setOutlineStepIndex] = useState(0)
   const [promptDialogOpen, setPromptDialogOpen] = useState(false)
   const [isSavingPrompts, setIsSavingPrompts] = useState(false)
+  const [isSavingAccount, setIsSavingAccount] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [isLoggingOutAll, setIsLoggingOutAll] = useState(false)
+  const [accountNotice, setAccountNotice] = useState<string | null>(null)
   const [modelForm, setModelForm] = useState({
     baseUrl: "",
     defaultKey: "",
@@ -120,8 +135,12 @@ export default function Home() {
     password: "",
     confirmPassword: "",
   })
-  const router = useRouter()
-
+  const [accountForm, setAccountForm] = useState({
+    username: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
+  })
   useWebsocket(authUser ? currentProject?.id ?? null : null)
 
   const applyModelConfig = useCallback((config: ModelConfigResponse) => {
@@ -146,8 +165,11 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    setTitle(currentProject?.title ?? DEFAULT_TITLE)
-  }, [currentProject])
+    setAccountForm((prev) => ({
+      ...prev,
+      username: authUser?.username ?? "",
+    }))
+  }, [authUser?.username])
 
   useEffect(() => {
     if (!currentProject) {
@@ -281,11 +303,6 @@ export default function Home() {
     return () => window.clearInterval(interval)
   }, [isLoading, outlineProgressStage])
 
-
-  const handleTitleChange = (value: string) => {
-    setTitle(value)
-  }
-
   const handleModelFieldChange = (
     key:
       | "baseUrl"
@@ -313,6 +330,14 @@ export default function Home() {
     value: string
   ) => {
     setAuthForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleAccountFieldChange = (
+    key: "username" | "currentPassword" | "newPassword" | "confirmNewPassword",
+    value: string,
+  ) => {
+    setAccountNotice(null)
+    setAccountForm((prev) => ({ ...prev, [key]: value }))
   }
 
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -362,7 +387,81 @@ export default function Home() {
     setAuthUser(null)
     setModelConfig(null)
     setAuthError(null)
-    setTitle(DEFAULT_TITLE)
+    setAccountNotice(null)
+  }
+
+  const handleSaveAccountProfile = async () => {
+    const username = accountForm.username.trim()
+    if (username.length < 3) {
+      setAccountNotice("用户名至少需要 3 个字符")
+      return
+    }
+    setIsSavingAccount(true)
+    try {
+      const updated = await updateCurrentUser({ username })
+      setAuthUser(updated)
+      setAccountNotice("账号信息已更新")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "更新账号失败"
+      setAccountNotice(message)
+    } finally {
+      setIsSavingAccount(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (accountForm.currentPassword.length < 6) {
+      setAccountNotice("当前密码至少需要 6 个字符")
+      return
+    }
+    if (accountForm.newPassword.length < 6) {
+      setAccountNotice("新密码至少需要 6 个字符")
+      return
+    }
+    if (accountForm.newPassword !== accountForm.confirmNewPassword) {
+      setAccountNotice("两次输入的新密码不一致")
+      return
+    }
+    setIsChangingPassword(true)
+    try {
+      const response = await changePassword({
+        current_password: accountForm.currentPassword,
+        new_password: accountForm.newPassword,
+      })
+      setAuthToken(response.access_token)
+      setAuthUser(response.user)
+      setAccountForm((prev) => ({
+        ...prev,
+        currentPassword: "",
+        newPassword: "",
+        confirmNewPassword: "",
+      }))
+      setAccountNotice("密码已更新，其他旧会话已失效")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "修改密码失败"
+      setAccountNotice(message)
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
+
+  const handleLogoutAllSessions = async () => {
+    setIsLoggingOutAll(true)
+    try {
+      await logoutAllSessions()
+      clearAuthToken()
+      resetWorkspace()
+      setAuthUser(null)
+      setModelConfig(null)
+      setPromptDialogOpen(false)
+      setAuthError("已退出全部会话，请重新登录。")
+      setAccountNotice(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "退出全部会话失败"
+      setAccountNotice(message)
+    } finally {
+      setIsLoggingOutAll(false)
+    }
   }
 
   const handleSaveModels = async () => {
@@ -426,31 +525,46 @@ export default function Home() {
       setProject(updated)
       setPromptDialogOpen(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : "保存 Prompt 失败"
+      const message = error instanceof Error ? error.message : "保存创作指令失败"
       setError(message)
     } finally {
       setIsSavingPrompts(false)
     }
   }
 
-  const openProjectRoute = (section: "writing" | "relations" | "analysis") => {
-    if (!currentProject) {
-      setError("请先选择一个项目")
-      return
-    }
-    if (section === "analysis") {
-      router.push(`/analysis/${currentProject.id}`)
-      return
-    }
-    router.push(`/projects/${currentProject.id}/${section}`)
-  }
+  const sortedProjects = useMemo(
+    () =>
+      [...projects].sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      ),
+    [projects],
+  )
+  const featuredProject = currentProject ?? sortedProjects[0] ?? null
+  const featuredProjectId = featuredProject?.id ?? null
+  const featuredProjectTitle = featuredProject?.title?.trim() || "开始你的下一部作品"
+  const featuredProjectDate = formatHomeDate(featuredProject?.updated_at)
+  const homeNavItems = [
+    { label: "快速开始", href: "#quick-start" },
+    { label: "项目空间", href: "#projects" },
+    { label: "Idea Lab", href: "/idea-lab" },
+  ]
 
   if (authChecking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
-        <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
-          <div className="text-sm font-medium">正在验证登录状态...</div>
-          <div className="mt-1 text-xs text-muted-foreground">请稍候，正在连接你的项目空间。</div>
+      <div className="app-backdrop flex min-h-screen items-center justify-center px-4 text-foreground">
+        <div className="panel-shell-strong w-full max-w-md px-6 py-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <div className="text-base font-semibold">正在连接创作空间</div>
+              <div className="text-sm text-muted-foreground">验证登录状态并同步你的项目数据</div>
+            </div>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
+          </div>
         </div>
       </div>
     )
@@ -458,392 +572,704 @@ export default function Home() {
 
   if (!authUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
-        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <Sparkles size={20} />
-            </div>
-            <div>
-              <div className="text-lg font-semibold">Novel Workspace</div>
-              <div className="text-sm text-muted-foreground">先登录，再继续创作与管理项目。</div>
-            </div>
-          </div>
+      <div className="app-backdrop relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12 text-foreground sm:px-6">
+        {/* 背景装饰光晕 - 动态且柔和 */}
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div
+            animate={{
+              scale: [1, 1.1, 1],
+              opacity: [0.3, 0.5, 0.3],
+            }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -left-[10%] -top-[10%] h-[60%] w-[60%] rounded-full bg-primary/10 blur-[120px]"
+          />
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.2, 0.4, 0.2],
+            }}
+            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            className="absolute -right-[5%] bottom-[10%] h-[50%] w-[50%] rounded-full bg-secondary/20 blur-[100px]"
+          />
+        </div>
 
-          <div className="mb-4 flex rounded-lg bg-muted p-1">
-            <button
-              type="button"
-              className={cn(
-                "flex-1 rounded-md px-3 py-2 text-sm transition-colors",
-                authMode === "login" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"
-              )}
-              onClick={() => {
-                setAuthMode("login")
-                setAuthError(null)
-              }}
-            >
-              登录
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "flex-1 rounded-md px-3 py-2 text-sm transition-colors",
-                authMode === "register" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"
-              )}
-              onClick={() => {
-                setAuthMode("register")
-                setAuthError(null)
-              }}
-            >
-              注册
-            </button>
-          </div>
+        <div className="absolute inset-0 subtle-grid opacity-[0.15] [mask-image:radial-gradient(ellipse_at_center,black,transparent)]" />
 
-          <form className="space-y-4" onSubmit={handleAuthSubmit}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">用户名</label>
-              <Input
-                value={authForm.username}
-                onChange={(event) => handleAuthFieldChange("username", event.target.value)}
-                placeholder="请输入用户名"
-                autoComplete="username"
-              />
+        <div className="relative mx-auto flex w-full max-w-[1100px] flex-col gap-8 lg:flex-row lg:items-stretch lg:gap-0">
+          {/* 左侧：品牌展示 - 更有艺术感的排版 */}
+          <section className="hidden flex-1 flex-col justify-between rounded-l-[32px] border-y border-l border-border/60 bg-background/30 p-10 backdrop-blur-md lg:flex">
+            <div className="space-y-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
+                  <Sparkles size={24} />
+                </div>
+                <span className="text-xl font-bold tracking-tight">Novel Workspace</span>
+              </div>
+
+              <div className="max-w-md space-y-6">
+                <h1 className="font-serif text-5xl font-medium leading-[1.15] text-foreground xl:text-6xl">
+                  为创作而生<br />
+                  <span className="text-primary/90">不止于写作</span>
+                </h1>
+                <p className="text-lg leading-relaxed text-muted-foreground/90">
+                  我们重新思考了长篇小说的工作流。从逻辑严密的节点大纲，到沉浸式的写作空间，一切都为了让你的灵感能走得更远。
+                </p>
+              </div>
+
+              <ul className="space-y-5">
+                {[
+                  { icon: Layout, text: "结构化创作：大纲、节点与场景的一体化管理" },
+                  { icon: PenTool, text: "AI 文笔助手：精准润色，保留你独特的文字风格" },
+                  { icon: Network, text: "关系图谱：自动提取角色网络，确保逻辑滴水不漏" },
+                ].map((item, i) => (
+                  <motion.li
+                    key={i}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 + i * 0.1 }}
+                    className="flex items-center gap-4 text-sm font-medium text-foreground/80"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <item.icon size={16} />
+                    </div>
+                    {item.text}
+                  </motion.li>
+                ))}
+              </ul>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">密码</label>
-              <Input
-                type="password"
-                value={authForm.password}
-                onChange={(event) => handleAuthFieldChange("password", event.target.value)}
-                placeholder="请输入密码"
-                autoComplete={authMode === "login" ? "current-password" : "new-password"}
-              />
+
+            <div className="mt-8 flex items-center gap-4 border-t border-border/40 pt-8">
+              <div className="flex -space-x-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-8 w-8 rounded-full border-2 border-background bg-muted shadow-sm" />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                加入数百位创作者，开启更高效的叙事旅程。
+              </p>
             </div>
-            {authMode === "register" && (
+          </section>
+
+          {/* 右侧：登录表单 - 极简且富有质感 */}
+          <section className="panel-shell-strong relative z-10 w-full overflow-hidden p-6 sm:p-10 lg:w-[460px] lg:rounded-l-none">
+            <div className="mb-10 text-center lg:text-left">
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary lg:hidden">
+                <Sparkles size={24} />
+              </div>
+              <h2 className="text-2xl font-semibold tracking-tight">
+                {authMode === "login" ? "欢迎回来" : "开始创作"}
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {authMode === "login" ? "请输入你的凭据进入工作区" : "创建一个账号，开启你的小说项目"}
+              </p>
+            </div>
+
+            <div className="mb-8 flex rounded-2xl bg-muted/50 p-1.5 backdrop-blur-sm">
+              <button
+                type="button"
+                className={cn(
+                  "relative flex-1 rounded-xl py-2.5 text-sm font-medium transition-all duration-300",
+                  authMode === "login"
+                    ? "bg-background text-foreground shadow-md"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => {
+                  setAuthMode("login")
+                  setAuthError(null)
+                }}
+              >
+                登录
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "relative flex-1 rounded-xl py-2.5 text-sm font-medium transition-all duration-300",
+                  authMode === "register"
+                    ? "bg-background text-foreground shadow-md"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => {
+                  setAuthMode("register")
+                  setAuthError(null)
+                }}
+              >
+                注册
+              </button>
+            </div>
+
+            <form className="space-y-5" onSubmit={handleAuthSubmit}>
               <div className="space-y-2">
-                <label className="text-sm font-medium">确认密码</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  用户名
+                </label>
                 <Input
-                  type="password"
-                  value={authForm.confirmPassword}
-                  onChange={(event) => handleAuthFieldChange("confirmPassword", event.target.value)}
-                  placeholder="请再次输入密码"
-                  autoComplete="new-password"
+                  value={authForm.username}
+                  onChange={(event) => handleAuthFieldChange("username", event.target.value)}
+                  placeholder="请输入用户名"
+                  className="h-12 border-border/60 bg-background/50 focus:bg-background"
                 />
               </div>
-            )}
-
-            {authError && (
-              <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {authError}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  密码
+                </label>
+                <Input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(event) => handleAuthFieldChange("password", event.target.value)}
+                  placeholder="••••••••"
+                  className="h-12 border-border/60 bg-background/50 focus:bg-background"
+                />
               </div>
-            )}
+              {authMode === "register" && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    确认密码
+                  </label>
+                  <Input
+                    type="password"
+                    value={authForm.confirmPassword}
+                    onChange={(event) => handleAuthFieldChange("confirmPassword", event.target.value)}
+                    placeholder="••••••••"
+                    className="h-12 border-border/60 bg-background/50 focus:bg-background"
+                  />
+                </div>
+              )}
 
-            <Button className="w-full" type="submit" disabled={authSubmitting}>
-              {authSubmitting ? "提交中..." : authMode === "login" ? "登录" : "注册并进入"}
-            </Button>
-          </form>
+              {authError && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+                >
+                  {authError}
+                </motion.div>
+              )}
+
+              <Button
+                className="h-12 w-full rounded-2xl bg-primary text-sm font-semibold shadow-lg shadow-primary/25 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70"
+                type="submit"
+                disabled={authSubmitting}
+              >
+                {authSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    <span>处理中...</span>
+                  </div>
+                ) : (
+                  authMode === "login" ? "立即登录" : "创建账号"
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-8 text-center text-xs text-muted-foreground/60">
+              登录即表示你同意我们的服务条款与隐私政策。
+            </div>
+          </section>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* 1. Left Navigation Sidebar */}
-      <aside className="flex w-16 flex-col items-center border-r border-border bg-muted/20 py-4 z-20">
-        <div className="mb-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <Sparkles size={20} />
-          </div>
-        </div>
-        
-        <nav className="flex flex-1 flex-col items-center gap-4 w-full px-2">
-          <NavButton 
-            active
-            onClick={() => router.push("/")} 
-            icon={<Layout size={20} />} 
-            label="大纲" 
-          />
-          <NavButton 
-            active={false}
-            onClick={() => openProjectRoute("writing")} 
-            icon={<PenTool size={20} />} 
-            label="写作" 
-          />
-          <NavButton 
-            active={false}
-            onClick={() => openProjectRoute("relations")} 
-            icon={<Network size={20} />} 
-            label="关系" 
-          />
-          
-          <Separator className="my-2 bg-border/50 w-8" />
-          
-          <Button
-            variant="ghost"
-            size="icon"
-            title="分析大纲"
-            className="text-muted-foreground hover:text-primary"
-            onClick={() => openProjectRoute("analysis")}
+    <div className="app-backdrop relative min-h-screen overflow-hidden text-foreground">
+      <div className="absolute inset-0 subtle-grid opacity-35 [mask-image:linear-gradient(180deg,rgba(0,0,0,0.95),rgba(0,0,0,0.25),transparent)]" />
+      <div className="absolute left-1/2 top-0 h-[32rem] w-[32rem] -translate-x-1/2 rounded-full bg-primary/10 blur-[150px]" />
+      <div className="absolute right-[8%] top-[26rem] h-[22rem] w-[22rem] rounded-full bg-secondary/16 blur-[130px]" />
+      <div className="relative min-h-screen px-3 pb-20 sm:px-4">
+        <header className="mx-auto w-full max-w-[1560px] pt-4 sm:pt-5">
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-[30px] border border-border/60 bg-background/72 px-3 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-xl sm:px-4"
           >
-            <Sparkles size={20} />
-          </Button>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20">
+                  <Sparkles size={18} />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate font-serif text-xl font-semibold tracking-tight">Novel Workspace</div>
+                  <div className="truncate text-xs text-muted-foreground">长篇小说创作工作台</div>
+                </div>
+              </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setVersionOpen(true)}
-            title="版本历史（Ctrl/Cmd + Shift + H）"
-            className="text-muted-foreground hover:text-primary"
-          >
-            <History size={20} />
-          </Button>
-        </nav>
-
-        <div className="mt-auto flex flex-col gap-4">
-           <div className="flex flex-col items-center gap-2 px-1">
-             <div className="w-full rounded-lg border border-border bg-background/80 px-2 py-2 text-center">
-               <div className="truncate text-xs font-medium">{authUser.username}</div>
-               <div className="text-[10px] text-muted-foreground">已登录</div>
-             </div>
-             <Button variant="outline" size="sm" className="w-full" onClick={handleLogout}>
-               退出
-             </Button>
-           </div>
-        </div>
-      </aside>
-
-      {/* 2. Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        {/* Minimal Header */}
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4">
-           <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Input
-                value={title}
-                onChange={(event) => handleTitleChange(event.target.value)}
-                className="h-8 max-w-[300px] border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-0 truncate"
-              />
-              <SyncIndicator />
-              {saveStatus !== "idle" && (
-                <span className="text-[10px] text-muted-foreground animate-fade-in">
-                  {saveStatus === "saving" ? "保存中..." : "已保存"}
-                </span>
-              )}
-           </div>
-           
-           <div className="flex items-center gap-2">
-              <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
-                <DialogTrigger asChild>
+              <nav className="hidden flex-1 items-center justify-center gap-2 lg:flex">
+                {homeNavItems.map((item) => (
                   <Button
+                    key={item.label}
+                    asChild
                     variant="ghost"
-                    size="sm"
-                    title="高级设置"
+                    className="rounded-full px-4 text-sm text-foreground/75 hover:bg-background/80 hover:text-foreground"
                   >
-                    <Settings size={16} className="mr-1.5" />
-                    高级设置
+                    <Link href={item.href}>{item.label}</Link>
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>高级设置</DialogTitle>
-                    <DialogDescription>
-                      默认创作流程只保留必要入口；模型和 Prompt 微调统一收在这里。
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-6 py-4">
-                    <div className="space-y-3 rounded-lg border border-border/60 p-4">
-                      <div className="space-y-1">
-                        <h3 className="text-sm font-medium text-foreground">模型配置</h3>
-                        <p className="text-xs text-muted-foreground">
-                          仅在需要覆盖默认模型或补充 API Key 时修改。
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">API Base URL</label>
-                        <Input
-                          value={modelForm.baseUrl}
-                          onChange={(e) => handleModelFieldChange("baseUrl", e.target.value)}
-                          placeholder="https://api.openai.com/v1"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Default API Key</label>
-                        <Input
-                          type="password"
-                          value={modelForm.defaultKey}
-                          onChange={(e) => handleModelFieldChange("defaultKey", e.target.value)}
-                          placeholder={modelConfig?.hasDefaultKey ? "已配置 (隐藏)" : "sk-..."}
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Drafting Model</label>
-                          <Input
-                            value={modelForm.drafting}
-                            onChange={(e) => handleModelFieldChange("drafting", e.target.value)}
-                            placeholder="gpt-4o"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Sync Model</label>
-                          <Input
-                            value={modelForm.sync}
-                            onChange={(e) => handleModelFieldChange("sync", e.target.value)}
-                            placeholder="gpt-4o-mini"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">Extraction Model</label>
-                          <Input
-                            value={modelForm.extraction}
-                            onChange={(e) => handleModelFieldChange("extraction", e.target.value)}
-                            placeholder="gpt-4o-mini"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                ))}
+                <Button
+                  variant="ghost"
+                  className="rounded-full px-4 text-sm text-foreground/75 hover:bg-background/80 hover:text-foreground"
+                  onClick={() => setVersionOpen(true)}
+                >
+                  版本记录
+                </Button>
+              </nav>
 
-                    <div className="space-y-2">
-                      <div className="space-y-1">
-                        <h3 className="text-sm font-medium text-foreground">项目 Prompt 微调</h3>
-                        <p className="text-xs text-muted-foreground">
-                          仅对当前项目生效。未选项目时不建议修改。
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-baseline">
-                        <label className="text-xs font-medium text-foreground">大纲生成 (Drafting)</label>
-                        <span className="text-[10px] text-muted-foreground">可用变量: {"{world_view} {style_tags} {user_input}"}</span>
-                      </div>
-                      <Textarea
-                        value={promptForm.drafting}
-                        onChange={(e) => handlePromptFieldChange("drafting", e.target.value)}
-                        rows={5}
-                        className="font-mono text-xs leading-relaxed"
-                        placeholder={`示例：
-你是一个擅长悬疑风格的小说家。请根据用户提供的核心创意 "{user_input}"，结合世界观 "{world_view}"，创作一份扣人心弦的大纲。
-风格要求：{style_tags}。
-请包含：
-1. 主要冲突
-2. 三幕式结构
-3. 核心角色动机`}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-baseline">
-                        <label className="text-xs font-medium text-foreground">同步分析 (Sync)</label>
-                        <span className="text-[10px] text-muted-foreground">可用变量: {"{modified_node} {retrieved_context}"}</span>
-                      </div>
-                      <Textarea
-                        value={promptForm.sync}
-                        onChange={(e) => handlePromptFieldChange("sync", e.target.value)}
-                        rows={5}
-                        className="font-mono text-xs leading-relaxed"
-                        placeholder={`示例：
-你是一个严谨的连载小说编辑。用户刚刚更新了章节 "{modified_node}"。
-请分析这段新内容，并更新知识库中相关的角色状态和地点信息。
-参考上下文：
-{retrieved_context}`}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-baseline">
-                        <label className="text-xs font-medium text-foreground">实体抽取 (Extraction)</label>
-                        <span className="text-[10px] text-muted-foreground">可用变量: {"{text} {existing_entities}"}</span>
-                      </div>
-                      <Textarea
-                        value={promptForm.extraction}
-                        onChange={(e) => handlePromptFieldChange("extraction", e.target.value)}
-                        rows={4}
-                        className="font-mono text-xs leading-relaxed"
-                        placeholder={`示例：
-阅读以下文本：
-"{text}"
-请从中提取所有新登场的角色、地点和关键道具。
-已知实体列表：{existing_entities}（请避免重复提取）`}
-                      />
-                    </div>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="hidden text-right xl:block">
+                  <div className="text-sm font-medium">{authUser.username}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {currentProject ? "已连接当前项目" : "准备创建新项目"}
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>取消</Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleSaveModels}
-                      disabled={isSavingModels}
-                    >
-                      保存模型
+                </div>
+                <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" className="rounded-xl" title="偏好设置">
+                      <Settings size={16} />
                     </Button>
-                    <Button
-                      onClick={handleSavePrompts}
-                      disabled={isSavingPrompts || !currentProject}
-                    >
-                      保存 Prompt
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              <CreateDialog />
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setProjectSidebarOpen(!projectSidebarOpen)}
-                className={cn("text-muted-foreground transition-transform", projectSidebarOpen ? "bg-muted" : "")}
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[85vh] w-[95vw] overflow-y-auto rounded-[28px] sm:max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>偏好设置</DialogTitle>
+                      <DialogDescription>
+                        账号、AI 服务和进阶创作选项都收在这里，日常创作时无需频繁调整。
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-6 py-4">
+                      <div className="space-y-3 rounded-2xl border border-border/60 p-4">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-medium text-foreground">账号管理</h3>
+                          <p className="text-xs text-muted-foreground">
+                            可修改当前用户名、更新密码，或让全部旧登录会话失效。
+                          </p>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">当前用户名</label>
+                            <Input
+                              value={accountForm.username}
+                              onChange={(e) => handleAccountFieldChange("username", e.target.value)}
+                              placeholder="请输入用户名"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">账号创建时间</label>
+                            <Input
+                              value={
+                                authUser?.created_at
+                                  ? new Date(authUser.created_at).toLocaleString()
+                                  : "未知"
+                              }
+                              disabled
+                            />
+                          </div>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">当前密码</label>
+                            <Input
+                              type="password"
+                              value={accountForm.currentPassword}
+                              onChange={(e) => handleAccountFieldChange("currentPassword", e.target.value)}
+                              placeholder="当前密码"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">新密码</label>
+                            <Input
+                              type="password"
+                              value={accountForm.newPassword}
+                              onChange={(e) => handleAccountFieldChange("newPassword", e.target.value)}
+                              placeholder="至少 6 位"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">确认新密码</label>
+                            <Input
+                              type="password"
+                              value={accountForm.confirmNewPassword}
+                              onChange={(e) => handleAccountFieldChange("confirmNewPassword", e.target.value)}
+                              placeholder="再次输入新密码"
+                            />
+                          </div>
+                        </div>
+                        {accountNotice ? (
+                          <div className="rounded-2xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-foreground">
+                            {accountNotice}
+                          </div>
+                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={handleSaveAccountProfile}
+                            disabled={isSavingAccount}
+                          >
+                            {isSavingAccount ? "保存中..." : "保存账号"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={handleChangePassword}
+                            disabled={isChangingPassword}
+                          >
+                            {isChangingPassword ? "更新中..." : "修改密码"}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={handleLogoutAllSessions}
+                            disabled={isLoggingOutAll}
+                          >
+                            {isLoggingOutAll ? "处理中..." : "退出全部会话"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 rounded-2xl border border-border/60 p-4">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-medium text-foreground">AI 服务</h3>
+                          <p className="text-xs text-muted-foreground">
+                            仅在需要切换服务、补充密钥或调整模型时修改。
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">服务地址</label>
+                          <Input
+                            value={modelForm.baseUrl}
+                            onChange={(e) => handleModelFieldChange("baseUrl", e.target.value)}
+                            placeholder="https://api.openai.com/v1"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">访问密钥</label>
+                          <Input
+                            type="password"
+                            value={modelForm.defaultKey}
+                            onChange={(e) => handleModelFieldChange("defaultKey", e.target.value)}
+                            placeholder={modelConfig?.hasDefaultKey ? "已配置 (隐藏)" : "sk-..."}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">大纲生成模型</label>
+                            <Input
+                              value={modelForm.drafting}
+                              onChange={(e) => handleModelFieldChange("drafting", e.target.value)}
+                              placeholder="gpt-4o"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">同步分析模型</label>
+                            <Input
+                              value={modelForm.sync}
+                              onChange={(e) => handleModelFieldChange("sync", e.target.value)}
+                              placeholder="gpt-4o-mini"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">实体抽取模型</label>
+                            <Input
+                              value={modelForm.extraction}
+                              onChange={(e) => handleModelFieldChange("extraction", e.target.value)}
+                              placeholder="gpt-4o-mini"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-medium text-foreground">创作指令微调</h3>
+                          <p className="text-xs text-muted-foreground">
+                            仅对当前项目生效。只有在你想精细调整生成风格时才需要修改。
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-baseline">
+                          <label className="text-xs font-medium text-foreground">大纲生成指令</label>
+                          <span className="text-[10px] text-muted-foreground">可用变量: {"{world_view} {style_tags} {user_input}"}</span>
+                        </div>
+                        <Textarea
+                          value={promptForm.drafting}
+                          onChange={(e) => handlePromptFieldChange("drafting", e.target.value)}
+                          rows={5}
+                          className="font-mono text-xs leading-relaxed"
+                          placeholder={`留空则使用系统默认的大纲生成逻辑。
+你也可以补充叙事风格、结构约束或输出格式。`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-baseline">
+                          <label className="text-xs font-medium text-foreground">同步分析指令</label>
+                          <span className="text-[10px] text-muted-foreground">可用变量: {"{modified_node} {retrieved_context}"}</span>
+                        </div>
+                        <Textarea
+                          value={promptForm.sync}
+                          onChange={(e) => handlePromptFieldChange("sync", e.target.value)}
+                          rows={5}
+                          className="font-mono text-xs leading-relaxed"
+                          placeholder={`留空则使用系统默认的同步分析逻辑。
+可在这里强调角色状态、地点变化或关系追踪重点。`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-baseline">
+                          <label className="text-xs font-medium text-foreground">实体抽取指令</label>
+                          <span className="text-[10px] text-muted-foreground">可用变量: {"{text} {existing_entities}"}</span>
+                        </div>
+                        <Textarea
+                          value={promptForm.extraction}
+                          onChange={(e) => handlePromptFieldChange("extraction", e.target.value)}
+                          rows={4}
+                          className="font-mono text-xs leading-relaxed"
+                          placeholder={`留空则使用系统默认的实体抽取逻辑。
+可指定关注的实体类型，或补充命名与去重规则。`}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>取消</Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleSaveModels}
+                        disabled={isSavingModels}
+                      >
+                        保存模型
+                      </Button>
+                      <Button
+                        onClick={handleSavePrompts}
+                        disabled={isSavingPrompts || !currentProject}
+                      >
+                        保存创作指令
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setVersionOpen(true)}
+                  className="rounded-xl lg:hidden"
+                  title="版本历史（快捷键 Ctrl/Cmd + Shift + H）"
+                >
+                  <History size={16} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleLogout}
+                  className="rounded-xl text-muted-foreground hover:text-destructive"
+                  title="退出登录"
+                >
+                  <LogOut size={16} />
+                </Button>
+                <CreateDialog
+                  triggerLabel="新建大纲"
+                  triggerClassName="rounded-full px-5 shadow-lg shadow-primary/20"
+                />
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden"
+          >
+            {homeNavItems.map((item) => (
+              <Button
+                key={item.label}
+                asChild
+                variant="ghost"
+                className="shrink-0 rounded-full border border-border/55 bg-background/68 px-4 text-sm hover:bg-background"
               >
-                 {projectSidebarOpen ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
+                <Link href={item.href}>{item.label}</Link>
               </Button>
-           </div>
+            ))}
+            <Button
+              variant="ghost"
+              className="shrink-0 rounded-full border border-border/55 bg-background/68 px-4 text-sm hover:bg-background"
+              onClick={() => setVersionOpen(true)}
+            >
+              版本记录
+            </Button>
+          </motion.div>
         </header>
 
-        {/* Workspace Content */}
-        <main className="flex-1 overflow-hidden relative">
-          <StoryVisualizer />
+        <main className="mx-auto w-full max-w-[1560px]">
+          <section
+            id="quick-start"
+            className="relative flex min-h-[calc(100svh-9rem)] flex-col items-center justify-center px-4 pb-16 pt-10 text-center sm:px-6"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
+              className="relative"
+            >
+              <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/72 px-4 py-2 text-[11px] font-medium tracking-[0.24em] text-muted-foreground shadow-sm backdrop-blur-md">
+                <span>快速开始</span>
+                <span className="h-1 w-1 rounded-full bg-primary/50" />
+                <span className="tracking-[0.16em] normal-case text-foreground/70">
+                  {featuredProjectId ? `最近更新 · ${featuredProjectDate}` : "准备创建第一部作品"}
+                </span>
+              </div>
+              <h1 className="mt-7 font-serif text-5xl font-semibold tracking-tight sm:text-6xl lg:text-7xl xl:text-[5.5rem]">
+                从这里继续你的故事
+              </h1>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+              className="relative mt-10 w-full max-w-[1080px]"
+            >
+              <div className="overflow-hidden rounded-[38px] border border-border/60 bg-background/78 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.07)] backdrop-blur-xl sm:p-5">
+                {featuredProjectId ? (
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                    <Link
+                      href={`/projects/${featuredProjectId}/outline`}
+                      className="flex min-w-0 items-center gap-4 rounded-[28px] border border-border/50 bg-primary/[0.08] px-4 py-4 text-left transition-transform duration-300 hover:-translate-y-0.5 lg:w-[40%] lg:flex-none"
+                    >
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                        <ArrowUpRight size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+                          继续最近项目
+                        </span>
+                        <span className="mt-2 block truncate text-lg font-semibold text-foreground sm:text-xl">
+                          {featuredProjectTitle}
+                        </span>
+                        <span className="mt-2 block text-sm text-muted-foreground">
+                          最近更新于 {featuredProjectDate}
+                        </span>
+                      </span>
+                    </Link>
+
+                    <div className="grid flex-1 gap-3 sm:grid-cols-3">
+                      <Button asChild className="h-16 rounded-[24px] text-sm font-semibold shadow-lg shadow-primary/20">
+                        <Link href={`/projects/${featuredProjectId}/outline`}>
+                          <Layout size={15} />
+                          继续大纲
+                        </Link>
+                      </Button>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        className="h-16 rounded-[24px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
+                      >
+                        <Link href={`/projects/${featuredProjectId}/writing`}>
+                          <PenTool size={15} />
+                          进入写作
+                        </Link>
+                      </Button>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        className="h-16 rounded-[24px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
+                      >
+                        <Link href={`/analysis/${featuredProjectId}`}>
+                          <Sparkles size={15} />
+                          查看分析
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                    <div className="flex min-w-0 items-center gap-4 rounded-[28px] border border-border/50 bg-primary/[0.08] px-4 py-4 text-left lg:flex-1">
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                        <Sparkles size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+                          开始创作
+                        </span>
+                        <span className="mt-2 block text-lg font-semibold text-foreground sm:text-xl">
+                          创建你的第一个项目
+                        </span>
+                        <span className="mt-2 block text-sm text-muted-foreground">
+                          建立世界观、章节骨架与写作空间。
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+                      <CreateDialog
+                        triggerLabel="新建大纲"
+                        triggerClassName="h-16 w-full rounded-[24px] px-8 text-sm font-semibold shadow-lg shadow-primary/20"
+                      />
+                      <Button
+                        asChild
+                        variant="ghost"
+                        className="h-16 rounded-[24px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
+                      >
+                        <Link href="/idea-lab">
+                          <Sparkles size={15} />
+                          打开 Idea Lab
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-6 flex flex-wrap items-center justify-center gap-3"
+            >
+              <div className="rounded-full border border-border/55 bg-background/68 px-4 py-2 text-sm text-muted-foreground backdrop-blur-md">
+                当前账号 <span className="font-medium text-foreground">{authUser.username}</span>
+              </div>
+              <div className="rounded-full border border-border/55 bg-background/68 px-4 py-2 text-sm text-muted-foreground backdrop-blur-md">
+                {sortedProjects.length > 0 ? `共 ${sortedProjects.length} 个项目` : "还没有项目"}
+              </div>
+              <Button
+                variant="ghost"
+                className="rounded-full border border-border/55 bg-background/68 px-5 hover:bg-background"
+                onClick={() => setVersionOpen(true)}
+              >
+                <History size={14} />
+                查看版本记录
+              </Button>
+            </motion.div>
+          </section>
+
+          <section id="projects" className="px-4 pb-8 sm:px-6">
+            <div className="mx-auto max-w-7xl border-t border-border/50 pt-6">
+              <ProjectList />
+            </div>
+          </section>
         </main>
       </div>
 
-      {/* 3. Right Project Sidebar */}
-      <aside 
-        className={cn(
-          "flex flex-col border-l border-border bg-muted/10 transition-all duration-300 ease-in-out z-10",
-          projectSidebarOpen ? "w-64" : "w-0 overflow-hidden border-none"
-        )}
-      >
-         <div className="flex h-12 items-center justify-between border-b border-border px-4 bg-muted/20">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
-               <FolderOpen size={14} />
-               项目列表
-            </span>
-         </div>
-         <div className="flex-1 overflow-y-auto p-2">
-            <ProjectList />
-         </div>
-      </aside>
-
-      {/* Overlays */}
       <NodeEditor />
       <ConflictAlert />
       <VersionHistory open={versionOpen} onClose={() => setVersionOpen(false)} />
 
-      {/* Loading Overlay */}
       {isLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[380px] rounded-xl border border-border bg-card p-6 shadow-xl">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="relative h-10 w-10 shrink-0">
-                 <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
-                 <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary animate-spin" />
+          <div className="panel-shell-strong w-[min(92vw,420px)] p-6">
+            <div className="mb-6 flex items-center gap-4">
+              <div className="relative h-11 w-11 shrink-0">
+                <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary animate-spin" />
               </div>
               <div>
                 <h3 className="font-medium">正在生成内容</h3>
-                <p className="text-xs text-muted-foreground">AI 正在根据您的设定构建大纲...</p>
+                <p className="text-xs text-muted-foreground">AI 正在根据你的设定构建大纲...</p>
               </div>
             </div>
-            {/* Progress Bar */}
             <div className="space-y-4">
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                <div 
-                   className="h-full bg-primary transition-all duration-500 ease-out" 
-                   style={{ width: `${((outlineStepIndex + 1) / OUTLINE_STEPS.length) * 100}%` }}
+                <div
+                  className="h-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${((outlineStepIndex + 1) / OUTLINE_STEPS.length) * 100}%` }}
                 />
               </div>
               <div className="space-y-2">
@@ -859,7 +1285,7 @@ export default function Home() {
                       )}>
                         {isDone ? <CheckCircle2 className="h-3 w-3" /> : <div className={cn("h-1.5 w-1.5 rounded-full", isActive ? "bg-primary animate-pulse" : "bg-muted-foreground/30")} />}
                       </div>
-                      <div className={cn("flex-1", isActive ? "text-foreground font-medium" : "text-muted-foreground")}>
+                      <div className={cn("flex-1", isActive ? "font-medium text-foreground" : "text-muted-foreground")}>
                         {step.title}
                       </div>
                     </div>
@@ -871,38 +1297,20 @@ export default function Home() {
         </div>
       )}
 
-      {/* Error Toast */}
       {error && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-lg animate-in slide-in-from-top-2">
+        <div className="fixed right-4 top-4 z-50 flex items-center gap-3 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-lg animate-in slide-in-from-top-2">
           <AlertCircle className="h-4 w-4" />
           <span>{error}</span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setError(null)}
-            className="h-auto p-0 text-destructive hover:text-destructive/80 hover:bg-transparent"
+            className="h-auto p-0 text-destructive hover:bg-transparent hover:text-destructive/80"
           >
             关闭
           </Button>
         </div>
       )}
     </div>
-  )
-}
-
-function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "group flex w-full flex-col items-center justify-center gap-1 rounded-lg p-2 transition-all duration-200",
-        active
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm"
-      )}
-    >
-      <div className={cn("transition-transform duration-200 group-hover:scale-110", active && "scale-110")}>{icon}</div>
-      <span className="text-[10px] font-medium">{label}</span>
-    </button>
   )
 }

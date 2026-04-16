@@ -21,10 +21,10 @@ type VersionHistoryProps = {
 }
 
 const TYPE_STYLES: Record<SnapshotType, string> = {
-  auto: "bg-slate-100 text-slate-500",
-  manual: "bg-blue-100 text-blue-700",
-  milestone: "bg-slate-100 text-slate-500",
-  pre_sync: "bg-slate-100 text-slate-500",
+  auto: "bg-muted text-muted-foreground",
+  manual: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  milestone: "bg-muted text-muted-foreground",
+  pre_sync: "bg-muted text-muted-foreground",
 }
 
 const TYPE_LABELS: Record<SnapshotType, string> = {
@@ -247,8 +247,8 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
   return (
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <aside className="absolute right-0 top-0 h-full w-[880px] max-w-[95vw] bg-slate-50 shadow-xl">
-        <div className="flex items-center justify-between border-b bg-white px-4 py-3">
+      <aside className="absolute right-0 top-0 h-full w-[880px] max-w-[95vw] bg-background shadow-xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="text-sm font-semibold">版本历史</div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={handleCreateSnapshot}>
@@ -260,13 +260,13 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
           </div>
         </div>
         <div className="grid h-[calc(100%-56px)] gap-4 p-4 lg:grid-cols-[300px_1fr]">
-          <div className="flex flex-col overflow-hidden rounded-xl border bg-white">
-            <div className="flex items-center justify-between border-b px-4 py-3 text-xs font-semibold text-slate-600">
+          <div className="flex flex-col overflow-hidden rounded-xl border bg-background">
+            <div className="flex items-center justify-between border-b px-4 py-3 text-xs font-semibold text-muted-foreground">
               <div className="flex items-center gap-2">
                 <input
                   ref={selectAllRef}
                   type="checkbox"
-                  className="accent-slate-800"
+                  className="accent-foreground"
                   checked={allSelected}
                   onChange={handleSelectAll}
                 />
@@ -297,7 +297,7 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
                       key={item.version}
                       type="button"
                       className={`w-full px-4 py-3 text-left ${
-                        selectedVersion === item.version ? "bg-blue-50" : ""
+                        selectedVersion === item.version ? "bg-accent/50" : ""
                       }`}
                       onClick={() => handleSelect(item.version)}
                     >
@@ -305,7 +305,7 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
-                            className="accent-slate-800"
+                            className="accent-foreground"
                             checked={selectedVersions.has(item.version)}
                             onChange={() => toggleBatchSelection(item.version)}
                             onClick={(event) => event.stopPropagation()}
@@ -318,10 +318,10 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
                           {TYPE_LABELS[item.snapshot_type]}
                         </span>
                       </div>
-                      <div className="mt-1 text-[11px] text-slate-500">
+                      <div className="mt-1 text-[11px] text-muted-foreground">
                         {new Date(item.created_at).toLocaleString()}
                       </div>
-                      <div className="mt-1 text-[11px] text-slate-500">
+                      <div className="mt-1 text-[11px] text-muted-foreground">
                         节点：{item.node_count}｜字数变化：
                         {item.words_added != null || item.words_removed != null
                           ? `+${item.words_added ?? 0} / -${item.words_removed ?? 0}`

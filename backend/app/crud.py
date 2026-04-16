@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db_models import ProjectTable
-from .models import CharacterProfile, ProjectSummary, StoryChapter, StoryNode, StoryProject
+from .db_models import ProjectTable, StyleLibraryTable
+from .models import (
+    CharacterProfile,
+    ProjectSummary,
+    StoryChapter,
+    StoryNode,
+    StoryProject,
+    StyleLibrary,
+)
 from .request_context import get_current_user_id
 
 
@@ -131,6 +138,124 @@ async def delete_project(session: AsyncSession, project_id: str) -> bool:
     statement = delete(ProjectTable).where(ProjectTable.id == project_id)
     if resolved_owner_id is not None:
         statement = statement.where(ProjectTable.owner_id == resolved_owner_id)
+    result = await session.execute(statement)
+    await session.commit()
+    return (result.rowcount or 0) > 0
+
+
+async def project_id_exists(session: AsyncSession, project_id: str) -> bool:
+    return await session.get(ProjectTable, project_id) is not None
+
+
+async def claim_unowned_projects(session: AsyncSession, owner_id: str) -> int:
+    result = await session.execute(
+        update(ProjectTable)
+        .where(ProjectTable.owner_id.is_(None))
+        .values(owner_id=owner_id)
+    )
+    await session.commit()
+    return int(result.rowcount or 0)
+
+
+def _serialize_style_library(library: StyleLibrary) -> StyleLibrary:
+    return library.model_copy(deep=True)
+
+
+def _deserialize_style_library(row: StyleLibraryTable) -> StyleLibrary:
+    return StyleLibrary(
+        id=row.id,
+        owner_id=row.owner_id,
+        name=row.name,
+        description=row.description or "",
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+async def create_style_library(
+    session: AsyncSession,
+    library: StyleLibrary,
+    owner_id: str | None = None,
+) -> StyleLibrary:
+    resolved_owner_id = owner_id or get_current_user_id()
+    if resolved_owner_id is None:
+        raise ValueError("Style library owner is required")
+    payload = _serialize_style_library(library)
+    record = StyleLibraryTable(
+        id=payload.id,
+        owner_id=resolved_owner_id,
+        name=payload.name,
+        description=payload.description,
+        created_at=payload.created_at,
+        updated_at=payload.updated_at,
+    )
+    session.add(record)
+    await session.commit()
+    return _deserialize_style_library(record)
+
+
+async def get_style_library(
+    session: AsyncSession,
+    library_id: str,
+    owner_id: str | None = None,
+) -> StyleLibrary | None:
+    resolved_owner_id = owner_id if owner_id is not None else get_current_user_id()
+    if resolved_owner_id is None:
+        return None
+    result = await session.execute(
+        select(StyleLibraryTable).where(
+            StyleLibraryTable.id == library_id,
+            StyleLibraryTable.owner_id == resolved_owner_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        return None
+    return _deserialize_style_library(record)
+
+
+async def list_style_libraries(session: AsyncSession) -> list[StyleLibrary]:
+    resolved_owner_id = get_current_user_id()
+    if resolved_owner_id is None:
+        return []
+    statement = select(StyleLibraryTable).where(StyleLibraryTable.owner_id == resolved_owner_id)
+    result = await session.execute(statement.order_by(StyleLibraryTable.updated_at.desc()))
+    return [_deserialize_style_library(row) for row in result.scalars().all()]
+
+
+async def update_style_library(
+    session: AsyncSession,
+    library_id: str,
+    library: StyleLibrary,
+    owner_id: str | None = None,
+) -> StyleLibrary:
+    resolved_owner_id = owner_id if owner_id is not None else get_current_user_id()
+    if resolved_owner_id is None:
+        raise ValueError("Style library owner is required")
+    result = await session.execute(
+        select(StyleLibraryTable).where(
+            StyleLibraryTable.id == library_id,
+            StyleLibraryTable.owner_id == resolved_owner_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        raise ValueError("Style library not found")
+
+    payload = _serialize_style_library(library)
+    record.name = payload.name
+    record.description = payload.description
+    record.updated_at = payload.updated_at
+    await session.commit()
+    return _deserialize_style_library(record)
+
+
+async def delete_style_library(session: AsyncSession, library_id: str) -> bool:
+    resolved_owner_id = get_current_user_id()
+    if resolved_owner_id is None:
+        return False
+    statement = delete(StyleLibraryTable).where(StyleLibraryTable.id == library_id)
+    statement = statement.where(StyleLibraryTable.owner_id == resolved_owner_id)
     result = await session.execute(statement)
     await session.commit()
     return (result.rowcount or 0) > 0

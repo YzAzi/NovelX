@@ -4,7 +4,7 @@ import asyncio
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from ..auth import decode_access_token
+from ..auth import authenticate_access_token, decode_channel_token
 from ..crud import get_project
 from ..database import AsyncSessionLocal
 from ..runtime import ws_manager
@@ -42,14 +42,12 @@ async def serve_channel_socket(websocket: WebSocket, channel_id: str) -> None:
 
 async def project_websocket(websocket: WebSocket, project_id: str) -> None:
     token = websocket.query_params.get("token")
-    payload = decode_access_token(token) if token else None
-    if not payload:
-        await websocket.close(code=4401)
-        return
-    user_id = payload["sub"]
-
     async with AsyncSessionLocal() as session:
-        project = await get_project(session, project_id, owner_id=user_id)
+        user = await authenticate_access_token(session, token)
+        if user is None:
+            await websocket.close(code=4401)
+            return
+        project = await get_project(session, project_id, owner_id=user.id)
     if project is None:
         await websocket.close(code=4403)
         return
@@ -62,9 +60,25 @@ async def outline_progress_websocket_channel(
     request_id: str,
 ) -> None:
     token = websocket.query_params.get("token")
-    payload = decode_access_token(token) if token else None
-    if not payload:
+    async with AsyncSessionLocal() as session:
+        user = await authenticate_access_token(session, token)
+    if user is None:
         await websocket.close(code=4401)
+        return
+    channel_token = websocket.query_params.get("channel_token")
+    if not channel_token:
+        await websocket.close(code=4403)
+        return
+    if (
+        decode_channel_token(
+            channel_token,
+            expected_user_id=user.id,
+            expected_channel_id=request_id,
+            expected_scope="outline_progress",
+        )
+        is None
+    ):
+        await websocket.close(code=4403)
         return
 
     await serve_channel_socket(websocket, request_id)

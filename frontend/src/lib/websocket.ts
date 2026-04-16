@@ -17,7 +17,10 @@ export class WebSocketClient {
   connect(
     channelId: string,
     token?: string | null,
-    options: { route?: "project" | "outline" } = {},
+    options: {
+      route?: "project" | "outline"
+      queryParams?: Record<string, string | null | undefined>
+    } = {},
   ) {
     if (this.socket) {
       this.disconnect()
@@ -28,7 +31,16 @@ export class WebSocketClient {
       return
     }
 
-    const query = token ? `?token=${encodeURIComponent(token)}` : ""
+    const searchParams = new URLSearchParams()
+    if (token) {
+      searchParams.set("token", token)
+    }
+    for (const [key, value] of Object.entries(options.queryParams ?? {})) {
+      if (value) {
+        searchParams.set(key, value)
+      }
+    }
+    const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
     const routePrefix = options.route === "outline" ? "/ws/outline" : "/ws"
     const url = `${baseUrl}${routePrefix}/${encodeURIComponent(channelId)}${query}`
     this.shouldReconnect = true
@@ -135,7 +147,10 @@ export class WebSocketClient {
   private scheduleReconnect(
     channelId: string,
     token: string | null,
-    options: { route?: "project" | "outline" },
+    options: {
+      route?: "project" | "outline"
+      queryParams?: Record<string, string | null | undefined>
+    },
   ) {
     if (!this.shouldReconnect) {
       return

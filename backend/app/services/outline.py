@@ -15,10 +15,16 @@ from ..graph_extractor import GraphExtractor
 from ..helpers import get_project_or_404
 from ..knowledge_graph import save_graph
 from ..models import (
+    CHARACTER_BIO_MAX_LENGTH,
     CharacterProfile,
     CreateOutlineRequest,
+    IdeaLabStageRequest,
+    IdeaLabStageResponse,
     OutlineImportRequest,
     OutlineImportResult,
+    IdeaLabStageOption,
+    StoryDirectionRequest,
+    StoryDirectionResponse,
     StoryNode,
     StoryProject,
 )
@@ -68,6 +74,212 @@ async def create_outline_project(
 
     await create_project(session, project)
     return project
+
+
+async def generate_story_directions(
+    payload: StoryDirectionRequest,
+    session: AsyncSession,
+    prompt_template: PromptTemplate,
+) -> StoryDirectionResponse:
+    base_project = None
+    if payload.base_project_id:
+        base_project = await get_project_or_404(session, payload.base_project_id)
+
+    user_input = (payload.user_input or "").strip()
+    world_view = (payload.world_view or "").strip()
+    if not world_view and base_project:
+        world_view = (base_project.world_view or "").strip()
+
+    style_tags = [tag.strip() for tag in payload.style_tags if tag.strip()]
+    if not style_tags and base_project:
+        style_tags = [tag.strip() for tag in base_project.style_tags if tag.strip()]
+
+    if not user_input and not world_view:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请至少提供一个模糊想法或世界观设定。",
+        )
+
+    api_key = get_api_key("drafting") or get_api_key("default")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OPENAI_API_KEY is not configured",
+        )
+
+    schema = pydantic_to_openai_function_inline(StoryDirectionResponse)
+    llm = ChatOpenAI(
+        api_key=api_key,
+        base_url=get_base_url(),
+        model=get_model_name("drafting"),
+    ).with_structured_output(schema)
+
+    prompt_schema = pydantic_json_schema_inline(StoryDirectionResponse)
+    prompt_text = prompt_template.format(
+        user_input=user_input or "用户目前只有非常模糊的创作冲动，请主动补齐三种清晰方向。",
+        world_view=world_view or "未指定",
+        style_tags="、".join(style_tags) if style_tags else "未指定",
+        output_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
+    )
+    result = await llm.ainvoke(prompt_text)
+    if isinstance(result, StoryDirectionResponse):
+        parsed = result
+    elif isinstance(result, dict):
+        parsed = StoryDirectionResponse.model_validate(result)
+    elif hasattr(result, "model_dump"):
+        parsed = StoryDirectionResponse.model_validate(result.model_dump())
+    else:
+        parsed = StoryDirectionResponse.model_validate(result)
+
+    normalized = []
+    for index, item in enumerate(parsed.directions[:3], start=1):
+        title = item.title.strip() or f"方向 {index}"
+        logline = item.logline.strip() or "待补充"
+        direction_world_view = item.world_view.strip() or world_view or "待补充世界观"
+        direction_tags = [tag.strip() for tag in item.style_tags if tag.strip()][:5]
+        direction_prompt = item.initial_prompt.strip() or user_input or logline
+        normalized.append(
+            {
+                "title": title,
+                "logline": logline,
+                "world_view": direction_world_view,
+                "style_tags": direction_tags,
+                "initial_prompt": direction_prompt,
+            }
+        )
+
+    if len(normalized) != 3:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="AI 未能稳定生成 3 个方向，请重试。",
+        )
+
+    return StoryDirectionResponse.model_validate({"directions": normalized})
+
+
+IDEA_LAB_STAGE_META = {
+    "concept": {
+        "title": "第一步：故事方向",
+        "instruction": "先选一个你最想展开的故事切入口。",
+        "goal": "围绕原始灵感拉开 3 个明显不同的故事方向。",
+        "is_final": False,
+    },
+    "protagonist": {
+        "title": "第二步：主角方案",
+        "instruction": "在已选方向上，挑一个最有行动力的主角版本。",
+        "goal": "围绕已选方向，拉开 3 种主角身份、欲望与行动方式。",
+        "is_final": False,
+    },
+    "conflict": {
+        "title": "第三步：核心冲突",
+        "instruction": "在已选人物基础上，确定哪种主线阻力最能撑住长篇。",
+        "goal": "围绕已选方案，拉开 3 条主要冲突与升级路径。",
+        "is_final": False,
+    },
+    "outline": {
+        "title": "第四步：成稿方向",
+        "instruction": "最后选一个最适合直接生成大纲的完整版本。",
+        "goal": "输出 3 个已经接近成稿、可直接进入大纲生成的项目方案。",
+        "is_final": True,
+    },
+}
+
+
+async def generate_idea_lab_stage(
+    payload: IdeaLabStageRequest,
+    session: AsyncSession,
+    prompt_template: PromptTemplate,
+) -> IdeaLabStageResponse:
+    base_project = None
+    if payload.base_project_id:
+        base_project = await get_project_or_404(session, payload.base_project_id)
+
+    seed_input = (payload.seed_input or "").strip()
+    world_view = (payload.world_view or "").strip()
+    if not world_view and base_project:
+        world_view = (base_project.world_view or "").strip()
+
+    style_tags = [tag.strip() for tag in payload.style_tags if tag.strip()]
+    if not style_tags and base_project:
+        style_tags = [tag.strip() for tag in base_project.style_tags if tag.strip()]
+
+    if not seed_input and not world_view and payload.selected_option is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请至少提供一个创意起点、世界观，或上一阶段的已选方案。",
+        )
+
+    api_key = get_api_key("drafting") or get_api_key("default")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OPENAI_API_KEY is not configured",
+        )
+
+    schema = pydantic_to_openai_function_inline(IdeaLabStageResponse)
+    llm = ChatOpenAI(
+        api_key=api_key,
+        base_url=get_base_url(),
+        model=get_model_name("drafting"),
+    ).with_structured_output(schema)
+
+    meta = IDEA_LAB_STAGE_META[payload.stage]
+    prompt_schema = pydantic_json_schema_inline(IdeaLabStageResponse)
+    selected_option_text = (
+        json.dumps(payload.selected_option.model_dump(), ensure_ascii=False, indent=2)
+        if payload.selected_option
+        else "无，这是第一步。"
+    )
+    prompt_text = prompt_template.format(
+        stage=payload.stage,
+        stage_goal=meta["goal"],
+        seed_input=seed_input or "用户目前只有非常模糊的创作冲动，请主动补齐方案。",
+        world_view=world_view or "未指定",
+        style_tags="、".join(style_tags) if style_tags else "未指定",
+        selected_option=selected_option_text,
+        feedback=(payload.feedback or "").strip() or "无额外要求",
+        output_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
+    )
+    result = await llm.ainvoke(prompt_text)
+    if isinstance(result, IdeaLabStageResponse):
+        parsed = result
+    elif isinstance(result, dict):
+        parsed = IdeaLabStageResponse.model_validate(result)
+    elif hasattr(result, "model_dump"):
+        parsed = IdeaLabStageResponse.model_validate(result.model_dump())
+    else:
+        parsed = IdeaLabStageResponse.model_validate(result)
+
+    options: list[IdeaLabStageOption] = []
+    for index, item in enumerate(parsed.options[:3], start=1):
+        item_world_view = item.world_view.strip() or world_view or "待补充世界观"
+        item_tags = [tag.strip() for tag in item.style_tags if tag.strip()][:5]
+        options.append(
+            IdeaLabStageOption(
+                project_title=item.project_title.strip() or f"{meta['title']}方案 {index}",
+                hook=item.hook.strip() or "待补充",
+                premise=item.premise.strip() or "待补充",
+                protagonist=item.protagonist.strip() or "待补充",
+                conflict=item.conflict.strip() or "待补充",
+                world_view=item_world_view,
+                style_tags=item_tags,
+                initial_prompt=item.initial_prompt.strip() or seed_input or item.hook.strip() or "待补充",
+            )
+        )
+
+    if len(options) != 3:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="AI 未能稳定生成 3 个候选方案，请重试。",
+        )
+
+    return IdeaLabStageResponse(
+        stage=payload.stage,
+        stage_title=meta["title"],
+        stage_instruction=meta["instruction"],
+        is_final_stage=bool(meta["is_final"]),
+        options=options,
+    )
 
 
 async def import_outline_into_project(
@@ -131,8 +343,8 @@ async def import_outline_into_project(
         if not name or name in character_map:
             continue
         bio = (character.bio or "").strip()
-        if len(bio) > 100:
-            bio = bio[:100]
+        if len(bio) > CHARACTER_BIO_MAX_LENGTH:
+            bio = bio[:CHARACTER_BIO_MAX_LENGTH]
         character_map[name] = CharacterProfile(
             name=name,
             tags=[tag.strip() for tag in character.tags if tag.strip()],

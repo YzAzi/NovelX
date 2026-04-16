@@ -70,14 +70,14 @@ def _split_batches(text: str) -> list[str]:
     return batches
 
 
-def _format_curated_content(passages: list[CuratedStylePassage]) -> str:
+def format_curated_passages(passages: list[CuratedStylePassage]) -> str:
     sections: list[str] = []
     for item in passages:
         label = item.label.strip() or "风格片段"
         text = item.text.strip()
         if not text:
             continue
-        focus = _normalize_focus(item.focus)
+        focus = normalize_style_focus(item.focus)
         techniques = "、".join(tech for tech in item.techniques if tech.strip())
         header = f"【{label}】"
         header = f"{header}\n类型：{focus}"
@@ -87,7 +87,7 @@ def _format_curated_content(passages: list[CuratedStylePassage]) -> str:
     return "\n\n".join(sections).strip()
 
 
-def _normalize_focus(value: str | None) -> str:
+def normalize_style_focus(value: str | None) -> str:
     normalized = (value or "").strip().lower()
     mapping = {
         "dialogue": "对话型",
@@ -203,7 +203,7 @@ class StyleCurationService:
                 )
             raise ValueError("AI 未提取到可用于文笔学习的有效片段，请尝试更换文本。")
 
-        curated_content = _format_curated_content(curated_passages)
+        curated_content = format_curated_passages(curated_passages)
         if failed_batches > 0:
             warnings.append(
                 f"共有 {failed_batches} / {len(batches)} 个批次清洗失败，系统已用其余批次成功构建知识库。"

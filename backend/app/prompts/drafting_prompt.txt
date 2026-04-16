@@ -15,4 +15,5 @@
 请生成：
 - 根据小说篇幅大小生成多个故事节点 (StoryNode)，包含不同的 location_tag 来体现多线叙事
 - 根据小说篇幅大小生成多个主要角色 (CharacterProfile)
+- 每个角色的 bio 必须是精炼背景简介，长度不超过 300 字，避免过长抒情或整段剧情复述
 - 确保 timeline_order 体现真实时间顺序，narrative_order 体现叙述顺序（可以不同）

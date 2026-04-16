@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils"
 function StatusDot({ status }: { status: "connected" | "disconnected" | "reconnecting" }) {
   const color =
     status === "connected"
-      ? "bg-emerald-500"
+      ? "bg-emerald-500/80"
       : status === "reconnecting"
-        ? "bg-amber-500"
-        : "bg-red-500"
+        ? "bg-amber-500/80"
+        : "bg-destructive/80"
   return <span className={cn("h-2 w-2 rounded-full", color)} />
 }
 
@@ -26,34 +26,32 @@ export function SyncIndicator() {
       : null
 
   return (
-    <div className="flex items-center gap-3 text-xs text-slate-600">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1.5">
         <StatusDot status={wsStatus} />
         <span>
           {wsStatus === "connected"
-            ? "实时连接"
+            ? "在线"
             : wsStatus === "reconnecting"
-              ? "重新连接中"
-              : "连接断开"}
+              ? "重连中"
+              : "已断开"}
         </span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {syncStatus === "syncing" ? (
-          <span className="flex items-center gap-2 text-amber-600">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+          <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500/80" />
             {syncLabel ? `同步中（${syncLabel}）` : "同步中..."}
           </span>
         ) : syncStatus === "completed" ? (
-          <span className="flex items-center gap-2 text-emerald-600">
-            {syncLabel ? `✓ 已同步（${syncLabel}）` : "✓ 已同步"}
+          <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+            {syncLabel ? `已同步（${syncLabel}）` : "已同步"}
           </span>
         ) : syncStatus === "failed" ? (
-          <span className="flex items-center gap-2 text-red-600">
-            {syncLabel ? `! 同步失败（${syncLabel}）` : "! 同步失败"}
+          <span className="flex items-center gap-1.5 text-destructive">
+            {syncLabel ? `同步失败（${syncLabel}）` : "同步失败"}
           </span>
-        ) : (
-          <span className="text-slate-400">待同步</span>
-        )}
+        ) : null}
       </div>
     </div>
   )

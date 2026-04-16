@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
@@ -190,6 +192,8 @@ export function CharacterGraph() {
   const [showAddRelation, setShowAddRelation] = useState(false)
   const [showEditRelation, setShowEditRelation] = useState(false)
   const [showCharacterDetail, setShowCharacterDetail] = useState(false)
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+  const [mobilePanelTab, setMobilePanelTab] = useState<"filters" | "roster" | "relations">("roster")
   const [editingRelationId, setEditingRelationId] = useState<string | null>(null)
   const [editingRelationPair, setEditingRelationPair] = useState<{
     sourceName: string
@@ -466,6 +470,7 @@ export function CharacterGraph() {
   }, [selectedCharacter])
 
   const handleNodeClick = useCallback((node: CharacterGraphNode) => {
+    setMobilePanelOpen(false)
     setSelectedCharacterId(node.id)
     setShowCharacterDetail(true)
   }, [])
@@ -641,6 +646,11 @@ export function CharacterGraph() {
     setHoveredRelationId(null)
   }, [])
 
+  const openMobilePanel = useCallback((tab: "filters" | "roster" | "relations") => {
+    setMobilePanelTab(tab)
+    setMobilePanelOpen(true)
+  }, [])
+
   const selectChapterOptions = chapters.map((node) => ({
     value: node.id,
     label: `${node.narrative_order}. ${node.title}`,
@@ -659,6 +669,363 @@ export function CharacterGraph() {
     "--cg-accent-glow": "rgba(188, 90, 43, 0.2)",
     "--cg-link": "#725b4b",
   } as CSSProperties
+
+  const filterPanelContent = (
+    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
+            View Controls
+          </p>
+          <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">筛选与导航</h3>
+        </div>
+        <span className="rounded-full bg-[var(--cg-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cg-accent)]">
+          {chapterLabel}
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-[var(--cg-muted)]">按章节聚焦</label>
+          <select
+            className="w-full rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-bg)] px-3 py-2.5 text-sm text-[var(--cg-ink)]"
+            value={selectedChapterId}
+            onChange={(event) => setSelectedChapterId(event.target.value as string | "all")}
+          >
+            <option value="all">全部章节</option>
+            {selectChapterOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-[var(--cg-muted)]">搜索角色或别名</label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cg-muted)]" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="例如：陆沉、阿沉、宿敌"
+              className="h-11 rounded-2xl border-[var(--cg-border)] bg-white pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-[var(--cg-muted)]">按关系类型筛选</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setRelationFilter("all")}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs transition",
+                relationFilter === "all"
+                  ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] text-[var(--cg-accent)]"
+                  : "border-[var(--cg-border)] bg-white text-[var(--cg-muted)] hover:border-[var(--cg-accent)]/40",
+              )}
+            >
+              全部关系
+            </button>
+            {RELATION_TYPES.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setRelationFilter(item.value)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs transition",
+                  relationFilter === item.value
+                    ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] text-[var(--cg-accent)]"
+                    : "border-[var(--cg-border)] bg-white text-[var(--cg-muted)] hover:border-[var(--cg-accent)]/40",
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            className="rounded-full border border-[var(--cg-border)] bg-transparent"
+            onClick={resetFilters}
+          >
+            清空筛选
+          </Button>
+          <Button
+            variant="secondary"
+            className="rounded-full border border-[var(--cg-border)] bg-transparent"
+            onClick={() => {
+              setCharacterDraft({
+                name: "",
+                description: "",
+                aliases: "",
+                appearances: selectedChapterId === "all" ? [] : [selectedChapterId],
+              })
+              setMobilePanelOpen(false)
+              setShowAddCharacter(true)
+            }}
+          >
+            添加角色
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const rosterPanelContent = (
+    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
+            Cast Roster
+          </p>
+          <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">角色列表</h3>
+        </div>
+        <span className="text-xs text-[var(--cg-muted)]">
+          {visibleCharacters.length}/{chapterFilteredGraph.nodes.length}
+        </span>
+      </div>
+
+      <ScrollArea className="mt-4 h-[420px] pr-3">
+        <div className="space-y-2.5">
+          {visibleCharacters.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
+              当前筛选下没有可展示角色
+            </div>
+          ) : (
+            visibleCharacters.map((node) => {
+              const isActive = node.id === selectedCharacterId
+              const isHovered = node.id === hoveredCharacterId
+              return (
+                <button
+                  key={node.id}
+                  type="button"
+                  onClick={() => {
+                    setMobilePanelOpen(false)
+                    setSelectedCharacterId(node.id)
+                    setShowCharacterDetail(true)
+                  }}
+                  onMouseEnter={() => setHoveredCharacterId(node.id)}
+                  onMouseLeave={() => setHoveredCharacterId((current) => (current === node.id ? null : current))}
+                  className={cn(
+                    "w-full rounded-2xl border px-3 py-3 text-left transition-all",
+                    isActive
+                      ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-[0_12px_28px_var(--cg-accent-glow)]"
+                      : isHovered
+                        ? "border-[var(--cg-accent)]/50 bg-white"
+                        : "border-[var(--cg-border)] bg-white/70 hover:border-[var(--cg-accent)]/35 hover:bg-white",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--cg-ink)]">{node.name}</p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--cg-muted)]">
+                        {node.description || "暂无角色描述"}
+                      </p>
+                    </div>
+                    <div className="rounded-full border border-[var(--cg-border)] bg-[var(--cg-surface)] px-2 py-1 text-xs text-[var(--cg-muted)]">
+                      {(node.appearances ?? []).length}
+                    </div>
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
+      </ScrollArea>
+
+      <Button
+        variant="secondary"
+        className="mt-4 w-full rounded-full border border-[var(--cg-border)] bg-transparent"
+        onClick={() => {
+          setRelationDraft({
+            sourceId: selectedCharacterId ?? "",
+            targetId: "",
+            relationType: RELATION_TYPES[0].value,
+            relationName: "",
+            description: "",
+          })
+          setMobilePanelOpen(false)
+          setShowAddRelation(true)
+        }}
+        disabled={graphData.nodes.length < 2}
+      >
+        添加关系连线
+      </Button>
+    </div>
+  )
+
+  const focusPanelContent = (
+    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
+            Focus Panel
+          </p>
+          <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">当前焦点</h3>
+        </div>
+        <div className="rounded-2xl bg-[var(--cg-accent-soft)] p-2 text-[var(--cg-accent)]">
+          <Users className="h-4 w-4" />
+        </div>
+      </div>
+
+      {!selectedCharacter ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-sm leading-6 text-[var(--cg-muted)]">
+          选中角色或图中节点后，这里会展示角色摘要、出场次数和关联关系。
+        </div>
+      ) : (
+        <div className="mt-4 space-y-4">
+          <div className="rounded-3xl border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,220,201,0.45))] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-serif text-2xl text-[var(--cg-ink)]">
+                  {selectedCharacter.name}
+                </p>
+                <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--cg-muted)]">
+                  {selectedCharacter.description || "暂无角色描述"}
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                className="rounded-full border border-[var(--cg-border)] bg-white/80"
+                onClick={() => {
+                  setMobilePanelOpen(false)
+                  setShowCharacterDetail(true)
+                }}
+              >
+                查看档案
+              </Button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                {
+                  label: "登场",
+                  value: String(selectedCharacter.appearances?.length ?? 0),
+                },
+                {
+                  label: "关系",
+                  value: String(focusedRelations.length),
+                },
+                {
+                  label: "别名",
+                  value: String(selectedCharacter.aliases?.length ?? 0),
+                },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-[var(--cg-border)] bg-white/80 px-3 py-3 text-center">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--cg-muted)]">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-[var(--cg-ink)]">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
+            <p className="text-xs font-medium text-[var(--cg-muted)]">别名</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--cg-ink)]">
+              {(selectedCharacter.aliases ?? []).join("、") || "无"}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const relationPanelContent = (
+    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
+            Relation Ledger
+          </p>
+          <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">关系清单</h3>
+          <p className="mt-1 text-xs text-[var(--cg-muted)]">
+            可从这里编辑，也可直接点击图上的连线
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[var(--cg-muted)]">
+          {relationFilter !== "all" ? (
+            <span className="rounded-full border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-2 py-1">
+              <Tags className="mr-1 inline h-3 w-3" />
+              {RELATION_TYPE_LABELS[relationFilter]}
+            </span>
+          ) : null}
+          <span>{relationSummaries.length} 条</span>
+        </div>
+      </div>
+
+      <ScrollArea className="mt-4 h-[420px] pr-3">
+        <div className="space-y-2.5">
+          {relationSummaries.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
+              当前视图暂无关系连线
+            </div>
+          ) : (
+            relationSummaries.map((item) => (
+              <div
+                key={item.id}
+                className={cn(
+                  "rounded-2xl border px-3 py-3 transition",
+                  item.focus
+                    ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-[0_10px_26px_var(--cg-accent-glow)]"
+                    : "border-[var(--cg-border)] bg-white/75 hover:border-[var(--cg-accent)]/35",
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobilePanelOpen(false)
+                      setSelectedCharacterId(item.sourceId)
+                      setShowCharacterDetail(true)
+                    }}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-[var(--cg-ink)]">{item.label}</p>
+                      {item.focus ? (
+                        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-[var(--cg-accent)]">
+                          当前焦点
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-sm text-[var(--cg-muted)]">
+                      {item.sourceName} · {item.targetName}
+                    </p>
+                    {item.description ? (
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--cg-muted)]">
+                        {item.description}
+                      </p>
+                    ) : null}
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="rounded-full text-[var(--cg-muted)] hover:bg-white/80 hover:text-[var(--cg-ink)]"
+                      onClick={() => {
+                        setMobilePanelOpen(false)
+                        handleOpenRelationEditor(item)
+                      }}
+                    >
+                      <PencilLine className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  )
 
   return (
     <section
@@ -766,189 +1133,10 @@ export function CharacterGraph() {
         </div>
       </header>
 
-      <div className="relative grid gap-6 px-6 py-6 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
-        <aside className="space-y-5">
-          <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
-                  View Controls
-                </p>
-                <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">筛选与导航</h3>
-              </div>
-              <span className="rounded-full bg-[var(--cg-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--cg-accent)]">
-                {chapterLabel}
-              </span>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-[var(--cg-muted)]">按章节聚焦</label>
-                <select
-                  className="w-full rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-bg)] px-3 py-2.5 text-sm text-[var(--cg-ink)]"
-                  value={selectedChapterId}
-                  onChange={(event) => setSelectedChapterId(event.target.value as string | "all")}
-                >
-                  <option value="all">全部章节</option>
-                  {selectChapterOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-[var(--cg-muted)]">搜索角色或别名</label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cg-muted)]" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="例如：陆沉、阿沉、宿敌"
-                    className="h-11 rounded-2xl border-[var(--cg-border)] bg-white pl-10"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-[var(--cg-muted)]">按关系类型筛选</label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRelationFilter("all")}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-xs transition",
-                      relationFilter === "all"
-                        ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] text-[var(--cg-accent)]"
-                        : "border-[var(--cg-border)] bg-white text-[var(--cg-muted)] hover:border-[var(--cg-accent)]/40",
-                    )}
-                  >
-                    全部关系
-                  </button>
-                  {RELATION_TYPES.map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => setRelationFilter(item.value)}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs transition",
-                        relationFilter === item.value
-                          ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] text-[var(--cg-accent)]"
-                          : "border-[var(--cg-border)] bg-white text-[var(--cg-muted)] hover:border-[var(--cg-accent)]/40",
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  className="rounded-full border border-[var(--cg-border)] bg-transparent"
-                  onClick={resetFilters}
-                >
-                  清空筛选
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="rounded-full border border-[var(--cg-border)] bg-transparent"
-                  onClick={() => {
-                    setCharacterDraft({
-                      name: "",
-                      description: "",
-                      aliases: "",
-                      appearances: selectedChapterId === "all" ? [] : [selectedChapterId],
-                    })
-                    setShowAddCharacter(true)
-                  }}
-                >
-                  添加角色
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
-                  Cast Roster
-                </p>
-                <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">角色列表</h3>
-              </div>
-              <span className="text-xs text-[var(--cg-muted)]">
-                {visibleCharacters.length}/{chapterFilteredGraph.nodes.length}
-              </span>
-            </div>
-
-            <ScrollArea className="mt-4 h-[420px] pr-3">
-              <div className="space-y-2.5">
-                {visibleCharacters.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
-                    当前筛选下没有可展示角色
-                  </div>
-                ) : (
-                  visibleCharacters.map((node) => {
-                    const isActive = node.id === selectedCharacterId
-                    const isHovered = node.id === hoveredCharacterId
-                    return (
-                      <button
-                        key={node.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedCharacterId(node.id)
-                          setShowCharacterDetail(true)
-                        }}
-                        onMouseEnter={() => setHoveredCharacterId(node.id)}
-                        onMouseLeave={() => setHoveredCharacterId((current) => (current === node.id ? null : current))}
-                        className={cn(
-                          "w-full rounded-2xl border px-3 py-3 text-left transition-all",
-                          isActive
-                            ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-[0_12px_28px_var(--cg-accent-glow)]"
-                            : isHovered
-                              ? "border-[var(--cg-accent)]/50 bg-white"
-                              : "border-[var(--cg-border)] bg-white/70 hover:border-[var(--cg-accent)]/35 hover:bg-white",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-[var(--cg-ink)]">{node.name}</p>
-                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--cg-muted)]">
-                              {node.description || "暂无角色描述"}
-                            </p>
-                          </div>
-                          <div className="rounded-full border border-[var(--cg-border)] bg-[var(--cg-surface)] px-2 py-1 text-xs text-[var(--cg-muted)]">
-                            {(node.appearances ?? []).length}
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-            </ScrollArea>
-
-            <Button
-              variant="secondary"
-              className="mt-4 w-full rounded-full border border-[var(--cg-border)] bg-transparent"
-              onClick={() => {
-                setRelationDraft({
-                  sourceId: selectedCharacterId ?? "",
-                  targetId: "",
-                  relationType: RELATION_TYPES[0].value,
-                  relationName: "",
-                  description: "",
-                })
-                setShowAddRelation(true)
-              }}
-              disabled={graphData.nodes.length < 2}
-            >
-              添加关系连线
-            </Button>
-          </div>
+      <div className="relative grid gap-6 px-4 py-4 sm:px-6 sm:py-6 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+        <aside className="hidden space-y-5 xl:block">
+          {filterPanelContent}
+          {rosterPanelContent}
         </aside>
 
         <section className="space-y-5">
@@ -982,9 +1170,36 @@ export function CharacterGraph() {
               </div>
             </div>
 
+            <div className="mb-4 grid grid-cols-3 gap-2 xl:hidden">
+              <Button
+                variant="secondary"
+                className="rounded-2xl border border-[var(--cg-border)] bg-transparent"
+                onClick={() => openMobilePanel("filters")}
+              >
+                <Tags className="h-4 w-4" />
+                筛选
+              </Button>
+              <Button
+                variant="secondary"
+                className="rounded-2xl border border-[var(--cg-border)] bg-transparent"
+                onClick={() => openMobilePanel("roster")}
+              >
+                <Users className="h-4 w-4" />
+                角色
+              </Button>
+              <Button
+                variant="secondary"
+                className="rounded-2xl border border-[var(--cg-border)] bg-transparent"
+                onClick={() => openMobilePanel("relations")}
+              >
+                <Link2 className="h-4 w-4" />
+                关系
+              </Button>
+            </div>
+
             <div
               ref={containerRef}
-              className="relative min-h-[620px] overflow-hidden rounded-[28px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,239,228,0.92))]"
+              className="relative min-h-[420px] overflow-hidden rounded-[28px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,239,228,0.92))] sm:min-h-[520px] xl:min-h-[620px]"
               onMouseMove={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect()
                 setPointerPosition({
@@ -1014,7 +1229,7 @@ export function CharacterGraph() {
                 </div>
 
               <div className="absolute bottom-4 right-4 z-10 rounded-full border border-[var(--cg-border)] bg-white/85 px-3 py-1.5 text-[11px] text-[var(--cg-muted)] shadow-sm backdrop-blur-sm">
-                可直接点击连线编辑关系
+                {graphSize.width > 768 ? "可直接点击连线编辑关系" : "点节点看详情，点连线改关系"}
               </div>
 
               {hoveredRelation ? (
@@ -1047,11 +1262,11 @@ export function CharacterGraph() {
               ) : null}
 
               {loading ? (
-                <div className="flex h-full min-h-[620px] items-center justify-center text-sm text-[var(--cg-muted)]">
+                <div className="flex h-full min-h-[420px] items-center justify-center text-sm text-[var(--cg-muted)] sm:min-h-[520px] xl:min-h-[620px]">
                   加载角色关系图…
                 </div>
               ) : displayGraph.nodes.length === 0 ? (
-                <div className="flex h-full min-h-[620px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[var(--cg-muted)]">
+                <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[var(--cg-muted)] sm:min-h-[520px] xl:min-h-[620px]">
                   <p className="text-base text-[var(--cg-ink)]">当前没有可展示的角色关系</p>
                   <p>可切换章节、清空关键词，或新增角色后再尝试同步。</p>
                 </div>
@@ -1243,165 +1458,41 @@ export function CharacterGraph() {
           </div>
         </section>
 
-        <aside className="space-y-5">
-          <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
-                  Focus Panel
-                </p>
-                <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">当前焦点</h3>
-              </div>
-              <div className="rounded-2xl bg-[var(--cg-accent-soft)] p-2 text-[var(--cg-accent)]">
-                <Users className="h-4 w-4" />
-              </div>
-            </div>
-
-            {!selectedCharacter ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-sm leading-6 text-[var(--cg-muted)]">
-                选中左侧角色或图中节点后，这里会展示角色摘要、出场次数和关联关系。
-              </div>
-            ) : (
-              <div className="mt-4 space-y-4">
-                <div className="rounded-3xl border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,220,201,0.45))] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-serif text-2xl text-[var(--cg-ink)]">
-                        {selectedCharacter.name}
-                      </p>
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--cg-muted)]">
-                        {selectedCharacter.description || "暂无角色描述"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      className="rounded-full border border-[var(--cg-border)] bg-white/80"
-                      onClick={() => setShowCharacterDetail(true)}
-                    >
-                      查看档案
-                    </Button>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    {[
-                      {
-                        label: "登场",
-                        value: String(selectedCharacter.appearances?.length ?? 0),
-                      },
-                      {
-                        label: "关系",
-                        value: String(focusedRelations.length),
-                      },
-                      {
-                        label: "别名",
-                        value: String(selectedCharacter.aliases?.length ?? 0),
-                      },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-2xl border border-[var(--cg-border)] bg-white/80 px-3 py-3 text-center">
-                        <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--cg-muted)]">
-                          {item.label}
-                        </p>
-                        <p className="mt-1 text-lg font-semibold text-[var(--cg-ink)]">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
-                  <p className="text-xs font-medium text-[var(--cg-muted)]">别名</p>
-                  <p className="mt-2 text-sm leading-6 text-[var(--cg-ink)]">
-                    {(selectedCharacter.aliases ?? []).join("、") || "无"}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
-                  Relation Ledger
-                </p>
-                <h3 className="mt-1 font-serif text-xl text-[var(--cg-ink)]">关系清单</h3>
-                <p className="mt-1 text-xs text-[var(--cg-muted)]">
-                  可从这里编辑，也可直接点击图上的连线
-                </p>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-[var(--cg-muted)]">
-                {relationFilter !== "all" ? (
-                  <span className="rounded-full border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-2 py-1">
-                    <Tags className="mr-1 inline h-3 w-3" />
-                    {RELATION_TYPE_LABELS[relationFilter]}
-                  </span>
-                ) : null}
-                <span>{relationSummaries.length} 条</span>
-              </div>
-            </div>
-
-            <ScrollArea className="mt-4 h-[420px] pr-3">
-              <div className="space-y-2.5">
-                {relationSummaries.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
-                    当前视图暂无关系连线
-                  </div>
-                ) : (
-                  relationSummaries.map((item) => (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "rounded-2xl border px-3 py-3 transition",
-                        item.focus
-                          ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-[0_10px_26px_var(--cg-accent-glow)]"
-                          : "border-[var(--cg-border)] bg-white/75 hover:border-[var(--cg-accent)]/35",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCharacterId(item.sourceId)
-                            setShowCharacterDetail(true)
-                          }}
-                          className="min-w-0 flex-1 text-left"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-[var(--cg-ink)]">{item.label}</p>
-                            {item.focus ? (
-                              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-[var(--cg-accent)]">
-                                当前焦点
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="mt-1 text-sm text-[var(--cg-muted)]">
-                            {item.sourceName} · {item.targetName}
-                          </p>
-                          {item.description ? (
-                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--cg-muted)]">
-                              {item.description}
-                            </p>
-                          ) : null}
-                        </button>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            className="rounded-full text-[var(--cg-muted)] hover:bg-white/80 hover:text-[var(--cg-ink)]"
-                            onClick={() => handleOpenRelationEditor(item)}
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+        <aside className="hidden space-y-5 xl:block">
+          {focusPanelContent}
+          {relationPanelContent}
         </aside>
       </div>
+
+      <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
+        <SheetContent side="bottom" className="h-[82vh] rounded-t-[28px] border-t border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 xl:hidden" style={cssVars}>
+          <SheetHeader className="border-b border-[var(--cg-border)]">
+            <SheetTitle>移动面板</SheetTitle>
+            <SheetDescription>在手机上查看筛选、角色列表和关系清单。</SheetDescription>
+          </SheetHeader>
+          <Tabs value={mobilePanelTab} onValueChange={(value) => setMobilePanelTab(value as "filters" | "roster" | "relations")} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="border-b border-[var(--cg-border)] px-4 py-3">
+              <TabsList className="grid w-full grid-cols-3 rounded-2xl bg-[var(--cg-surface-strong)]">
+                <TabsTrigger value="filters">筛选</TabsTrigger>
+                <TabsTrigger value="roster">角色</TabsTrigger>
+                <TabsTrigger value="relations">关系</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="filters" className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              {filterPanelContent}
+            </TabsContent>
+            <TabsContent value="roster" className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              {rosterPanelContent}
+            </TabsContent>
+            <TabsContent value="relations" className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <div className="space-y-4">
+                {focusPanelContent}
+                {relationPanelContent}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </SheetContent>
+      </Sheet>
 
       <Dialog
         open={showCharacterDetail}
@@ -1412,8 +1503,8 @@ export function CharacterGraph() {
           }
         }}
       >
-        <DialogContent className="flex h-[84vh] w-[92vw] max-w-5xl flex-col gap-6 rounded-[32px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-0" style={cssVars}>
-          <DialogHeader className="border-b border-[var(--cg-border)] px-6 py-5">
+        <DialogContent className="flex h-[88vh] w-[94vw] max-w-5xl flex-col gap-6 rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 sm:h-[84vh] sm:w-[92vw] sm:rounded-[32px]" style={cssVars}>
+          <DialogHeader className="border-b border-[var(--cg-border)] px-4 py-4 sm:px-6 sm:py-5">
             <DialogTitle className="font-serif text-[2rem] text-[var(--cg-ink)]">
               {selectedCharacter?.name || "角色档案"}
             </DialogTitle>
@@ -1424,7 +1515,7 @@ export function CharacterGraph() {
               请选择一个角色
             </div>
           ) : (
-            <div className="grid flex-1 gap-6 overflow-hidden px-6 pb-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+            <div className="grid flex-1 gap-4 overflow-hidden px-4 pb-4 sm:gap-6 sm:px-6 sm:pb-6 lg:grid-cols-[260px_minmax(0,1fr)]">
               <aside className="space-y-4">
                 <div className="rounded-[28px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,220,201,0.4))] p-4">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">Character Card</p>
@@ -1562,7 +1653,7 @@ export function CharacterGraph() {
             </div>
           )}
 
-          <DialogFooter className="border-t border-[var(--cg-border)] px-6 py-4 sm:justify-between">
+          <DialogFooter className="border-t border-[var(--cg-border)] px-4 py-4 sm:justify-between sm:px-6">
             <div />
             {selectedCharacter &&
               (editMode ? (
@@ -1595,7 +1686,7 @@ export function CharacterGraph() {
       </Dialog>
 
       <Dialog open={showAddCharacter} onOpenChange={setShowAddCharacter}>
-        <DialogContent className="max-w-xl rounded-[30px] border border-[var(--cg-border)] bg-[var(--cg-surface)]" style={cssVars}>
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[30px]" style={cssVars}>
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[var(--cg-ink)]">新增角色</DialogTitle>
           </DialogHeader>
@@ -1671,7 +1762,7 @@ export function CharacterGraph() {
       </Dialog>
 
       <Dialog open={showAddRelation} onOpenChange={setShowAddRelation}>
-        <DialogContent className="max-w-xl rounded-[30px] border border-[var(--cg-border)] bg-[var(--cg-surface)]" style={cssVars}>
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[30px]" style={cssVars}>
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[var(--cg-ink)]">新增角色关系</DialogTitle>
           </DialogHeader>
@@ -1767,7 +1858,7 @@ export function CharacterGraph() {
           }
         }}
       >
-        <DialogContent className="max-w-xl rounded-[30px] border border-[var(--cg-border)] bg-[var(--cg-surface)]" style={cssVars}>
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[30px]" style={cssVars}>
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[var(--cg-ink)]">编辑角色关系</DialogTitle>
           </DialogHeader>
@@ -1819,12 +1910,12 @@ export function CharacterGraph() {
             </div>
           </div>
           <DialogFooter className="mt-4 sm:justify-between">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleDeleteRelation}
-              className="rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
-            >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleDeleteRelation}
+                      className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
               <Trash2 className="h-4 w-4" />
               删除关系
             </Button>

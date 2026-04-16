@@ -16,7 +16,7 @@ import {
   type NodeProps,
 } from "@xyflow/react"
 import dagre from "dagre"
-import { Search, Upload, Plus, Minus, FileText, Image, Map as MapIcon, ZoomIn, ZoomOut } from "lucide-react"
+import { Search, Upload, Plus, FileText, Map as MapIcon, ZoomIn, ZoomOut, PanelLeftOpen } from "lucide-react"
 
 import type { StoryNode } from "@/src/types/models"
 import { importOutline, insertNode, reorderNodes } from "@/src/lib/api"
@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 120
@@ -52,7 +53,15 @@ const TAG_COLORS = [
   "bg-fuchsia-100/80 text-fuchsia-900 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
 ]
 
-const defaultEdgeOptions = { type: "smoothstep", animated: false, style: { stroke: "var(--border)", strokeWidth: 2 } }
+const defaultEdgeOptions = {
+  type: "smoothstep",
+  animated: false,
+  style: {
+    stroke: "oklch(0.55 0.02 84)",
+    strokeWidth: 2,
+    strokeDasharray: "6 3",
+  },
+}
 
 type StoryNodeData = {
   title: string
@@ -75,21 +84,44 @@ function StoryNodeCard({ data, selected }: NodeProps<StoryFlowNode>) {
   return (
     <div
       className={cn(
-        "w-[220px] rounded-xl border bg-card p-4 shadow-sm transition-all duration-200",
+        "group w-[220px] overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-card to-card/95 p-0 shadow-sm transition-all duration-300",
         selected
-          ? "border-primary ring-1 ring-primary shadow-md"
+          ? "border-primary/60 shadow-lg shadow-primary/10 ring-2 ring-primary/20"
           : data.highlight
-            ? "border-amber-400 ring-1 ring-amber-400"
-            : "border-border hover:border-primary/50 hover:shadow-md"
+            ? "border-amber-400/60 shadow-md shadow-amber-500/10 ring-2 ring-amber-400/30"
+            : "border-border/80 hover:border-primary/40 hover:shadow-md hover:shadow-primary/5",
       )}
     >
-      <Handle type="target" position={Position.Left} isConnectable={false} className="!bg-muted-foreground/50 !h-3 !w-1 !rounded-sm !border-none" />
-      <div className="mb-3 text-sm font-semibold text-card-foreground leading-tight">{data.title}</div>
-      <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium", data.colorClass)}>
-        <MapIcon size={10} />
-        {data.locationTag}
-      </span>
-      <Handle type="source" position={Position.Right} isConnectable={false} className="!bg-muted-foreground/50 !h-3 !w-1 !rounded-sm !border-none" />
+      <Handle type="target" position={Position.Left} isConnectable={false} className="!bg-muted-foreground/40 !h-3.5 !w-1 !rounded-full !border-none" />
+
+      <div className={cn(
+        "h-1.5 w-full transition-colors",
+        selected
+          ? "bg-gradient-to-r from-primary/80 to-primary/40"
+          : data.highlight
+            ? "bg-gradient-to-r from-amber-400/80 to-amber-400/30"
+            : "bg-gradient-to-r from-primary/20 to-transparent opacity-0 group-hover:opacity-100",
+      )} />
+
+      <div className="px-3.5 pt-3 pb-3">
+        <div className="mb-2.5 flex items-start justify-between gap-2">
+          <div className="text-[13px] font-semibold leading-tight text-card-foreground line-clamp-2 tracking-tight">
+            {data.title}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={cn(
+            "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium backdrop-blur-sm",
+            data.colorClass,
+          )}>
+            <MapIcon size={9} />
+            {data.locationTag}
+          </span>
+        </div>
+      </div>
+
+      <Handle type="source" position={Position.Right} isConnectable={false} className="!bg-muted-foreground/40 !h-3.5 !w-1 !rounded-full !border-none" />
     </div>
   )
 }
@@ -115,7 +147,11 @@ function buildEdges(nodes: StoryNode[]): Edge[] {
       source: source.id,
       target: target.id,
       type: "smoothstep",
-      style: { stroke: "var(--muted-foreground)", strokeWidth: 2, opacity: 0.6 },
+      style: {
+        stroke: "oklch(0.62 0.02 76 / 0.5)",
+        strokeWidth: 2,
+        strokeDasharray: "6 3",
+      },
     })
   }
   return edges
@@ -188,7 +224,7 @@ export function StoryVisualizer() {
     setProject,
     setNodeEditorOpen,
   } = useProjectStore()
-  const storyNodes = currentProject?.nodes ?? []
+  const storyNodes = useMemo(() => currentProject?.nodes ?? [], [currentProject?.nodes])
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const flowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const sceneItemRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -205,6 +241,7 @@ export function StoryVisualizer() {
   const [importText, setImportText] = useState("")
   const [importFileName, setImportFileName] = useState<string | null>(null)
   const [zoomLevel, setZoomLevel] = useState(1)
+  const [mobileSceneSheetOpen, setMobileSceneSheetOpen] = useState(false)
   const [createForm, setCreateForm] = useState({
     title: "",
     content: "",
@@ -374,9 +411,9 @@ export function StoryVisualizer() {
     let hint = ""
 
     if (message.includes("OPENAI_API_KEY")) {
-      hint = "请先在模型设置或 .env 中配置 API Key。"
+      hint = "请先在设置中补充可用的访问密钥。"
     } else if (message.includes("自定义 Prompt")) {
-      hint = "请检查 Prompt 是否包含必需变量：raw_text、output_schema。"
+      hint = "请检查自定义创作指令是否包含必需变量：raw_text、output_schema。"
     } else if (message.includes("Outline content cannot be empty")) {
       hint = "请粘贴大纲文本或上传 .txt/.md 文件。"
     } else if (message.includes("Project not found")) {
@@ -440,6 +477,7 @@ export function StoryVisualizer() {
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       selectNode(node.id)
+      setMobileSceneSheetOpen(false)
       setNodeEditorOpen(true)
     },
     [selectNode, setNodeEditorOpen]
@@ -448,6 +486,7 @@ export function StoryVisualizer() {
   const handleNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       selectNode(node.id)
+      setMobileSceneSheetOpen(false)
       document.getElementById("node-editor")?.focus()
     },
     [selectNode]
@@ -599,101 +638,144 @@ export function StoryVisualizer() {
   }
 
   const hasNodes = storyNodes.length > 0
+  const activeSceneLabel =
+    orderedStoryNodes.find((node) => node.id === activeSceneId)?.title?.trim() || "未选择场景"
 
-  return (
-    <div ref={wrapperRef} className="flex h-full overflow-hidden bg-background">
-      <div className="flex w-[260px] shrink-0 flex-col border-r border-border bg-muted/10">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-          <div className="text-sm font-semibold text-foreground">场景目录</div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => setImportOpen(true)}
-              title="导入大纲"
-            >
-              <Upload size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => setCreateOpen(true)}
-              title="新增场景"
-            >
-              <Plus size={14} />
-            </Button>
-          </div>
+  const sceneSidebarContent = (
+    <>
+      <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+        <div className="text-sm font-semibold tracking-tight text-foreground">场景目录</div>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+            onClick={() => setImportOpen(true)}
+            title="导入大纲"
+          >
+            <Upload size={13} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+            onClick={() => setCreateOpen(true)}
+            title="新增场景"
+          >
+            <Plus size={13} />
+          </Button>
         </div>
-
-        {!hasNodes ? (
-          <div className="m-3 rounded-lg border border-dashed border-border/60 bg-background/60 p-3 text-xs text-muted-foreground">
-            <div className="font-medium text-foreground">还没有场景节点</div>
-            <div className="mt-1">先新增一个场景，或导入已有大纲。</div>
-            <div className="mt-3 flex items-center gap-2">
-              <Button size="sm" onClick={() => setCreateOpen(true)}>
-                新增场景
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-                导入大纲
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="p-3">
-            <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                    className="h-9 w-full bg-background pl-8 text-xs shadow-none border-border/60 focus-visible:ring-1 focus-visible:ring-primary/20"
-                    placeholder="搜索场景或地点..."
-                    value={sceneSearch}
-                    onChange={(event) => setSceneSearch(event.target.value)}
-                />
-            </div>
-        </div>
-        
-        <ScrollArea className="flex-1">
-           <div className="px-3 pb-3 space-y-1">
-              {filteredStoryNodes.length === 0 ? (
-                <div className="px-3 py-8 text-center text-xs text-muted-foreground">暂无匹配场景</div>
-              ) : (
-                filteredStoryNodes.map((node) => {
-                  const isActive = node.id === activeSceneId
-                  return (
-                    <button
-                      key={node.id}
-                      ref={(el) => {
-                        if (el) {
-                          sceneItemRefs.current.set(node.id, el)
-                        } else {
-                          sceneItemRefs.current.delete(node.id)
-                        }
-                      }}
-                      className={cn(
-                        "group flex w-full flex-col gap-1 rounded-lg px-3 py-2.5 text-left text-xs transition-all",
-                        isActive
-                          ? "bg-primary/10 text-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                      )}
-                      onClick={() => focusScene(node.id)}
-                      type="button"
-                    >
-                      <span className={cn("font-medium line-clamp-1", isActive ? "text-primary" : "text-foreground")}>{node.title || "未命名节点"}</span>
-                      <div className="flex items-center gap-1.5 opacity-70">
-                         <MapIcon size={10} />
-                         <span className="text-[10px]">{getLocationTag(node)}</span>
-                      </div>
-                    </button>
-                  )
-                })
-              )}
-          </div>
-        </ScrollArea>
       </div>
 
-      <div className="relative flex-1 bg-background">
+      {!hasNodes ? (
+        <div className="m-3 rounded-xl border border-dashed border-border/60 bg-background/60 p-3.5 text-xs text-muted-foreground">
+          <div className="mb-0.5 font-medium text-foreground">还没有场景节点</div>
+          <div className="mb-3">先新增一个场景，或导入已有大纲。</div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="rounded-lg text-xs" onClick={() => setCreateOpen(true)}>
+              新增场景
+            </Button>
+            <Button size="sm" variant="outline" className="rounded-lg text-xs" onClick={() => setImportOpen(true)}>
+              导入大纲
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="px-3 py-2.5">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+          <Input
+            className="h-8 w-full rounded-lg border-transparent bg-muted/40 pl-8 text-xs shadow-none focus-visible:border-primary/20 focus-visible:ring-1 focus-visible:ring-primary/15"
+            placeholder="搜索场景或地点..."
+            value={sceneSearch}
+            onChange={(event) => setSceneSearch(event.target.value)}
+          />
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="space-y-0.5 px-2.5 pb-2.5">
+          {filteredStoryNodes.length === 0 ? (
+            <div className="px-3 py-8 text-center text-xs text-muted-foreground">暂无匹配场景</div>
+          ) : (
+            filteredStoryNodes.map((node) => {
+              const isActive = node.id === activeSceneId
+              return (
+                <button
+                  key={node.id}
+                  ref={(el) => {
+                    if (el) {
+                      sceneItemRefs.current.set(node.id, el)
+                    } else {
+                      sceneItemRefs.current.delete(node.id)
+                    }
+                  }}
+                  className={cn(
+                    "group flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-xs transition-all duration-200",
+                    isActive
+                      ? "bg-primary/8 text-foreground shadow-sm ring-1 ring-primary/10"
+                      : "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
+                  )}
+                  onClick={() => {
+                    focusScene(node.id)
+                    setMobileSceneSheetOpen(false)
+                  }}
+                  type="button"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "h-1 w-1 rounded-full transition-colors",
+                        isActive ? "bg-primary" : "bg-muted-foreground/30 group-hover:bg-primary/50",
+                      )}
+                    />
+                    <span className={cn("line-clamp-1 text-[12px] font-medium leading-tight", isActive ? "text-primary" : "text-foreground/90")}>
+                      {node.title || "未命名节点"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 pl-2.5">
+                    <MapIcon size={9} className={cn("transition-colors", isActive ? "text-primary/60" : "text-muted-foreground/50")} />
+                    <span className="text-[10px] text-muted-foreground/80">{getLocationTag(node)}</span>
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
+      </ScrollArea>
+    </>
+  )
+
+  return (
+    <div ref={wrapperRef} className="flex h-full flex-col overflow-hidden bg-background lg:flex-row">
+      <aside className="hidden w-[260px] shrink-0 flex-col border-r border-border/60 bg-background/60 backdrop-blur-sm lg:flex">
+        {sceneSidebarContent}
+      </aside>
+
+      <div className="flex items-center gap-2 border-b border-border/60 bg-background/80 px-3 py-2.5 backdrop-blur-sm lg:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-xl"
+          onClick={() => setMobileSceneSheetOpen(true)}
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+          场景
+        </Button>
+        <div className="min-w-0 flex-1 rounded-xl border border-border/50 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+          <span className="mr-1 inline-block text-foreground/80">当前:</span>
+          <span className="line-clamp-1">{activeSceneLabel}</span>
+        </div>
+        <Button variant="ghost" size="icon-sm" className="rounded-xl" onClick={() => setImportOpen(true)} title="导入大纲">
+          <Upload className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon-sm" className="rounded-xl" onClick={() => setCreateOpen(true)} title="新增场景">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="relative min-h-[58vh] flex-1 bg-background lg:min-h-0">
         {hasNodes ? (
           <>
             <ReactFlow
@@ -707,6 +789,7 @@ export function StoryVisualizer() {
               onNodeDragStop={handleNodeDragStop}
               onMove={handleMove}
               onInit={(instance) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 flowInstanceRef.current = instance as any
               }}
               panOnScroll
@@ -717,52 +800,77 @@ export function StoryVisualizer() {
               nodesDraggable={true}
               proOptions={{ hideAttribution: true }}
             >
-              <Background gap={24} size={1} color="currentColor" className="text-border/40" />
-              <Controls position="bottom-right" className="!bg-card !border !border-border !rounded-lg !shadow-sm [&>button]:!border-border/40 [&>button:hover]:!bg-muted" />
-              <MiniMap 
-                pannable 
-                zoomable 
-                className="!bg-card !border !border-border !rounded-lg !shadow-sm" 
+              <Background gap={28} size={1} color="currentColor" className="text-border/35 subtle-grid" />
+              <Controls position="bottom-right" className="!bg-card/80 !backdrop-blur !border !border-border/60 !rounded-xl !shadow-md [&>button]:!border-border/40 [&>button:hover]:!bg-primary/10 [&>button]:!text-foreground" />
+              <MiniMap
+                pannable
+                zoomable
+                className="hidden !bg-card/80 !backdrop-blur !border !border-border/60 !rounded-xl !shadow-md md:block"
                 nodeColor={(n) => {
-                     if (n.selected) return 'hsl(var(--primary))';
-                     return 'hsl(var(--muted))';
+                  if (n.selected) return "#5570aa"
+                  return "oklch(0.7 0.02 84)"
                 }}
-                maskColor="hsl(var(--background) / 0.7)"
+                maskColor="hsl(var(--background) / 0.55)"
               />
             </ReactFlow>
 
-            <div className="absolute right-4 top-4 flex items-center gap-1 rounded-lg border border-border bg-card/80 backdrop-blur p-1 shadow-sm">
+            <div className="absolute right-4 top-4 flex items-center gap-1 rounded-xl border border-border/60 bg-card/80 backdrop-blur p-1 shadow-sm">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-primary/5"
                 onClick={() => applyZoom(zoomLevel - ZOOM_STEP)}
               >
-                <Minus size={14} />
+                <ZoomOut size={13} />
               </Button>
-              <div className="w-12 text-center text-xs font-medium tabular-nums text-muted-foreground">
+              <div className="w-11 text-center text-[11px] font-semibold tabular-nums text-muted-foreground">
                 {Math.round(zoomLevel * 100)}%
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-primary/5"
                 onClick={() => applyZoom(zoomLevel + ZOOM_STEP)}
               >
-                <Plus size={14} />
+                <ZoomIn size={13} />
+              </Button>
+            </div>
+
+            <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-2 rounded-2xl border border-border/60 bg-card/88 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm lg:hidden">
+              <div className="min-w-0">
+                <div className="font-medium text-foreground">{activeSceneLabel}</div>
+                <div>
+                  {Math.round(zoomLevel * 100)}% 缩放
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-xl"
+                onClick={() => setMobileSceneSheetOpen(true)}
+              >
+                <FileText className="h-4 w-4" />
+                列表
               </Button>
             </div>
           </>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="rounded-xl border border-dashed border-border/70 bg-background/80 px-6 py-8 text-center text-sm shadow-sm">
-              <div className="text-base font-semibold text-foreground">开始构建你的故事</div>
-              <div className="mt-2 text-xs text-muted-foreground">
-                先新增一个场景节点，或导入已有大纲。
+          <div className="absolute inset-0 flex items-center justify-center subtle-grid">
+            <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 backdrop-blur-sm px-8 py-10 text-center shadow-[0_12px_40px_rgba(55,44,28,0.05)]">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mx-auto">
+                <FileText size={24} />
               </div>
-              <div className="mt-4 flex items-center justify-center gap-2">
-                <Button onClick={() => setCreateOpen(true)}>新增场景</Button>
-                <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <div className="text-lg font-semibold text-foreground">开始构建你的故事</div>
+              <div className="mt-2 text-sm text-muted-foreground max-w-xs mx-auto">
+                先新增一个场景节点，或导入已有大纲文本。
+              </div>
+              <div className="mt-5 flex items-center justify-center gap-2">
+                <Button onClick={() => setCreateOpen(true)} className="rounded-xl">
+                  <Plus size={14} />
+                  新增场景
+                </Button>
+                <Button variant="outline" onClick={() => setImportOpen(true)} className="rounded-xl">
+                  <Upload size={14} />
                   导入大纲
                 </Button>
               </div>
@@ -771,8 +879,18 @@ export function StoryVisualizer() {
         )}
       </div>
 
+      <Sheet open={mobileSceneSheetOpen} onOpenChange={setMobileSceneSheetOpen}>
+        <SheetContent side="left" className="w-[88vw] max-w-none p-0 sm:max-w-sm lg:hidden">
+          <SheetHeader className="border-b border-border/60">
+            <SheetTitle>场景目录</SheetTitle>
+            <SheetDescription>切换场景、搜索地点，或快速新增节点。</SheetDescription>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{sceneSidebarContent}</div>
+        </SheetContent>
+      </Sheet>
+
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>新增场景节点</DialogTitle>
             <DialogDescription>填写场景的基本信息，它将被插入到当前故事流中。</DialogDescription>
@@ -855,7 +973,7 @@ export function StoryVisualizer() {
         </DialogContent>
       </Dialog>
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>导入大纲</DialogTitle>
             <DialogDescription>

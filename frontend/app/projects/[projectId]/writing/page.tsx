@@ -1,11 +1,10 @@
 "use client"
 
-import Link from "next/link"
 import { useParams } from "next/navigation"
 
 import { WritingWorkspace } from "@/components/writing-workspace"
 import { ProjectRouteGuard } from "@/components/project-route-guard"
-import { Button } from "@/components/ui/button"
+import { ProjectHeader, ProjectWorkspaceHeader } from "@/components/project-header"
 
 export default function ProjectWritingPage() {
   const params = useParams<{ projectId: string }>()
@@ -15,20 +14,20 @@ export default function ProjectWritingPage() {
 
   return (
     <ProjectRouteGuard projectId={projectId}>
-      <div className="flex h-screen flex-col bg-background">
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/">返回大纲</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href={`/projects/${projectId}/relations`}>关系图</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href={`/analysis/${projectId}`}>分析</Link>
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1">
-          <WritingWorkspace />
+      <div className="app-backdrop relative min-h-screen text-foreground">
+        <div className="relative mx-3 mt-3 flex flex-col gap-3 md:mx-4">
+          <ProjectHeader
+            projectId={projectId}
+            activeModule="writing"
+          />
+          <div className="panel-shell-strong min-h-[calc(100vh-10rem)] overflow-hidden">
+            <ProjectWorkspaceHeader
+              moduleKey="writing"
+            />
+            <div className="p-2 sm:p-3">
+              <WritingWorkspace />
+            </div>
+          </div>
         </div>
       </div>
     </ProjectRouteGuard>

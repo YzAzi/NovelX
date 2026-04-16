@@ -102,7 +102,10 @@ export interface GraphSyncResponse {
 
 export interface StyleDocument {
   id: string
-  project_id: string
+  project_id?: string | null
+  library_id?: string | null
+  owner_id?: string | null
+  scope?: "project" | "library" | string
   title: string
   category: string
   content: string
@@ -151,6 +154,28 @@ export interface StyleKnowledgeUploadResponse {
   warnings: string[]
 }
 
+export interface StyleKnowledgeImportResponse {
+  documents: StyleDocument[]
+  imported_count: number
+  warnings: string[]
+}
+
+export interface StyleLibrary {
+  id: string
+  owner_id?: string | null
+  name: string
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+export interface StyleLibraryBundle {
+  library: StyleLibrary
+  documents: StyleDocument[]
+  total_chunks: number
+  total_characters: number
+}
+
 export interface ProjectStatsResponse {
   total_nodes: number
   total_characters: number
@@ -191,8 +216,59 @@ export interface CreateOutlineRequest {
   world_view: string
   style_tags: string[]
   initial_prompt: string
+  drafting_prompt?: string | null
   base_project_id?: string | null
   request_id?: string | null
+}
+
+export interface StoryDirectionRequest {
+  user_input?: string | null
+  world_view?: string | null
+  style_tags?: string[]
+  base_project_id?: string | null
+}
+
+export interface StoryDirectionOption {
+  title: string
+  logline: string
+  world_view: string
+  style_tags: string[]
+  initial_prompt: string
+}
+
+export interface StoryDirectionResponse {
+  directions: StoryDirectionOption[]
+}
+
+export type IdeaLabStage = "concept" | "protagonist" | "conflict" | "outline"
+
+export interface IdeaLabStageOption {
+  project_title: string
+  hook: string
+  premise: string
+  protagonist: string
+  conflict: string
+  world_view: string
+  style_tags: string[]
+  initial_prompt: string
+}
+
+export interface IdeaLabStageRequest {
+  stage: IdeaLabStage
+  seed_input?: string | null
+  world_view?: string | null
+  style_tags?: string[]
+  base_project_id?: string | null
+  feedback?: string | null
+  selected_option?: IdeaLabStageOption | null
+}
+
+export interface IdeaLabStageResponse {
+  stage: IdeaLabStage
+  stage_title: string
+  stage_instruction: string
+  is_final_stage: boolean
+  options: IdeaLabStageOption[]
 }
 
 export interface CreateEmptyProjectRequest {
@@ -261,12 +337,27 @@ export interface ModelConfigUpdateRequest {
 export interface AuthUser {
   id: string
   username: string
+  created_at?: string | null
 }
 
 export interface AuthTokenResponse {
   access_token: string
   token_type: "bearer"
   user: AuthUser
+}
+
+export interface AuthOutlineChannelResponse {
+  request_id: string
+  channel_token: string
+}
+
+export interface AuthUpdateProfileRequest {
+  username: string
+}
+
+export interface AuthChangePasswordRequest {
+  current_password: string
+  new_password: string
 }
 
 export interface WritingAssistantRequest {

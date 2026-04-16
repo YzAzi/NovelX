@@ -1,26 +1,12 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Sora, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
-
-const sora = Sora({
-  variable: "--font-sora",
-  subsets: ["latin"],
-});
-
-const notoserif = Noto_Serif_SC({
-  variable: "--font-serif",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
-
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-});
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "next-themes";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "AI Novel Assistant",
-  description: "AI-powered novel writing assistant",
+  title: "Novel Workspace",
+  description: "面向长篇创作的小说工作台",
 };
 
 export default function RootLayout({
@@ -29,11 +15,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
-      <body
-        className={`${sora.variable} ${notoserif.variable} ${jetBrainsMono.variable} antialiased h-full`}
-      >
-        {children}
+    <html lang="zh-CN" className="h-full" suppressHydrationWarning>
+      <body className="h-full antialiased">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

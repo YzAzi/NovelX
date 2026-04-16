@@ -2,9 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
+import { AUTH_EXPIRED_EVENT, getAuthToken } from "@/src/lib/api"
 
 type ProjectRouteGuardProps = {
   projectId: string
@@ -15,15 +17,42 @@ export function ProjectRouteGuard({
   projectId,
   children,
 }: ProjectRouteGuardProps) {
-  const { currentProject, error, loadProject } = useProjectStore()
+  const { currentProject, error, loadProject, resetWorkspace } = useProjectStore()
   const [isBootstrapping, setIsBootstrapping] = useState(false)
+  const [sessionChecked, setSessionChecked] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
-    if (!projectId || currentProject?.id === projectId) {
+    const handleAuthExpired = () => {
+      resetWorkspace()
+      router.replace("/")
+    }
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
+    if (!getAuthToken()) {
+      handleAuthExpired()
+      return () => {
+        window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
+      }
+    }
+    
+    // Defer state update to avoid synchronous cascading renders
+    Promise.resolve().then(() => setSessionChecked(true))
+
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
+    }
+  }, [resetWorkspace, router])
+
+  useEffect(() => {
+    if (!sessionChecked || !projectId || currentProject?.id === projectId) {
       return
     }
     let cancelled = false
-    setIsBootstrapping(true)
+    
+    // Defer state update to avoid synchronous cascading renders
+    Promise.resolve().then(() => setIsBootstrapping(true))
+    
     void loadProject(projectId).finally(() => {
       if (!cancelled) {
         setIsBootstrapping(false)
@@ -32,7 +61,7 @@ export function ProjectRouteGuard({
     return () => {
       cancelled = true
     }
-  }, [currentProject?.id, loadProject, projectId])
+  }, [currentProject?.id, loadProject, projectId, sessionChecked])
 
   if (!projectId) {
     return (
@@ -47,7 +76,7 @@ export function ProjectRouteGuard({
     )
   }
 
-  if (isBootstrapping || currentProject?.id !== projectId) {
+  if (!sessionChecked || isBootstrapping || currentProject?.id !== projectId) {
     if (!isBootstrapping && error) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-background px-4">

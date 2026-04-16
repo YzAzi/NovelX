@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import { Maximize2, Minimize2 } from "lucide-react"
 
-import type { Conflict, StoryNode } from "@/src/types/models"
+import type { StoryNode } from "@/src/types/models"
 import { syncNode } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button } from "@/components/ui/button"
@@ -60,40 +60,44 @@ export function NodeEditor() {
 
   useEffect(() => {
     if (!selectedNode) {
-      setNodeEditorOpen(false)
-      setTitle("")
-      setContent("")
-      setNarrativeOrder("")
-      setTimelineOrder("")
-      setLocationTag("")
-      setCharacters([])
+      Promise.resolve().then(() => {
+        setNodeEditorOpen(false)
+        setTitle("")
+        setContent("")
+        setNarrativeOrder("")
+        setTimelineOrder("")
+        setLocationTag("")
+        setCharacters([])
+        setSaveStatus("idle")
+        setNewCharacterNotice(null)
+        setValidationError(null)
+        clearConflicts()
+        setExpandedConflict(null)
+        lastSavedRef.current = null
+      })
+      return
+    }
+
+    Promise.resolve().then(() => {
+      setTitle(selectedNode.title ?? "")
+      setContent(selectedNode.content ?? "")
+      setNarrativeOrder(String(selectedNode.narrative_order ?? 0))
+      setTimelineOrder(String(selectedNode.timeline_order ?? 0))
+      setLocationTag(selectedNode.location_tag ?? "")
+      setCharacters(selectedNode.characters ?? [])
       setSaveStatus("idle")
       setNewCharacterNotice(null)
       setValidationError(null)
       clearConflicts()
       setExpandedConflict(null)
-      lastSavedRef.current = null
-      return
-    }
-
-    setTitle(selectedNode.title ?? "")
-    setContent(selectedNode.content ?? "")
-    setNarrativeOrder(String(selectedNode.narrative_order ?? 0))
-    setTimelineOrder(String(selectedNode.timeline_order ?? 0))
-    setLocationTag(selectedNode.location_tag ?? "")
-    setCharacters(selectedNode.characters ?? [])
-    setSaveStatus("idle")
-    setNewCharacterNotice(null)
-    setValidationError(null)
-    clearConflicts()
-    setExpandedConflict(null)
-    lastSavedRef.current = JSON.stringify({
-      title: selectedNode.title ?? "",
-      content: selectedNode.content ?? "",
-      narrativeOrder: String(selectedNode.narrative_order ?? 0),
-      timelineOrder: String(selectedNode.timeline_order ?? 0),
-      locationTag: selectedNode.location_tag ?? "",
-      characters: selectedNode.characters ?? [],
+      lastSavedRef.current = JSON.stringify({
+        title: selectedNode.title ?? "",
+        content: selectedNode.content ?? "",
+        narrativeOrder: String(selectedNode.narrative_order ?? 0),
+        timelineOrder: String(selectedNode.timeline_order ?? 0),
+        locationTag: selectedNode.location_tag ?? "",
+        characters: selectedNode.characters ?? [],
+      })
     })
   }, [selectedNodeId, selectedNode, setNodeEditorOpen])
 
@@ -110,7 +114,11 @@ export function NodeEditor() {
   )
 
   const snapshotKey = useMemo(() => JSON.stringify(formSnapshot), [formSnapshot])
-  const isDirty = lastSavedRef.current !== snapshotKey
+  const [isDirty, setIsDirty] = useState(false)
+
+  useEffect(() => {
+    setIsDirty(lastSavedRef.current !== snapshotKey)
+  }, [snapshotKey])
 
   useEffect(() => {
     if (saveStatus === "saving") {
@@ -244,6 +252,7 @@ export function NodeEditor() {
       setSyncRequestId,
       setSyncStatus,
       validateSnapshot,
+      setSyncNodeId,
     ]
   )
 
@@ -310,7 +319,7 @@ export function NodeEditor() {
           tabIndex={-1}
           className={cn(
             "flex h-full flex-col border-0 shadow-none outline-none",
-            isZenMode && "bg-zinc-50 dark:bg-zinc-950"
+            isZenMode && "bg-background/95 backdrop-blur-xl"
           )}
         >
           <CardHeader
@@ -409,12 +418,12 @@ export function NodeEditor() {
                     className={cn(
                       "rounded-full px-2 py-0.5",
                       saveStatus === "saving"
-                        ? "bg-amber-100 text-amber-700"
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                         : saveStatus === "saved"
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                           : isDirty
-                            ? "bg-slate-100 text-slate-700"
-                            : "bg-slate-100 text-slate-500"
+                            ? "bg-muted text-muted-foreground"
+                            : "bg-muted text-muted-foreground/60"
                     )}
                   >
                     {saveStatus === "saving"
@@ -429,12 +438,12 @@ export function NodeEditor() {
                     className={cn(
                       "rounded-full px-2 py-0.5",
                       syncStatus === "syncing"
-                        ? "bg-amber-100 text-amber-700"
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                         : syncStatus === "completed"
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                           : syncStatus === "failed"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-slate-100 text-slate-500"
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-muted text-muted-foreground/60"
                     )}
                   >
                     {syncStatus === "syncing"
@@ -446,18 +455,18 @@ export function NodeEditor() {
                           : "待同步"}
                   </span>
                   {conflicts.length > 0 ? (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">
+                    <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive">
                       发现冲突 {conflicts.length}
                     </span>
                   ) : null}
                 </div>
                 {newCharacterNotice ? (
-                  <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
                     {newCharacterNotice}
                   </div>
                 ) : null}
                 {validationError ? (
-                  <div className="rounded-xl border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs text-red-700">
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     {validationError}
                   </div>
                 ) : null}
@@ -467,10 +476,10 @@ export function NodeEditor() {
                       const isExpanded = expandedConflict === index
                       const severityClass =
                         conflict.severity === "error"
-                          ? "border-red-200/70 bg-red-50/70 text-red-700"
+                          ? "border-destructive/30 bg-destructive/10 text-destructive"
                           : conflict.severity === "warning"
-                            ? "border-amber-200/70 bg-amber-50/70 text-amber-700"
-                            : "border-blue-200/70 bg-blue-50/70 text-blue-700"
+                            ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                            : "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
 
                       return (
                         <button
@@ -491,7 +500,7 @@ export function NodeEditor() {
                               ) : null}
                             </div>
                           ) : (
-                            <div className="mt-1 text-[11px] text-slate-600">点击查看详情</div>
+                            <div className="mt-1 text-[11px] text-muted-foreground">点击查看详情</div>
                           )}
                         </button>
                       )

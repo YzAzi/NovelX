@@ -191,6 +191,7 @@ async def writing_assistant_stream_response(
     style_context = ""
     if payload.style_document_ids:
         preview = await resolve_style_preview(
+            session=session,
             project_id=payload.project_id,
             instruction=payload.instruction,
             text=payload.text,

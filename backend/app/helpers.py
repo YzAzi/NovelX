@@ -6,9 +6,10 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .crud import get_project
+from .crud import get_project, list_style_libraries
 from .knowledge_graph import EntityType, KnowledgeGraph
 from .models import (
+    CHARACTER_BIO_MAX_LENGTH,
     CharacterAppearance,
     CharacterGraphLink,
     CharacterGraphNode,
@@ -19,6 +20,7 @@ from .models import (
     StyleRetrievalPreviewResponse,
 )
 from .runtime import style_knowledge_manager
+from .style_knowledge import StyleDocument
 
 
 async def get_project_or_404(
@@ -201,8 +203,8 @@ def sync_project_characters_from_graph(
         bio = (entity.description or "").strip()
         if not bio and existing:
             bio = existing.bio
-        if len(bio) > 100:
-            bio = bio[:100]
+        if len(bio) > CHARACTER_BIO_MAX_LENGTH:
+            bio = bio[:CHARACTER_BIO_MAX_LENGTH]
         characters.append(
             CharacterProfile(
                 id=entity.id,
@@ -257,6 +259,7 @@ def normalize_preview_focuses(preferred_focuses: list[str]) -> list[str]:
 
 
 async def resolve_style_preview(
+    session: AsyncSession,
     project_id: str,
     instruction: str,
     text: str,
@@ -266,12 +269,19 @@ async def resolve_style_preview(
     if not style_document_ids:
         return StyleRetrievalPreviewResponse(preferred_focuses=[], references=[])
 
+    selected_documents = await resolve_accessible_style_documents(
+        session=session,
+        project_id=project_id,
+        style_document_ids=style_document_ids,
+    )
+    if not selected_documents:
+        return StyleRetrievalPreviewResponse(preferred_focuses=[], references=[])
+
     preferred_focuses = infer_style_focuses(instruction, text)
     style_query = build_style_query(instruction, text, preferred_focuses)
-    style_hits = await style_knowledge_manager.search_style(
-        project_id=project_id,
+    style_hits = await style_knowledge_manager.search_style_documents(
         query=style_query,
-        document_ids=style_document_ids,
+        documents=selected_documents,
         top_k=top_k,
         preferred_focuses=preferred_focuses,
     )
@@ -295,6 +305,36 @@ async def resolve_style_preview(
         preferred_focuses=normalize_preview_focuses(preferred_focuses),
         references=references,
     )
+
+
+async def resolve_accessible_style_documents(
+    session: AsyncSession,
+    project_id: str,
+    style_document_ids: list[str],
+) -> list[StyleDocument]:
+    remaining_ids = [item for item in style_document_ids if item]
+    if not remaining_ids:
+        return []
+
+    documents_by_id: dict[str, StyleDocument] = {}
+    project_documents = await style_knowledge_manager.list_project_documents(project_id)
+    for document in project_documents:
+        if document.id in remaining_ids:
+            documents_by_id[document.id] = document
+
+    unresolved = [item for item in remaining_ids if item not in documents_by_id]
+    if unresolved:
+        libraries = await list_style_libraries(session)
+        for library in libraries:
+            library_documents = await style_knowledge_manager.list_library_documents(library.id)
+            for document in library_documents:
+                if document.id in unresolved:
+                    documents_by_id[document.id] = document
+            unresolved = [item for item in unresolved if item not in documents_by_id]
+            if not unresolved:
+                break
+
+    return [documents_by_id[item] for item in remaining_ids if item in documents_by_id]
 
 
 def build_character_graph_response(

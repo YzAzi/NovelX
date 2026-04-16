@@ -2,7 +2,8 @@ FROM node:20-alpine AS deps
 
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable \
+  && pnpm config set registry https://registry.npmmirror.com
 
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 
@@ -12,7 +13,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable \
+  && pnpm config set registry https://registry.npmmirror.com
 
 COPY --from=deps /app/node_modules /app/node_modules
 

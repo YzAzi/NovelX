@@ -28,6 +28,12 @@ async def init_db() -> None:
             await connection.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_projects_owner_id ON projects(owner_id)")
             )
+        user_result = await connection.execute(text("PRAGMA table_info(users)"))
+        user_columns = {row[1] for row in user_result.fetchall()}
+        if "token_version" not in user_columns:
+            await connection.execute(
+                text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0")
+            )
 
 
 async def get_session() -> AsyncSession:

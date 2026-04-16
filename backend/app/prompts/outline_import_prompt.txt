@@ -8,7 +8,7 @@
 2) 每个节点必须包含：title、content（简要概述或该节点正文）、narrative_order、timeline_order、location_tag、characters（角色名列表）。
 3) 如果原文没有明确时间顺序，请让 timeline_order 与 narrative_order 递增一致（1,2,3...）。
 4) location_tag 用于标记叙事线（例如“主线”“支线A”），没有明确标注时默认“主线”。
-5) 抽取主要角色列表（characters），给出 name、tags（性格/身份关键词）、bio（简短背景，<=100字）。
+5) 抽取主要角色列表（characters），给出 name、tags（性格/身份关键词）、bio（简短背景，<=300字）。
 6) 输出必须严格符合 JSON Schema。
 
 输出格式（JSON Schema）：

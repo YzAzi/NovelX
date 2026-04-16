@@ -18,7 +18,10 @@ from .text_utils import keyword_score, tokenize
 
 class StyleDocument(BaseModel):
     id: str
-    project_id: str
+    project_id: str | None = None
+    library_id: str | None = None
+    owner_id: str | None = None
+    scope: str = "project"
     title: str
     category: str
     content: str
@@ -51,8 +54,18 @@ def _storage_dir() -> Path:
     return directory
 
 
+def _library_storage_dir() -> Path:
+    directory = Path(__file__).resolve().parent.parent / "data" / "style_library_knowledge"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
 def _project_file(project_id: str) -> Path:
     return resolve_project_file(_storage_dir(), project_id, ".json")
+
+
+def _library_file(library_id: str) -> Path:
+    return resolve_project_file(_library_storage_dir(), library_id, ".json")
 
 
 @contextmanager
@@ -67,8 +80,7 @@ def _file_lock(path: Path):
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
-def _load_project_documents(project_id: str) -> list[StyleDocument]:
-    path = _project_file(project_id)
+def _load_documents(path: Path) -> list[StyleDocument]:
     with _file_lock(path):
         if not path.exists():
             return []
@@ -76,8 +88,7 @@ def _load_project_documents(project_id: str) -> list[StyleDocument]:
         return [StyleDocument.model_validate(item) for item in data]
 
 
-def _save_project_documents(project_id: str, documents: list[StyleDocument]) -> None:
-    path = _project_file(project_id)
+def _save_documents(path: Path, documents: list[StyleDocument]) -> None:
     payload = [doc.model_dump(mode="json") for doc in documents]
     with _file_lock(path):
         path.write_text(
@@ -85,22 +96,44 @@ def _save_project_documents(project_id: str, documents: list[StyleDocument]) -> 
         )
 
 
+def _load_project_documents(project_id: str) -> list[StyleDocument]:
+    return _load_documents(_project_file(project_id))
+
+
+def _load_library_documents(library_id: str) -> list[StyleDocument]:
+    return _load_documents(_library_file(library_id))
+
+
+def _save_project_documents(project_id: str, documents: list[StyleDocument]) -> None:
+    _save_documents(_project_file(project_id), documents)
+
+
+def _save_library_documents(library_id: str, documents: list[StyleDocument]) -> None:
+    _save_documents(_library_file(library_id), documents)
+
+
 def _build_chunk_metadata(
-    project_id: str,
     doc: StyleDocument,
     chunk_index: int,
     start_index: int,
     end_index: int,
 ) -> dict:
-    return {
-        "project_id": project_id,
+    metadata = {
         "document_id": doc.id,
         "title": doc.title,
         "category": doc.category,
+        "scope": doc.scope,
         "chunk_index": chunk_index,
         "start_index": start_index,
         "end_index": end_index,
     }
+    if doc.project_id:
+        metadata["project_id"] = doc.project_id
+    if doc.library_id:
+        metadata["library_id"] = doc.library_id
+    if doc.owner_id:
+        metadata["owner_id"] = doc.owner_id
+    return metadata
 
 
 def _build_snippet(document: StyleDocument, limit: int = 180) -> str:
@@ -180,6 +213,9 @@ class StyleKnowledgeManager:
     async def list_project_documents(self, project_id: str) -> list[StyleDocument]:
         return _load_project_documents(project_id)
 
+    async def list_library_documents(self, library_id: str) -> list[StyleDocument]:
+        return _load_library_documents(library_id)
+
     async def add_document(
         self,
         project_id: str,
@@ -195,6 +231,7 @@ class StyleKnowledgeManager:
         document = StyleDocument(
             id=str(uuid4()),
             project_id=project_id,
+            scope="project",
             title=title,
             category=category,
             content=content,
@@ -218,7 +255,6 @@ class StyleKnowledgeManager:
                 documents=[chunk.content for chunk in chunks],
                 metadatas=[
                     _build_chunk_metadata(
-                        project_id,
                         document,
                         index,
                         chunk.start_index,
@@ -232,6 +268,63 @@ class StyleKnowledgeManager:
         documents = _load_project_documents(project_id)
         documents.append(document)
         _save_project_documents(project_id, documents)
+        return document
+
+    async def add_library_document(
+        self,
+        library_id: str,
+        title: str,
+        category: str,
+        content: str,
+        owner_id: str | None = None,
+        source_characters: int = 0,
+        curated_characters: int | None = None,
+        curated_segments: int = 0,
+        chunking_config: ChunkConfig | None = None,
+    ) -> StyleDocument:
+        config = chunking_config or _default_chunking_config()
+        document = StyleDocument(
+            id=str(uuid4()),
+            project_id=None,
+            library_id=library_id,
+            owner_id=owner_id,
+            scope="library",
+            title=title,
+            category=category,
+            content=content,
+            chunks=[],
+            source_characters=max(source_characters, 0),
+            curated_characters=max(curated_characters or len(content), 0),
+            curated_segments=max(curated_segments, 0),
+            created_at=_now(),
+            updated_at=_now(),
+        )
+
+        chunks = chunk_text(
+            content,
+            config,
+            source_metadata={"library_id": library_id, "document_id": document.id},
+        )
+        if chunks:
+            document.chunks = [chunk.id for chunk in chunks]
+            await add_documents(
+                collection_name="style_knowledge",
+                documents=[chunk.content for chunk in chunks],
+                metadatas=[
+                    _build_chunk_metadata(
+                        document,
+                        index,
+                        chunk.start_index,
+                        chunk.end_index,
+                    )
+                    for index, chunk in enumerate(chunks)
+                ],
+                ids=[chunk.id for chunk in chunks],
+            )
+
+        documents = _load_library_documents(library_id)
+        documents.append(document)
+        _save_library_documents(library_id, documents)
         return document
 
     async def delete_document_in_project(
@@ -267,6 +360,25 @@ class StyleKnowledgeManager:
         _save_project_documents(project_id, documents)
         return document
 
+    async def update_document_title_in_library(
+        self,
+        library_id: str,
+        doc_id: str,
+        title: str,
+    ) -> StyleDocument:
+        documents = _load_library_documents(library_id)
+        document = next((item for item in documents if item.id == doc_id), None)
+        if document is None:
+            raise ValueError("Document not found")
+        document.title = title
+        document.updated_at = _now()
+        for index, item in enumerate(documents):
+            if item.id == doc_id:
+                documents[index] = document
+                break
+        _save_library_documents(library_id, documents)
+        return document
+
     async def delete_project_data(self, project_id: str) -> None:
         documents = _load_project_documents(project_id)
         chunk_ids = [chunk_id for doc in documents for chunk_id in doc.chunks]
@@ -278,12 +390,48 @@ class StyleKnowledgeManager:
                 if path.exists():
                     path.unlink()
 
+    async def delete_document_in_library(
+        self,
+        library_id: str,
+        doc_id: str,
+    ) -> None:
+        documents = _load_library_documents(library_id)
+        document = next((item for item in documents if item.id == doc_id), None)
+        if document is None:
+            return
+        if document.chunks:
+            await delete_by_ids("style_knowledge", document.chunks)
+        documents = [item for item in documents if item.id != doc_id]
+        _save_library_documents(library_id, documents)
+
+    async def delete_library_data(self, library_id: str) -> None:
+        documents = _load_library_documents(library_id)
+        chunk_ids = [chunk_id for doc in documents for chunk_id in doc.chunks]
+        if chunk_ids:
+            await delete_by_ids("style_knowledge", chunk_ids)
+        await delete_by_filter("style_knowledge", {"library_id": library_id})
+        for path in project_file_candidates(_library_storage_dir(), library_id, ".json"):
+            with _file_lock(path):
+                if path.exists():
+                    path.unlink()
+
     async def get_knowledge_base(self, project_id: str) -> StyleKnowledgeBase:
         documents = _load_project_documents(project_id)
         total_chunks = sum(len(doc.chunks) for doc in documents)
         total_characters = sum(len(doc.content) for doc in documents)
         return StyleKnowledgeBase(
             project_id=project_id,
+            documents=documents,
+            total_chunks=total_chunks,
+            total_characters=total_characters,
+        )
+
+    async def get_library_knowledge_base(self, library_id: str) -> StyleKnowledgeBase:
+        documents = _load_library_documents(library_id)
+        total_chunks = sum(len(doc.chunks) for doc in documents)
+        total_characters = sum(len(doc.content) for doc in documents)
+        return StyleKnowledgeBase(
+            project_id=library_id,
             documents=documents,
             total_chunks=total_chunks,
             total_characters=total_characters,
@@ -305,6 +453,9 @@ class StyleKnowledgeManager:
             restored_doc = StyleDocument(
                 id=doc.id,
                 project_id=project_id,
+                library_id=None,
+                owner_id=doc.owner_id,
+                scope=doc.scope or "project",
                 title=doc.title,
                 category=doc.category,
                 content=doc.content,
@@ -327,7 +478,6 @@ class StyleKnowledgeManager:
                     documents=[chunk.content for chunk in chunks],
                     metadatas=[
                         _build_chunk_metadata(
-                            project_id,
                             restored_doc,
                             index,
                             chunk.start_index,
@@ -342,23 +492,74 @@ class StyleKnowledgeManager:
         _save_project_documents(project_id, restored)
         return restored
 
-    async def search_style(
+    async def replace_library_documents(
         self,
-        project_id: str,
+        library_id: str,
+        documents: list[StyleDocument],
+        owner_id: str | None = None,
+        chunking_config: ChunkConfig | None = None,
+    ) -> list[StyleDocument]:
+        await self.delete_library_data(library_id)
+        if not documents:
+            return []
+
+        config = chunking_config or _default_chunking_config()
+        restored: list[StyleDocument] = []
+        for doc in documents:
+            restored_doc = StyleDocument(
+                id=doc.id,
+                project_id=None,
+                library_id=library_id,
+                owner_id=owner_id or doc.owner_id,
+                scope="library",
+                title=doc.title,
+                category=doc.category,
+                content=doc.content,
+                chunks=[],
+                source_characters=doc.source_characters,
+                curated_characters=doc.curated_characters or len(doc.content),
+                curated_segments=doc.curated_segments,
+                created_at=doc.created_at,
+                updated_at=doc.updated_at,
+            )
+            chunks = chunk_text(
+                doc.content,
+                config,
+                source_metadata={"library_id": library_id, "document_id": restored_doc.id},
+            )
+            if chunks:
+                restored_doc.chunks = [chunk.id for chunk in chunks]
+                await add_documents(
+                    collection_name="style_knowledge",
+                    documents=[chunk.content for chunk in chunks],
+                    metadatas=[
+                        _build_chunk_metadata(
+                            restored_doc,
+                            index,
+                            chunk.start_index,
+                            chunk.end_index,
+                        )
+                        for index, chunk in enumerate(chunks)
+                    ],
+                    ids=[chunk.id for chunk in chunks],
+                )
+            restored.append(restored_doc)
+
+        _save_library_documents(library_id, restored)
+        return restored
+
+    async def search_style_documents(
+        self,
         query: str,
-        document_ids: list[str],
+        documents: list[StyleDocument],
         top_k: int = 6,
         preferred_focuses: list[str] | None = None,
     ) -> list[SearchResult]:
-        if not document_ids or not query.strip():
+        if not documents or not query.strip():
             return []
         normalized_focuses = _normalize_focus_values(preferred_focuses)
-        filter_dict = {
-            "$and": [
-                {"project_id": project_id},
-                {"document_id": {"$in": document_ids}},
-            ]
-        }
+        document_ids = [doc.id for doc in documents]
+        filter_dict = {"document_id": {"$in": document_ids}}
 
         vector_hits = await search_similar(
             collection_name="style_knowledge",
@@ -366,12 +567,6 @@ class StyleKnowledgeManager:
             top_k=top_k + 2,
             filter_dict=filter_dict,
         )
-
-        documents = [
-            doc
-            for doc in _load_project_documents(project_id)
-            if doc.id in document_ids
-        ]
 
         tokens = tokenize(query)
         scores: dict[str, dict] = {}
@@ -416,6 +611,9 @@ class StyleKnowledgeManager:
                             "title": doc.title,
                             "category": doc.category,
                             "document_id": doc.id,
+                            "scope": doc.scope,
+                            "project_id": doc.project_id,
+                            "library_id": doc.library_id,
                             "focus": _extract_focus(doc.content),
                             "techniques": _extract_techniques(doc.content),
                         },
@@ -452,6 +650,9 @@ class StyleKnowledgeManager:
                             "title": doc.title,
                             "category": doc.category,
                             "document_id": doc.id,
+                            "scope": doc.scope,
+                            "project_id": doc.project_id,
+                            "library_id": doc.library_id,
                             "focus": _extract_focus(doc.content),
                             "techniques": _extract_techniques(doc.content),
                         },
@@ -512,3 +713,23 @@ class StyleKnowledgeManager:
             if len(results) >= top_k:
                 break
         return results
+
+    async def search_style(
+        self,
+        project_id: str,
+        query: str,
+        document_ids: list[str],
+        top_k: int = 6,
+        preferred_focuses: list[str] | None = None,
+    ) -> list[SearchResult]:
+        documents = [
+            doc
+            for doc in _load_project_documents(project_id)
+            if doc.id in document_ids
+        ]
+        return await self.search_style_documents(
+            query=query,
+            documents=documents,
+            top_k=top_k,
+            preferred_focuses=preferred_focuses,
+        )

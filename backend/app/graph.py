@@ -14,7 +14,14 @@ from .config import get_api_key, get_base_url, get_model_name, settings
 from .graph_extractor import GraphExtractor
 from .graph_retriever import RetrievalContext, GraphRetriever
 from .knowledge_graph import KnowledgeGraph, load_graph, save_graph
-from .models import CreateOutlineRequest, PromptOverrides, StoryNode, StoryProject, SyncAnalysisResult
+from .models import (
+    CHARACTER_BIO_MAX_LENGTH,
+    CreateOutlineRequest,
+    PromptOverrides,
+    StoryNode,
+    StoryProject,
+    SyncAnalysisResult,
+)
 from .node_indexer import NodeIndexer
 from .schema_utils import pydantic_to_openai_function_inline
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode
@@ -29,6 +36,11 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(), logging.FileHandler(LOG_FILE, encoding="utf-8")],
 )
 logger = logging.getLogger(__name__)
+
+DRAFTING_GUARDRAILS = (
+    f"额外硬性约束：所有 CharacterProfile.bio 必须控制在 {CHARACTER_BIO_MAX_LENGTH} 字以内，"
+    "只保留身份、动机、关系和关键背景，不要展开完整剧情。"
+)
 
 DRAFT_PROMPT_PATH = Path(__file__).parent / "prompts" / "drafting_prompt.txt"
 REVERSE_SYNC_PROMPT_PATH = Path(__file__).parent / "prompts" / "reverse_sync_prompt.txt"
@@ -205,6 +217,7 @@ async def drafting_node(state: AgentState) -> AgentState:
             print(f"[drafting_node] attempt {attempt}")
             try:
                 prompt_text = prompt_template.format(**base_inputs)
+                prompt_text = f"{prompt_text}\n\n{DRAFTING_GUARDRAILS}"
                 if attempt > 1:
                     prompt_text = f"{prompt_text}\n\n请严格按照要求的格式输出"
                 result = await llm.ainvoke(prompt_text)

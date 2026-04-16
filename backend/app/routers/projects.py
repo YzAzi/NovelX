@@ -4,7 +4,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..crud import create_project, delete_project, get_project, list_projects, update_project
+from ..crud import (
+    create_project,
+    delete_project,
+    get_project,
+    list_projects,
+    project_id_exists,
+    update_project,
+)
 from ..database import get_session
 from ..helpers import count_words, get_project_or_404
 from ..knowledge_graph import delete_graph, load_graph, save_graph
@@ -290,11 +297,10 @@ async def import_project_data(
     session: AsyncSession = Depends(get_session),
 ):
     project = payload.project
-    existing = await get_project(session, project.id)
-    if existing is not None:
+    if await project_id_exists(session, project.id):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Project already exists",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Project ID already exists",
         )
     await create_project(session, project)
     save_graph(payload.knowledge_graph)
