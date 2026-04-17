@@ -452,18 +452,42 @@ export function WritingWorkspace() {
       
       const decoder = new TextDecoder()
       let polishedText = ""
+      let buffer = ""
+      let streamError: string | null = null
       
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split("\n")
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6)
-            if (data === "[DONE]") continue
-            polishedText += data
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split("\n\n")
+        buffer = parts.pop() ?? ""
+
+        for (const part of parts) {
+          const lines = part.split("\n")
+          let event = "message"
+          const dataLines: string[] = []
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              event = line.replace("event:", "").trim()
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.replace(/^data:\s?/, ""))
+            }
           }
+
+          const data = dataLines.join("\n")
+          if (event === "start" || data === "[DONE]") {
+            continue
+          }
+          if (event === "error") {
+            streamError = data || "写作助手处理失败，请稍后重试。"
+            break
+          }
+          polishedText += data
+        }
+
+        if (streamError) {
+          throw new Error(streamError)
         }
       }
       

@@ -113,6 +113,13 @@ export function formatUserErrorMessage(
     if (message === "Failed to call AI") {
       return "写作助手暂时不可用，请检查模型配置后重试。"
     }
+    if (
+      message.includes("403") &&
+      (message.includes("无权访问模型") ||
+        message.toLowerCase().includes("access") && message.toLowerCase().includes("model"))
+    ) {
+      return "当前访问密钥无权使用所选模型，请在配置中更换可用模型或更换已开通权限的密钥。"
+    }
     return message
   }
   return fallback

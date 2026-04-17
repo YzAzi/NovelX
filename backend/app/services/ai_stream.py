@@ -31,6 +31,19 @@ WRITING_ASSISTANT_SYSTEM_PROMPT = (
 ).read_text(encoding="utf-8")
 
 
+def _format_stream_error_message(error: Exception) -> str:
+    message = str(error).strip()
+    lowered = message.lower()
+
+    if "403" in lowered and ("无权访问模型" in message or "access" in lowered and "model" in lowered):
+        return "当前访问密钥无权使用所选写作模型，请在写作配置中更换可用模型，或切换到已开通权限的密钥。"
+    if "api key" in lowered or "令牌" in message:
+        return "当前写作助手的访问密钥不可用，请检查写作配置中的密钥与服务地址。"
+    if "rate limit" in lowered or "429" in lowered:
+        return "写作助手请求过于频繁，请稍后再试。"
+    return message or "写作助手暂时不可用，请稍后重试。"
+
+
 def _build_streaming_response(event_stream) -> StreamingResponse:
     return StreamingResponse(
         event_stream(),
@@ -138,7 +151,7 @@ async def outline_analysis_stream_response(
                     yield f"data: {line}\n"
                 yield "\n"
         except Exception as exc:
-            yield f"event: error\ndata: {str(exc)}\n\n"
+            yield f"event: error\ndata: {_format_stream_error_message(exc)}\n\n"
         finally:
             yield "event: done\ndata: [DONE]\n\n"
 
@@ -163,7 +176,7 @@ async def writing_assistant_stream_response(
     llm = ChatOpenAI(
         api_key=api_key,
         base_url=config.base_url or get_base_url(),
-        model=config.model or "gpt-4o",
+        model=config.model or get_model_name("drafting"),
         streaming=True,
     )
     system_prompt = (
@@ -259,7 +272,7 @@ async def writing_assistant_stream_response(
                     yield f"data: {line}\n"
                 yield "\n"
         except Exception as exc:
-            yield f"event: error\ndata: {str(exc)}\n\n"
+            yield f"event: error\ndata: {_format_stream_error_message(exc)}\n\n"
         finally:
             yield "event: done\ndata: [DONE]\n\n"
 
