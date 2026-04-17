@@ -58,3 +58,10 @@ class EventNotifier:
             WSMessageType.OUTLINE_PROGRESS,
             {"stage": stage, "details": details or {}},
         )
+
+    async def notify_async_task_updated(self, task_id: str, task: dict[str, Any]) -> None:
+        await self._manager.broadcast_to_project(
+            f"task:{task_id}",
+            WSMessageType.ASYNC_TASK_UPDATED,
+            {"task": task},
+        )

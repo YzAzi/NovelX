@@ -7,6 +7,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from ..auth import authenticate_access_token, decode_channel_token
 from ..crud import get_project
 from ..database import AsyncSessionLocal
+from ..db_models import AsyncTaskTable
 from ..runtime import ws_manager
 from ..websocket_manager import WSMessageType
 
@@ -82,3 +83,18 @@ async def outline_progress_websocket_channel(
         return
 
     await serve_channel_socket(websocket, request_id)
+
+
+async def async_task_websocket_channel(websocket: WebSocket, task_id: str) -> None:
+    token = websocket.query_params.get("token")
+    async with AsyncSessionLocal() as session:
+        user = await authenticate_access_token(session, token)
+        if user is None:
+            await websocket.close(code=4401)
+            return
+        task = await session.get(AsyncTaskTable, task_id)
+    if task is None or task.owner_id != user.id:
+        await websocket.close(code=4403)
+        return
+
+    await serve_channel_socket(websocket, f"task:{task_id}")

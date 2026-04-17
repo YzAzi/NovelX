@@ -14,17 +14,25 @@ import {
 
 import {
   AUTH_EXPIRED_EVENT,
-  createOutline,
-  createOutlineChannel,
+  createIdeaLabStageTask,
+  createOutlineTask,
   formatUserErrorMessage,
-  generateIdeaLabStage,
   getAuthToken,
   getCurrentUser,
+  listAsyncTasks,
   updateProjectTitle,
+  waitForAsyncTask,
 } from "@/src/lib/api"
-import { WebSocketClient } from "@/src/lib/websocket"
 import { useProjectStore } from "@/src/stores/project-store"
-import type { AuthUser, IdeaLabStage, IdeaLabStageOption, IdeaLabStageResponse } from "@/src/types/models"
+import type {
+  AsyncTask,
+  AuthUser,
+  IdeaLabStage,
+  IdeaLabStageOption,
+  IdeaLabStageRequest,
+  IdeaLabStageResponse,
+  StoryProject,
+} from "@/src/types/models"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -38,6 +46,13 @@ const IDEA_STAGE_LABELS: Record<IdeaLabStage, string> = {
   conflict: "核心冲突",
   outline: "成稿方向",
 }
+
+const TASK_STATUS_LABELS = {
+  pending: "排队中",
+  running: "执行中",
+  succeeded: "已完成",
+  failed: "失败",
+} as const
 
 function parseStyleTags(value: string) {
   return value
@@ -63,9 +78,10 @@ export default function IdeaLabPage() {
   const [stageError, setStageError] = useState<string | null>(null)
   const [isGeneratingStage, setIsGeneratingStage] = useState(false)
   const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [recentStageTasks, setRecentStageTasks] = useState<Array<AsyncTask<IdeaLabStageResponse>>>([])
+  const [currentStageTaskId, setCurrentStageTaskId] = useState<string | null>(null)
+  const [currentOutlineTaskId, setCurrentOutlineTaskId] = useState<string | null>(null)
 
-  const wsRef = useRef<WebSocketClient | null>(null)
-  const outlineProgressUnsubRef = useRef<(() => void) | null>(null)
   const stageRequestLockRef = useRef(false)
 
   const activeStage = IDEA_STAGES[activeStageIndex]
@@ -106,6 +122,50 @@ export default function IdeaLabPage() {
   )
   const canStartIdeaLab = Boolean(seedInput.trim() || worldView.trim())
 
+  const upsertRecentStageTask = (task: AsyncTask<IdeaLabStageResponse>) => {
+    setRecentStageTasks((prev) => [task, ...prev.filter((item) => item.id !== task.id)].slice(0, 8))
+  }
+
+  const syncIdeaLabInputsFromTask = (task: AsyncTask<IdeaLabStageResponse>) => {
+    const payload = task.request_payload as Partial<IdeaLabStageRequest>
+    setSeedInput(typeof payload.seed_input === "string" ? payload.seed_input : "")
+    setWorldView(typeof payload.world_view === "string" ? payload.world_view : "")
+    setStyleTagsText(Array.isArray(payload.style_tags) ? payload.style_tags.join(", ") : "")
+    setBaseProjectId(typeof payload.base_project_id === "string" ? payload.base_project_id : "")
+  }
+
+  const restoreStageTaskResult = (task: AsyncTask<IdeaLabStageResponse>) => {
+    const response = task.result_payload
+    if (!response) {
+      return
+    }
+
+    syncIdeaLabInputsFromTask(task)
+    const stageIndex = IDEA_STAGES.indexOf(response.stage)
+    clearStagesAfter(stageIndex)
+    setStageResults((prev) => ({ ...prev, [response.stage]: response }))
+    setSelectedIndices((prev) => {
+      const next = { ...prev }
+      delete next[response.stage]
+      return next
+    })
+    setActiveStageIndex(stageIndex)
+    setStageFeedback("")
+    setStageError(null)
+  }
+
+  const refreshRecentStageTasks = async () => {
+    try {
+      const response = await listAsyncTasks<IdeaLabStageResponse>({
+        kind: "idea_lab_stage",
+        limit: 8,
+      })
+      setRecentStageTasks(response.tasks)
+    } catch {
+      // ignore task-history loading errors on page shell
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -122,6 +182,17 @@ export default function IdeaLabPage() {
         }
         setAuthUser(user)
         await loadProjects()
+        try {
+          const taskResponse = await listAsyncTasks<IdeaLabStageResponse>({
+            kind: "idea_lab_stage",
+            limit: 8,
+          })
+          if (!cancelled) {
+            setRecentStageTasks(taskResponse.tasks)
+          }
+        } catch {
+          // ignore task-history loading errors on bootstrap
+        }
       } catch {
         if (!cancelled) {
           router.replace("/")
@@ -142,10 +213,6 @@ export default function IdeaLabPage() {
 
     return () => {
       cancelled = true
-      outlineProgressUnsubRef.current?.()
-      outlineProgressUnsubRef.current = null
-      wsRef.current?.disconnect()
-      wsRef.current = null
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
     }
   }, [loadProjects, router, setOutlineProgressStage])
@@ -175,7 +242,7 @@ export default function IdeaLabPage() {
     setIsGeneratingStage(true)
     setStageError(null)
     try {
-      const response = await generateIdeaLabStage({
+      const created = await createIdeaLabStageTask({
         stage,
         seed_input: seedInput.trim() || undefined,
         world_view: worldView.trim() || undefined,
@@ -184,6 +251,25 @@ export default function IdeaLabPage() {
         feedback: stageFeedback.trim() || undefined,
         selected_option: selectedOption ?? undefined,
       })
+      setCurrentStageTaskId(created.task.id)
+      syncIdeaLabInputsFromTask(created.task)
+      upsertRecentStageTask(created.task)
+
+      const completedTask = await waitForAsyncTask<IdeaLabStageResponse>(created.task.id, {
+        onUpdate: (task) => {
+          setCurrentStageTaskId(task.id)
+          upsertRecentStageTask(task)
+        },
+      })
+
+      if (completedTask.status === "failed") {
+        throw new Error(completedTask.error_message || "生成阶段方案失败，请稍后重试。")
+      }
+      const response = completedTask.result_payload
+      if (!response) {
+        throw new Error("阶段任务已完成，但未返回结果。")
+      }
+
       setStageResults((prev) => ({ ...prev, [stage]: response }))
       setSelectedIndices((prev) => {
         const next = { ...prev }
@@ -192,10 +278,13 @@ export default function IdeaLabPage() {
       })
       setActiveStageIndex(IDEA_STAGES.indexOf(stage))
       setStageFeedback("")
+      upsertRecentStageTask(completedTask)
+      await refreshRecentStageTasks()
     } catch (error) {
       setStageError(formatUserErrorMessage(error, "生成阶段方案失败，请稍后重试。"))
     } finally {
       stageRequestLockRef.current = false
+      setCurrentStageTaskId(null)
       setIsGeneratingStage(false)
     }
   }
@@ -257,30 +346,34 @@ export default function IdeaLabPage() {
     setIsCreatingProject(true)
     setStageError(null)
     try {
-      const outlineChannel = await createOutlineChannel()
-      const wsClient = new WebSocketClient()
-      wsRef.current = wsClient
-      outlineProgressUnsubRef.current = wsClient.on("outline_progress", (progress) => {
-        if (!progress || typeof progress !== "object") {
-          return
-        }
-        const stage = (progress as { stage?: string }).stage
-        if (stage) {
-          setOutlineProgressStage(stage)
-        }
-      })
-      wsClient.connect(outlineChannel.request_id, getAuthToken(), {
-        route: "outline",
-        queryParams: { channel_token: outlineChannel.channel_token },
-      })
-
-      let project = await createOutline({
+      const created = await createOutlineTask({
         world_view: activeSelectedOption.world_view,
         style_tags: activeSelectedOption.style_tags,
         initial_prompt: activeSelectedOption.initial_prompt,
         base_project_id: baseProjectId || undefined,
-        request_id: outlineChannel.request_id,
       })
+      setCurrentOutlineTaskId(created.task.id)
+      setOutlineProgressStage(created.task.progress_stage ?? "queued")
+
+      const completedTask = await waitForAsyncTask<StoryProject>(created.task.id, {
+        onUpdate: (task) => {
+          setCurrentOutlineTaskId(task.id)
+          if (task.progress_stage) {
+            setOutlineProgressStage(task.progress_stage)
+          } else if (task.status === "pending" || task.status === "running") {
+            setOutlineProgressStage("queued")
+          }
+        },
+      })
+
+      if (completedTask.status === "failed") {
+        throw new Error(completedTask.error_message || "创建项目失败，请稍后重试。")
+      }
+
+      let project = completedTask.result_payload
+      if (!project) {
+        throw new Error("大纲任务已完成，但未返回项目结果。")
+      }
 
       if (activeSelectedOption.project_title.trim()) {
         project = await updateProjectTitle(project.id, {
@@ -294,10 +387,7 @@ export default function IdeaLabPage() {
     } catch (error) {
       setStageError(formatUserErrorMessage(error, "创建项目失败，请稍后重试。"))
     } finally {
-      outlineProgressUnsubRef.current?.()
-      outlineProgressUnsubRef.current = null
-      wsRef.current?.disconnect()
-      wsRef.current = null
+      setCurrentOutlineTaskId(null)
       setOutlineProgressStage(null)
       setIsCreatingProject(false)
     }
@@ -474,6 +564,21 @@ export default function IdeaLabPage() {
               {stageError ? (
                 <div className="mb-5 rounded-[24px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
                   {stageError}
+                </div>
+              ) : null}
+
+              {isGeneratingStage || isCreatingProject ? (
+                <div className="mb-5 rounded-[24px] border border-primary/20 bg-primary/6 px-4 py-3 text-sm text-muted-foreground">
+                  {[
+                    isGeneratingStage && currentStageTaskId
+                      ? `阶段任务已提交，正在后台执行。任务 ID：${currentStageTaskId}`
+                      : null,
+                    isCreatingProject && currentOutlineTaskId
+                      ? `大纲任务已提交，正在后台执行。任务 ID：${currentOutlineTaskId}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 </div>
               ) : null}
 
@@ -667,6 +772,78 @@ export default function IdeaLabPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="panel-shell px-4 py-4 sm:px-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">最近任务</div>
+                  <div className="mt-1 text-sm text-muted-foreground">已完成的阶段结果会保留在这里，可随时重新载入查看。</div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  onClick={() => void refreshRecentStageTasks()}
+                  disabled={isGeneratingStage}
+                >
+                  刷新
+                </Button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {recentStageTasks.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">还没有任务记录。</div>
+                ) : (
+                  recentStageTasks.map((task) => {
+                    const payload = task.request_payload as Partial<IdeaLabStageRequest>
+                    const stage = typeof payload.stage === "string" ? payload.stage : null
+                    return (
+                      <div
+                        key={task.id}
+                        className="rounded-[22px] border border-border/60 bg-background/55 px-4 py-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-foreground">
+                              {stage && stage in IDEA_STAGE_LABELS
+                                ? IDEA_STAGE_LABELS[stage as IdeaLabStage]
+                                : task.title || "Idea Lab 任务"}
+                            </div>
+                            <div className="mt-1 break-all text-xs text-muted-foreground">
+                              {task.id}
+                            </div>
+                          </div>
+                          <div className="rounded-full border border-border/60 px-2.5 py-1 text-[11px] text-muted-foreground">
+                            {TASK_STATUS_LABELS[task.status]}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 text-sm leading-6 text-muted-foreground">
+                          {task.status === "failed"
+                            ? task.error_message || "任务执行失败。"
+                            : task.result_payload?.stage_instruction || "任务已提交，等待生成结果。"}
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {task.status === "succeeded" && task.result_payload ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl"
+                              onClick={() => restoreStageTaskResult(task)}
+                            >
+                              载入结果
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </div>
           </aside>
         </div>

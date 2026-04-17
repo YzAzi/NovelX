@@ -5,7 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Novel Workspace",
+  title: "NovelX Workspace",
   description: "面向长篇创作的小说工作台",
 };
 

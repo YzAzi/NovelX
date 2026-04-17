@@ -1,5 +1,9 @@
 import type { CharacterGraphResponse } from "@/src/types/character-graph"
 import type {
+  AsyncTask,
+  AsyncTaskCreateResponse,
+  AsyncTaskKind,
+  AsyncTaskListResponse,
   CreateOutlineRequest,
   IdeaLabStageRequest,
   IdeaLabStageResponse,
@@ -187,6 +191,21 @@ export async function generateStoryDirections(
   )
 }
 
+export async function createStoryDirectionsTask(
+  payload: StoryDirectionRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<AsyncTaskCreateResponse<StoryDirectionResponse>> {
+  return request<AsyncTaskCreateResponse<StoryDirectionResponse>>(
+    "/api/tasks/story_directions",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
+  )
+}
+
 export async function generateIdeaLabStage(
   payload: IdeaLabStageRequest,
   options: { signal?: AbortSignal } = {},
@@ -200,6 +219,127 @@ export async function generateIdeaLabStage(
     },
     { showLoading: false, suppressGlobalError: true },
   )
+}
+
+export async function createIdeaLabStageTask(
+  payload: IdeaLabStageRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<AsyncTaskCreateResponse<IdeaLabStageResponse>> {
+  return request<AsyncTaskCreateResponse<IdeaLabStageResponse>>(
+    "/api/tasks/idea_lab/stage",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
+  )
+}
+
+export async function createOutlineTask(
+  payload: CreateOutlineRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<AsyncTaskCreateResponse<StoryProject>> {
+  return request<AsyncTaskCreateResponse<StoryProject>>(
+    "/api/tasks/outline",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
+  )
+}
+
+export async function createImportOutlineTask(
+  projectId: string,
+  rawText: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<AsyncTaskCreateResponse<StoryProject>> {
+  return request<AsyncTaskCreateResponse<StoryProject>>(
+    `/api/tasks/projects/${encodeURIComponent(projectId)}/outline/import`,
+    {
+      method: "POST",
+      body: JSON.stringify({ raw_text: rawText }),
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
+  )
+}
+
+export async function getAsyncTask<T = Record<string, unknown>>(
+  taskId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<AsyncTask<T>> {
+  return request<AsyncTask<T>>(
+    `/api/tasks/${encodeURIComponent(taskId)}`,
+    {
+      method: "GET",
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
+  )
+}
+
+export async function listAsyncTasks<T = Record<string, unknown>>(
+  options: { kind?: AsyncTaskKind; limit?: number; signal?: AbortSignal } = {},
+): Promise<AsyncTaskListResponse<T>> {
+  const searchParams = new URLSearchParams()
+  if (options.kind) {
+    searchParams.set("kind", options.kind)
+  }
+  if (options.limit) {
+    searchParams.set("limit", String(options.limit))
+  }
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+  return request<AsyncTaskListResponse<T>>(
+    `/api/tasks${query}`,
+    {
+      method: "GET",
+      signal: options.signal,
+    },
+    { showLoading: false, suppressGlobalError: true },
+  )
+}
+
+function sleepWithSignal(delayMs: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      cleanup()
+      resolve()
+    }, delayMs)
+    const onAbort = () => {
+      cleanup()
+      reject(new DOMException("Aborted", "AbortError"))
+    }
+    const cleanup = () => {
+      window.clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+    }
+    signal?.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
+export async function waitForAsyncTask<T = Record<string, unknown>>(
+  taskId: string,
+  options: {
+    signal?: AbortSignal
+    intervalMs?: number
+    onUpdate?: (task: AsyncTask<T>) => void
+  } = {},
+): Promise<AsyncTask<T>> {
+  const intervalMs = options.intervalMs ?? 1200
+
+  while (true) {
+    const task = await getAsyncTask<T>(taskId, { signal: options.signal })
+    options.onUpdate?.(task)
+
+    if (task.status === "succeeded" || task.status === "failed") {
+      return task
+    }
+
+    await sleepWithSignal(intervalMs, options.signal)
+  }
 }
 
 export async function createEmptyProject(

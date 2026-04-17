@@ -46,7 +46,9 @@ from .routers.projects import router as projects_router
 from .routers.style import router as style_router
 from .routers.style_libraries import router as style_libraries_router
 from .routers.system import router as system_router
+from .routers.tasks import router as tasks_router
 from .routers.versions import router as versions_router
+from .runtime import async_task_service
 from .services.ai_stream import (
     outline_analysis_stream_response,
     writing_assistant_stream_response,
@@ -59,6 +61,7 @@ from .services.outline import (
     import_outline_into_project,
 )
 from .services.ws import (
+    async_task_websocket_channel,
     outline_progress_websocket_channel,
     project_websocket,
 )
@@ -82,7 +85,7 @@ IDEA_LAB_STAGE_PROMPT_TEMPLATE = PromptTemplate.from_template(
 )
 
 app = FastAPI(
-    title="Novel Outline Service",
+    title="NovelX Outline Service",
     description="FastAPI service for drafting and syncing story outlines.",
     version="0.1.0",
 )
@@ -93,6 +96,7 @@ for router in (
     projects_router,
     style_router,
     style_libraries_router,
+    tasks_router,
     versions_router,
     graph_router,
 ):
@@ -111,6 +115,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup() -> None:
     await init_db()
+    await async_task_service.recover_interrupted_tasks()
 
 
 def _is_auth_exempt_path(path: str) -> bool:
@@ -341,3 +346,8 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):
 @app.websocket("/ws/outline/{request_id}")
 async def outline_progress_websocket(websocket: WebSocket, request_id: str):
     await outline_progress_websocket_channel(websocket, request_id)
+
+
+@app.websocket("/ws/tasks/{task_id}")
+async def async_task_websocket(websocket: WebSocket, task_id: str):
+    await async_task_websocket_channel(websocket, task_id)

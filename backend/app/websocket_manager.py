@@ -12,6 +12,7 @@ class WSMessageType(str, Enum):
     GRAPH_UPDATED = "graph_updated"
     CONFLICT_DETECTED = "conflict_detected"
     OUTLINE_PROGRESS = "outline_progress"
+    ASYNC_TASK_UPDATED = "async_task_updated"
     SYNC_STARTED = "sync_started"
     SYNC_COMPLETED = "sync_completed"
     SYNC_FAILED = "sync_failed"

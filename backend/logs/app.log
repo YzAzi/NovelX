@@ -308,3 +308,117 @@ PermissionError: [Errno 13] Permission denied: '/home/ubuntu/novel/backend/data/
 2026-04-16 15:12:59,550 INFO app.main GET /api/projects 5.36ms
 2026-04-16 15:13:26,310 INFO app.main POST /api/idea_lab/stage 2.79ms
 2026-04-16 15:13:27,091 INFO app.main POST /api/idea_lab/stage 2.78ms
+2026-04-16 15:27:31,115 INFO app.main GET /api/auth/me 0.77ms
+2026-04-16 15:28:06,930 INFO app.main GET /api/auth/me 0.52ms
+2026-04-16 15:28:21,268 INFO app.main POST /api/auth/login 69.58ms
+2026-04-16 15:28:21,316 INFO app.main GET /api/projects 5.99ms
+2026-04-16 15:28:21,384 INFO app.main GET /api/projects 3.87ms
+2026-04-16 15:28:21,664 INFO app.main GET /api/models 3.48ms
+2026-04-16 15:28:35,095 INFO app.main POST /api/auth/login 61.27ms
+2026-04-16 15:28:35,136 INFO app.main GET /api/projects 3.40ms
+2026-04-16 15:28:35,181 INFO app.main GET /api/projects 3.79ms
+2026-04-16 15:28:35,188 INFO app.main GET /api/models 2.48ms
+2026-04-16 15:29:40,959 INFO app.main GET /api/projects 3.61ms
+2026-04-16 15:30:06,382 INFO app.main POST /api/auth/login 60.56ms
+2026-04-16 15:30:06,428 INFO app.main GET /api/projects 3.25ms
+2026-04-16 15:30:06,579 INFO app.main GET /api/models 2.66ms
+2026-04-16 15:30:08,496 INFO app.main POST /api/auth/login 60.82ms
+2026-04-16 15:30:08,538 INFO app.main GET /api/projects 3.28ms
+2026-04-16 15:30:08,679 INFO app.main GET /api/models 2.61ms
+2026-04-16 15:30:10,377 INFO app.main POST /api/auth/login 61.62ms
+2026-04-16 15:30:10,418 INFO app.main GET /api/projects 3.43ms
+2026-04-16 15:30:10,460 INFO app.main GET /api/projects 3.10ms
+2026-04-16 15:30:10,661 INFO app.main GET /api/models 2.56ms
+2026-04-16 15:30:21,602 INFO app.main POST /api/auth/login 60.53ms
+2026-04-16 15:30:21,640 INFO app.main GET /api/projects 4.40ms
+2026-04-16 15:30:21,676 INFO app.main GET /api/projects 3.20ms
+2026-04-16 15:30:21,809 INFO app.main GET /api/models 2.50ms
+2026-04-16 15:30:23,021 INFO app.main POST /api/auth/login 60.47ms
+2026-04-16 15:30:23,058 INFO app.main GET /api/projects 3.36ms
+2026-04-16 15:30:23,107 INFO app.main GET /api/projects 4.01ms
+2026-04-16 15:30:23,266 INFO app.main GET /api/models 2.69ms
+2026-04-16 15:30:24,147 INFO app.main POST /api/auth/login 60.45ms
+2026-04-16 15:30:24,261 INFO app.main GET /api/projects 3.26ms
+2026-04-16 15:30:24,287 INFO app.main GET /api/projects 3.40ms
+2026-04-16 15:30:24,408 INFO app.main GET /api/models 2.71ms
+2026-04-16 15:30:32,952 INFO app.main POST /api/auth/login 60.43ms
+2026-04-16 15:30:34,624 INFO app.main POST /api/auth/login 91.89ms
+2026-04-16 15:30:43,977 INFO app.main POST /api/auth/login 64.28ms
+2026-04-16 15:30:44,025 INFO app.main GET /api/projects 3.38ms
+2026-04-16 15:30:44,059 INFO app.main GET /api/projects 3.18ms
+2026-04-16 15:30:44,266 INFO app.main GET /api/models 2.49ms
+2026-04-16 15:34:04,902 INFO app.main GET /api/auth/me 0.43ms
+2026-04-16 15:34:13,715 INFO app.main POST /api/auth/login 60.57ms
+2026-04-16 15:34:24,503 INFO app.main POST /api/auth/login 60.63ms
+2026-04-16 15:34:24,590 INFO app.main GET /api/projects 3.46ms
+2026-04-16 15:34:24,620 INFO app.main GET /api/projects 3.60ms
+2026-04-16 15:34:24,633 INFO app.main GET /api/models 2.36ms
+2026-04-16 15:34:26,583 INFO app.main GET /api/auth/me 3.97ms
+2026-04-16 15:34:26,634 INFO app.main GET /api/projects 3.54ms
+2026-04-16 15:35:51,278 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:35:51,288 INFO app.main POST /api/idea_lab/stage 51243.01ms
+2026-04-16 15:39:43,372 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:39:43,375 INFO app.main POST /api/idea_lab/stage 61849.96ms
+2026-04-16 15:40:56,474 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:40:56,477 INFO app.main POST /api/idea_lab/stage 59865.01ms
+2026-04-16 15:43:04,331 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:43:04,334 INFO app.main POST /api/idea_lab/stage 70119.10ms
+2026-04-16 15:44:11,038 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:44:11,041 INFO app.main POST /api/idea_lab/stage 64473.66ms
+2026-04-16 15:45:31,095 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:45:31,098 INFO app.main POST /api/idea_lab/stage 72866.72ms
+2026-04-16 15:47:17,063 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:47:17,067 INFO app.main POST /api/idea_lab/stage 56759.80ms
+2026-04-16 15:50:56,873 INFO app.main GET /api/auth/me 58.48ms
+2026-04-16 15:50:56,913 INFO app.main GET /api/projects 6.57ms
+2026-04-16 15:52:16,530 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:52:16,542 INFO app.main POST /api/idea_lab/stage 53199.83ms
+2026-04-16 15:53:51,008 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:53:51,011 INFO app.main POST /api/idea_lab/stage 61175.56ms
+2026-04-16 15:55:21,696 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:55:21,700 INFO app.main POST /api/idea_lab/stage 54994.46ms
+2026-04-16 15:57:15,491 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 15:57:15,494 INFO app.main POST /api/idea_lab/stage 56010.36ms
+2026-04-16 16:00:20,816 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:00:20,819 INFO app.main POST /api/idea_lab/stage 85067.63ms
+2026-04-16 16:01:25,205 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:01:25,208 INFO app.main POST /api/idea_lab/stage 78824.57ms
+2026-04-16 16:02:32,643 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:02:32,647 INFO app.main POST /api/idea_lab/stage 73529.15ms
+2026-04-16 16:03:15,224 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:03:15,228 INFO app.main POST /api/idea_lab/stage 84426.34ms
+2026-04-16 16:19:14,696 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:19:14,706 INFO app.main POST /api/idea_lab/stage 77265.94ms
+2026-04-16 16:21:47,811 INFO app.main POST /api/auth/outline-channel 4.17ms
+2026-04-16 16:22:59,579 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:23:34,964 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:24:01,110 INFO app.main GET /api/auth/me 4.14ms
+2026-04-16 16:24:01,153 INFO app.main GET /api/projects 4.87ms
+2026-04-16 16:24:01,699 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:24:06,850 INFO app.main GET /api/auth/me 5.30ms
+2026-04-16 16:24:06,883 INFO app.main GET /api/projects 3.23ms
+2026-04-16 16:24:06,919 INFO app.main GET /api/models 3.03ms
+2026-04-16 16:24:06,987 INFO app.main GET /api/projects 3.54ms
+2026-04-16 16:24:35,574 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:25:01,120 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:25:31,288 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:26:14,828 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:26:48,396 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:27:16,586 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:27:58,684 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:28:34,236 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:29:10,051 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:29:44,565 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:30:25,321 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:31:10,430 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:31:49,650 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:32:27,134 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 16:32:27,560 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-16 16:32:27,561 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-16 16:32:27,561 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-16 16:32:29,224 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-16 16:32:29,226 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-16 16:32:29,227 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-16 16:32:30,519 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-16 16:32:30,544 INFO app.main POST /api/create_outline 642665.81ms
+2026-04-16 17:28:20,588 INFO app.main GET /api/auth/me 0.58ms

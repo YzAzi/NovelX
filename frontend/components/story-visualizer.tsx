@@ -18,8 +18,8 @@ import {
 import dagre from "dagre"
 import { Search, Upload, Plus, FileText, Map as MapIcon, ZoomIn, ZoomOut, PanelLeftOpen } from "lucide-react"
 
-import type { StoryNode } from "@/src/types/models"
-import { importOutline, insertNode, reorderNodes } from "@/src/lib/api"
+import type { StoryNode, StoryProject } from "@/src/types/models"
+import { createImportOutlineTask, insertNode, reorderNodes, waitForAsyncTask } from "@/src/lib/api"
 import { useProjectStore } from "@/src/stores/project-store"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -437,7 +437,15 @@ export function StoryVisualizer() {
     setIsImporting(true)
     setImportError(null)
     try {
-      const updated = await importOutline(currentProject.id, content)
+      const created = await createImportOutlineTask(currentProject.id, content)
+      const completedTask = await waitForAsyncTask<StoryProject>(created.task.id)
+      if (completedTask.status === "failed") {
+        throw new Error(completedTask.error_message || "导入失败")
+      }
+      const updated = completedTask.result_payload
+      if (!updated) {
+        throw new Error("导入任务已完成，但未返回项目结果。")
+      }
       setProject(updated)
       selectNode(null)
       const next = [...updated.nodes].sort((a, b) => a.narrative_order - b.narrative_order)[0]

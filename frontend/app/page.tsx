@@ -603,7 +603,7 @@ export default function Home() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
                   <Sparkles size={24} />
                 </div>
-                <span className="text-xl font-bold tracking-tight">Novel Workspace</span>
+                <span className="text-xl font-bold tracking-tight">NovelX Workspace</span>
               </div>
 
               <div className="max-w-md space-y-6">
@@ -790,7 +790,7 @@ export default function Home() {
                   <Sparkles size={18} />
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate font-serif text-xl font-semibold tracking-tight">Novel Workspace</div>
+                  <div className="truncate font-serif text-xl font-semibold tracking-tight">NovelX Workspace</div>
                   <div className="truncate text-xs text-muted-foreground">长篇小说创作工作台</div>
                 </div>
               </div>

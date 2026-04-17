@@ -1,263 +1,107 @@
-# Novel
-
-一个面向小说创作的本地工作台，覆盖从灵感孵化、大纲生成、节点编辑，到写作润色、关系图谱、一致性分析、版本快照和项目导入导出的一整套流程。
-
-前端使用 Next.js 16 + React 19，后端使用 FastAPI + SQLAlchemy + LangChain/LangGraph。项目默认把数据持久化到本地 `backend/data/`。
-
-## 当前能力
-
-- 用户登录与项目隔离
-  支持注册、登录、改密码、退出全部会话；项目和共享文笔库按用户隔离。旧版本遗留的无归属项目会在首个注册用户创建后自动认领。
-- Idea Lab 灵感实验室
-  通过 `concept -> protagonist -> conflict -> outline` 四阶段逐步生成故事方向，最终一键落成项目，并通过 WebSocket 返回生成进度。
-- AI 大纲生成与空白项目
-  支持从世界观、风格标签、核心创意直接生成项目，也支持创建空白项目手动搭建结构，还可以基于已有项目派生新项目。
-- 大纲工作区
-  支持节点图与节点列表编辑、节点插入、叙事顺序调整、时间线排序、文本大纲导入，以及节点级自动同步。
-- 冲突检测与知识图谱同步
-  节点保存后会更新索引与知识图谱，并返回设定冲突、人物关系或时间线问题。
-- 角色关系页
-  支持手动同步图谱、增删改实体与关系、实体合并，以及把图谱角色反向同步回项目角色列表。
-- 写作工作台
-  支持章节创建、重命名、排序、删除，配套 AI 写作助手，可用于全文或片段润色/扩写。
-- 文笔知识库
-  项目内支持上传原始 `.txt/.md` 小说素材，后端先做分批清洗，再切分入库用于检索增强。
-- 共享文笔库
-  支持跨项目复用文笔素材，可导入已清洗的 `JSON / TXT / MD` 素材，统一管理、重命名和删除。
-- 一致性分析
-  `/analysis/[projectId]` 页面支持流式分析、快速提问、历史消息保存；分析范围会根据项目体量和 `analysis_profile` 自动选择全量或检索式分析。
-- 版本快照
-  支持手动创建快照、查看版本列表、对比差异、恢复历史版本、删除快照。
-- 项目导入导出
-  可导出项目本体、知识图谱、文笔知识、版本快照，并在另一环境导入恢复。
-- 模型与 Prompt 配置
-  支持为 drafting、sync、extraction 单独配置模型和 API Key；项目级 Prompt 覆盖与写作助手配置会随项目持久化。
-
-## 页面与模块
-
-- 首页 `/`
-  登录、项目列表、新建项目、版本入口、模型配置、项目级 Prompt 配置、账号设置。
-- 灵感实验室 `/idea-lab`
-  用阶段式选择生成项目方向。
-- 大纲页 `/projects/[projectId]/outline`
-  管理节点、导入大纲、调整叙事结构。
-- 写作页 `/projects/[projectId]/writing`
-  章节写作、AI 写作助手、项目文笔库、共享文笔库。
-- 关系页 `/projects/[projectId]/relations`
-  查看和维护角色关系图谱。
-- 分析页 `/analysis/[projectId]`
-  对当前项目做一致性分析和修改建议生成。
-
-## 技术栈
-
-- 前端：Next.js 16、React 19、TypeScript、Tailwind CSS 4、Zustand、Radix UI、Framer Motion
-- 后端：FastAPI、SQLAlchemy、Pydantic 2、Uvicorn
-- AI 相关：LangChain、LangGraph、langchain-openai
-- 检索与存储：SQLite、ChromaDB、sentence-transformers、BM25/关键词混合检索
-- 通信：REST API + WebSocket
-
-## 项目结构
-
-```text
-novel/
-├── frontend/                # Next.js 前端
-├── backend/                 # FastAPI 后端
-│   ├── app/
-│   ├── data/                # SQLite、图谱、向量库、版本快照等本地数据
-│   ├── tests/
-│   └── scripts/setup_cpu_env.sh
-├── deploy/                  # Nginx 生产配置
-├── docker-compose.yml       # 本地容器运行
-├── docker-compose.dev.yml   # 开发热重载
-├── docker-compose.prod.yml  # 生产部署
-└── .env.example
-```
-
-## 环境要求
-
-- Node.js 20 以上
-- Python 3.11 或 3.12
-- `pnpm`
-- `uv`
-
-## 环境变量
-
-常用变量如下，完整示例见 [`.env.example`](/home/ubuntu/novel/.env.example) 和 [`.env.prod.example`](/home/ubuntu/novel/.env.prod.example)。
-
-| 变量 | 说明 |
-| --- | --- |
-| `OPENAI_API_KEY` | 默认模型 API Key |
-| `OPENAI_BASE_URL` | OpenAI 兼容接口地址 |
-| `MODEL_NAME` | 默认模型名 |
-| `OPENAI_API_KEY_DRAFTING` | 大纲生成专用 Key，可选 |
-| `OPENAI_API_KEY_SYNC` | 同步/分析专用 Key，可选 |
-| `OPENAI_API_KEY_EXTRACTION` | 实体抽取专用 Key，可选 |
-| `MODEL_NAME_DRAFTING` | 大纲生成模型名，可选 |
-| `MODEL_NAME_SYNC` | 同步/分析模型名，可选 |
-| `MODEL_NAME_EXTRACTION` | 实体抽取模型名，可选 |
-| `EMBEDDING_MODEL` | 嵌入模型名或本地路径 |
-| `CHROMA_PERSIST_PATH` | Chroma 持久化目录 |
-| `CORS_ALLOW_ORIGINS` | 允许的前端来源，逗号分隔 |
-| `AUTH_SECRET_KEY` | 登录态签名密钥，生产环境必须设置 |
-| `NOVEL_DATABASE_URL` | 可选，覆盖默认 SQLite 地址 |
-| `NEXT_PUBLIC_API_URL` | 前端请求后端的基地址 |
+# NovelX
 
-说明：
+NovelX 是一个面向长篇小说创作的 AI 工作台，帮助创作者把零散灵感逐步整理成可持续推进的项目。
 
-- 根目录 `.env` 会被前后端共同读取。
-- `/api/health`、`/api/auth/register`、`/api/auth/login` 之外的 API 默认都要求 Bearer Token。
-- 系统设置页里修改的模型/Base URL/API Key 是按用户保存在当前后端进程内存中的，重启后会回退到 `.env`；项目级 `prompt_overrides` 和 `writer_config` 会持久化到项目数据。
+它不是单点工具，而是一套完整的创作流程：从灵感孵化、项目创建、大纲搭建、章节写作，到角色关系梳理、一致性分析、版本回溯与素材管理，尽量让创作始终留在同一个空间内完成。
 
-## 本地开发
+## 产品定位
 
-### 1. 准备环境变量
+NovelX 适合以下创作方式：
 
-```bash
-cd /home/ubuntu/novel
-cp .env.example .env
-```
+- 已有模糊想法，但还没有稳定故事方向
+- 已经开始搭大纲，需要继续补全结构与节点
+- 正在连载或长期写作，需要维持人物、设定和时间线一致性
+- 希望把灵感、项目结构、写作正文和分析建议集中管理
 
-至少补齐：
+## 核心能力
 
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `MODEL_NAME`
-- `AUTH_SECRET_KEY`
+### 1. 灵感孵化
 
-### 2. 安装前端依赖
+内置 Idea Lab，可以把一个模糊念头逐步推进为可落地的故事方案。
 
-```bash
-cd /home/ubuntu/novel/frontend
-corepack enable
-pnpm install
-```
+- 从创意起点出发，逐阶段收敛方向
+- 每一步提供多个可选择方案，而不是一次性给出单一路径
+- 最终可直接生成项目，减少“想到一半卡住”的情况
 
-### 3. 安装后端依赖
+### 2. 快速开始项目
 
-推荐使用仓库自带脚本，按 CPU-only 方式安装 PyTorch，避免在纯 CPU 环境误拉 CUDA 依赖：
+首页保留最常用入口，减少无关干扰，让创作者进入系统后能立刻开始。
 
-```bash
-cd /home/ubuntu/novel/backend
-bash scripts/setup_cpu_env.sh
-```
+- 新建项目
+- 继续最近创作
+- 直接回到写作或分析空间
 
-如果 `uv` 不在默认位置，可通过 `UV_BIN` 指定；如需换镜像，可通过 `UV_DEFAULT_INDEX` 覆盖。
+### 3. 大纲与结构管理
 
-### 4. 启动后端
+项目创建后，可以继续围绕故事结构进行整理和扩展。
 
-```bash
-cd /home/ubuntu/novel/backend
-.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
+- 管理剧情节点与叙事顺序
+- 调整时间线与章节结构
+- 支持从已有文本导入大纲
+- 支持基于已有项目延展续作或衍生方向
 
-### 5. 启动前端
+### 4. 写作工作台
 
-```bash
-cd /home/ubuntu/novel/frontend
-pnpm dev -H 0.0.0.0 -p 3000
-```
+NovelX 不只停留在“生成大纲”，而是继续服务后续写作。
 
-### 6. 访问项目
+- 进入章节写作空间持续创作
+- 配合 AI 做润色、扩写和表达优化
+- 让大纲、正文、设定与素材始终围绕同一项目协同
 
-- 前端：`http://localhost:3000`
-- 后端健康检查：`http://localhost:8000/api/health`
-- 后端 OpenAPI：`http://localhost:8000/docs`
+### 5. 一致性分析
 
-## Docker
+长篇创作最常见的问题不是没灵感，而是越写越散。NovelX 会帮助创作者持续检查内容的一致性。
 
-### 本地容器模式
+- 检查设定冲突
+- 检查人物动机和关系线是否断裂
+- 检查时间线、节奏和主线推进是否失衡
+- 在项目持续扩展后，仍然能回看关键问题
 
-```bash
-cd /home/ubuntu/novel
-docker compose up --build
-```
+### 6. 角色与关系整理
 
-访问：
+复杂故事往往需要长期维护人物关系与世界信息。
 
-- 前端：`http://localhost:3000`
-- 后端：`http://localhost:8000`
+- 查看角色关系结构
+- 管理人物、关系与线索
+- 减少角色混乱、称谓不一致、关系遗失等常见问题
 
-停止：
+### 7. 版本回溯
 
-```bash
-docker compose down
-```
+创作不是直线推进，重要阶段需要可以回头。
 
-### 开发热重载模式
+- 保存关键版本
+- 比较不同阶段的改动
+- 在方向跑偏时快速恢复
 
-```bash
-cd /home/ubuntu/novel
-docker compose -f docker-compose.dev.yml up --build
-```
+## 产品体验原则
 
-这个模式下：
+NovelX 的设计重点不是“功能越多越好”，而是让创作者在关键阶段更顺畅。
 
-- 后端使用 `uvicorn --reload`
-- 前端容器执行 `pnpm dev`
-- 代码目录直接挂载，适合本地调试
+- 首页聚焦高频入口，不过度堆叠信息
+- 长耗时 AI 流程改为后台任务，减少等待中断
+- 重要结果可回看、可恢复，而不是生成后即丢失
+- 尽量避免把开发过程中的内部文案暴露给最终用户
 
-### 生产模式
+## 适用人群
 
-```bash
-cd /home/ubuntu/novel
-cp .env.prod.example .env
-docker compose -f docker-compose.prod.yml up -d --build
-```
+- 小说作者
+- 网文作者
+- 剧情向内容创作者
+- 需要长期维护人物关系和世界设定的团队或个人
 
-生产模式使用 `nginx` 对外暴露 `80` 端口：
+## 使用方式
 
-- `/` 转发到前端
-- `/api/*` 与 `/ws/*` 转发到后端
-- `NEXT_PUBLIC_API_URL` 为空字符串，前端走同域名相对路径
+建议按以下路径使用：
 
-建议至少放行：
+1. 从首页快速开始一个新项目，或继续最近创作
+2. 在 Idea Lab 中把灵感逐步收敛成可执行方向
+3. 进入项目空间整理大纲、节点和章节结构
+4. 在写作空间持续推进正文创作
+5. 用分析空间检查一致性、冲突和节奏问题
+6. 在关键节点保存版本，便于后续回溯
 
-- `80/tcp`
-- `443/tcp`（如需 HTTPS）
+## 项目目标
 
-查看状态与日志：
+NovelX 想解决的不是“帮你一次生成一篇小说”，而是帮助你把小说创作这件事变成一个可以持续推进、可管理、可复盘的过程。
 
-```bash
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f
-```
-
-## 推荐使用流程
-
-1. 注册并登录账号。
-2. 在首页或 Idea Lab 新建项目。
-3. 在大纲页补充节点、导入文本大纲并调整时间线。
-4. 在关系页同步或修正角色实体与关系。
-5. 在写作页创建章节，导入项目内素材或接入共享文笔库。
-6. 在分析页检查一致性、节奏和设定冲突。
-7. 在关键阶段创建版本快照，必要时回滚。
-8. 需要迁移时导出项目 JSON，到新环境再导入。
-
-## 数据与持久化
-
-默认本地数据位于 [backend/data](/home/ubuntu/novel/backend/data)：
-
-- `stories.db`：SQLite 主库
-- `chroma_db/`：向量索引
-- 图谱与分析历史：项目级本地文件
-- 版本快照：版本管理存储
-
-建议定期备份整个 [backend/data](/home/ubuntu/novel/backend/data) 目录。
-
-## 测试
-
-后端当前包含基础测试，覆盖 CORS、LLM 输出归一化、冲突检测、鉴权权限等。
-
-运行方式：
-
-```bash
-cd /home/ubuntu/novel/backend
-.venv/bin/pytest
-```
-
-## 已知实现约束
-
-- 当前版本快照默认只创建手动快照。
-- 项目导入会保留原项目 ID；如果目标环境已存在相同 ID，会返回冲突。
-- 共享文笔库与项目数据都依赖用户登录态访问。
-- 前端默认通过 `NEXT_PUBLIC_API_URL` 指向后端；生产模式下应保持为空字符串并通过反向代理转发。
+如果你希望拥有一个更稳定的小说创作工作台，而不是零散拼接多个工具，NovelX 的价值就在这里。

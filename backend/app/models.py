@@ -362,6 +362,35 @@ class IdeaLabStageResponse(BaseModel):
     options: list[IdeaLabStageOption]
 
 
+AsyncTaskKind = Literal["story_directions", "idea_lab_stage", "create_outline", "import_outline"]
+AsyncTaskStatus = Literal["pending", "running", "succeeded", "failed"]
+
+
+class AsyncTaskResponse(BaseModel):
+    id: str
+    kind: AsyncTaskKind
+    status: AsyncTaskStatus
+    title: str | None = None
+    request_payload: dict[str, Any] = Field(default_factory=dict)
+    result_payload: dict[str, Any] | None = None
+    error_message: str | None = None
+    progress_stage: str | None = None
+    progress_details: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class AsyncTaskCreateResponse(BaseModel):
+    task: AsyncTaskResponse
+    channel_token: str
+
+
+class AsyncTaskListResponse(BaseModel):
+    tasks: list[AsyncTaskResponse] = Field(default_factory=list)
+
+
 class CreateEmptyProjectRequest(BaseModel):
     title: str | None = None
     world_view: str | None = None

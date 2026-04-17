@@ -1,5 +1,6 @@
 from .conflict_detector import ConflictDetector
 from .notifier import EventNotifier
+from .services.async_tasks import AsyncTaskService
 from .style_curation import StyleCurationService
 from .style_knowledge import StyleKnowledgeManager
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncQueue, build_default_sync_manager
@@ -13,4 +14,5 @@ style_knowledge_manager = StyleKnowledgeManager()
 style_curation_service = StyleCurationService()
 ws_manager = ConnectionManager()
 notifier = EventNotifier(ws_manager)
+async_task_service = AsyncTaskService(notifier)
 version_manager = VersionManager()

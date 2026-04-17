@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import Awaitable, Callable
 
 from fastapi import HTTPException, status
 from langchain.prompts import PromptTemplate
@@ -36,6 +37,7 @@ from ..schema_utils import pydantic_json_schema_inline, pydantic_to_openai_funct
 async def create_outline_project(
     payload: CreateOutlineRequest,
     session: AsyncSession,
+    progress_callback: Callable[[str, dict | None], Awaitable[None]] | None = None,
 ) -> StoryProject:
     if payload.base_project_id:
         await get_project_or_404(session, payload.base_project_id)
@@ -43,6 +45,8 @@ async def create_outline_project(
     request_id = payload.request_id
 
     async def report_progress(stage: str, details: dict | None = None) -> None:
+        if progress_callback:
+            await progress_callback(stage, details or {})
         if not request_id:
             return
         await notifier.notify_outline_progress(request_id, stage, details or {})

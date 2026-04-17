@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from typing import Iterable
+from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db_models import ProjectTable, StyleLibraryTable
+from .db_models import AsyncTaskTable, ProjectTable, StyleLibraryTable
 from .models import (
+    AsyncTaskResponse,
     CharacterProfile,
     ProjectSummary,
     StoryChapter,
@@ -259,3 +262,184 @@ async def delete_style_library(session: AsyncSession, library_id: str) -> bool:
     result = await session.execute(statement)
     await session.commit()
     return (result.rowcount or 0) > 0
+
+
+def _deserialize_async_task(row: AsyncTaskTable) -> AsyncTaskResponse:
+    return AsyncTaskResponse(
+        id=row.id,
+        kind=row.kind,  # type: ignore[arg-type]
+        status=row.status,  # type: ignore[arg-type]
+        title=row.title,
+        request_payload=row.request_json or {},
+        result_payload=row.result_json,
+        error_message=row.error_message,
+        progress_stage=row.progress_stage,
+        progress_details=row.progress_json or {},
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        started_at=row.started_at,
+        completed_at=row.completed_at,
+    )
+
+
+async def create_async_task(
+    session: AsyncSession,
+    *,
+    owner_id: str,
+    kind: str,
+    request_payload: dict,
+    title: str | None = None,
+) -> AsyncTaskResponse:
+    now = datetime.utcnow()
+    record = AsyncTaskTable(
+        id=str(uuid4()),
+        owner_id=owner_id,
+        kind=kind,
+        status="pending",
+        title=title,
+        request_json=request_payload,
+        result_json=None,
+        error_message=None,
+        progress_stage=None,
+        progress_json={},
+        created_at=now,
+        updated_at=now,
+        started_at=None,
+        completed_at=None,
+    )
+    session.add(record)
+    await session.commit()
+    return _deserialize_async_task(record)
+
+
+async def get_async_task(
+    session: AsyncSession,
+    task_id: str,
+    *,
+    owner_id: str,
+) -> AsyncTaskResponse | None:
+    result = await session.execute(
+        select(AsyncTaskTable).where(
+            AsyncTaskTable.id == task_id,
+            AsyncTaskTable.owner_id == owner_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        return None
+    return _deserialize_async_task(record)
+
+
+async def list_async_tasks(
+    session: AsyncSession,
+    *,
+    owner_id: str,
+    kind: str | None = None,
+    limit: int = 20,
+) -> list[AsyncTaskResponse]:
+    statement = select(AsyncTaskTable).where(AsyncTaskTable.owner_id == owner_id)
+    if kind:
+        statement = statement.where(AsyncTaskTable.kind == kind)
+    result = await session.execute(
+        statement.order_by(AsyncTaskTable.created_at.desc()).limit(limit)
+    )
+    return [_deserialize_async_task(row) for row in result.scalars().all()]
+
+
+async def mark_async_task_running(
+    session: AsyncSession,
+    task_id: str,
+    *,
+    owner_id: str,
+) -> AsyncTaskResponse | None:
+    result = await session.execute(
+        select(AsyncTaskTable).where(
+            AsyncTaskTable.id == task_id,
+            AsyncTaskTable.owner_id == owner_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        return None
+    now = datetime.utcnow()
+    record.status = "running"
+    record.started_at = record.started_at or now
+    record.updated_at = now
+    record.error_message = None
+    await session.commit()
+    return _deserialize_async_task(record)
+
+
+async def update_async_task_progress(
+    session: AsyncSession,
+    task_id: str,
+    *,
+    owner_id: str,
+    stage: str | None,
+    details: dict,
+) -> AsyncTaskResponse | None:
+    result = await session.execute(
+        select(AsyncTaskTable).where(
+            AsyncTaskTable.id == task_id,
+            AsyncTaskTable.owner_id == owner_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        return None
+    record.progress_stage = stage
+    record.progress_json = details
+    record.updated_at = datetime.utcnow()
+    await session.commit()
+    return _deserialize_async_task(record)
+
+
+async def mark_async_task_succeeded(
+    session: AsyncSession,
+    task_id: str,
+    *,
+    owner_id: str,
+    result_payload: dict,
+) -> AsyncTaskResponse | None:
+    result = await session.execute(
+        select(AsyncTaskTable).where(
+            AsyncTaskTable.id == task_id,
+            AsyncTaskTable.owner_id == owner_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        return None
+    now = datetime.utcnow()
+    record.status = "succeeded"
+    record.result_json = result_payload
+    record.error_message = None
+    record.updated_at = now
+    record.completed_at = now
+    await session.commit()
+    return _deserialize_async_task(record)
+
+
+async def mark_async_task_failed(
+    session: AsyncSession,
+    task_id: str,
+    *,
+    owner_id: str,
+    error_message: str,
+) -> AsyncTaskResponse | None:
+    result = await session.execute(
+        select(AsyncTaskTable).where(
+            AsyncTaskTable.id == task_id,
+            AsyncTaskTable.owner_id == owner_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        return None
+    now = datetime.utcnow()
+    record.status = "failed"
+    record.error_message = error_message
+    record.updated_at = now
+    record.completed_at = now
+    await session.commit()
+    return _deserialize_async_task(record)

@@ -271,6 +271,34 @@ export interface IdeaLabStageResponse {
   options: IdeaLabStageOption[]
 }
 
+export type AsyncTaskKind = "story_directions" | "idea_lab_stage" | "create_outline" | "import_outline"
+export type AsyncTaskStatus = "pending" | "running" | "succeeded" | "failed"
+
+export interface AsyncTask<T = Record<string, unknown>> {
+  id: string
+  kind: AsyncTaskKind
+  status: AsyncTaskStatus
+  title?: string | null
+  request_payload: Record<string, unknown>
+  result_payload?: T | null
+  error_message?: string | null
+  progress_stage?: string | null
+  progress_details: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  started_at?: string | null
+  completed_at?: string | null
+}
+
+export interface AsyncTaskCreateResponse<T = Record<string, unknown>> {
+  task: AsyncTask<T>
+  channel_token: string
+}
+
+export interface AsyncTaskListResponse<T = Record<string, unknown>> {
+  tasks: AsyncTask<T>[]
+}
+
 export interface CreateEmptyProjectRequest {
   title?: string | null
   world_view?: string | null

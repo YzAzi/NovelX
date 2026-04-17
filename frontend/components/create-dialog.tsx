@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -10,13 +10,11 @@ import { Sparkles } from "lucide-react"
 
 import {
   createEmptyProject,
-  createOutline,
-  createOutlineChannel,
+  createOutlineTask,
+  createStoryDirectionsTask,
   formatUserErrorMessage,
-  generateStoryDirections,
-  getAuthToken,
+  waitForAsyncTask,
 } from "@/src/lib/api"
-import { WebSocketClient } from "@/src/lib/websocket"
 import { useProjectStore } from "@/src/stores/project-store"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -32,7 +30,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import type { StoryDirectionOption } from "@/src/types/models"
+import type { StoryDirectionOption, StoryDirectionResponse, StoryProject } from "@/src/types/models"
 
 type CreateDialogProps = {
   triggerLabel?: string
@@ -84,11 +82,10 @@ export function CreateDialog({
     isLoading,
     loadProjects,
     projects,
+    setError,
     setOutlineProgressStage,
     setProject,
   } = useProjectStore()
-  const wsRef = useRef<WebSocketClient | null>(null)
-  const outlineProgressUnsubRef = useRef<(() => void) | null>(null)
   const {
     register,
     handleSubmit,
@@ -144,12 +141,20 @@ export function CreateDialog({
     setDirectionOptions([])
     setSelectedDirectionIndex(null)
     try {
-      const response = await generateStoryDirections({
+      const created = await createStoryDirectionsTask({
         user_input: ideaSeed.trim() || undefined,
         world_view: values.worldView?.trim() || undefined,
         style_tags: styleTags,
         base_project_id: values.baseProjectId?.trim() || undefined,
       })
+      const completedTask = await waitForAsyncTask<StoryDirectionResponse>(created.task.id)
+      if (completedTask.status === "failed") {
+        throw new Error(completedTask.error_message || "生成方向失败，请稍后重试。")
+      }
+      const response = completedTask.result_payload
+      if (!response) {
+        throw new Error("方向任务已完成，但未返回结果。")
+      }
       setDirectionOptions(response.directions)
     } catch (error) {
       setDirectionError(formatUserErrorMessage(error, "生成方向失败，请稍后重试。"))
@@ -186,47 +191,39 @@ export function CreateDialog({
           base_project_id: values.baseProjectId?.trim() || undefined,
         })
       } else {
-        const outlineChannel = await createOutlineChannel()
         const payload = {
           world_view: worldView,
           style_tags: tags,
           initial_prompt: values.initialPrompt?.trim() ?? "",
           drafting_prompt: values.draftingPrompt?.trim() || undefined,
           base_project_id: values.baseProjectId?.trim() || undefined,
-          request_id: outlineChannel.request_id,
         }
-
-        const wsClient = new WebSocketClient()
-        wsRef.current = wsClient
-        outlineProgressUnsubRef.current = wsClient.on(
-          "outline_progress",
-          (progress) => {
-            if (!progress || typeof progress !== "object") {
-              return
+        const created = await createOutlineTask(payload)
+        setOutlineProgressStage(created.task.progress_stage ?? "queued")
+        const completedTask = await waitForAsyncTask<StoryProject>(created.task.id, {
+          onUpdate: (task) => {
+            if (task.progress_stage) {
+              setOutlineProgressStage(task.progress_stage)
+            } else if (task.status === "pending" || task.status === "running") {
+              setOutlineProgressStage("queued")
             }
-            const stage = (progress as { stage?: string }).stage
-            if (stage) {
-              setOutlineProgressStage(stage)
-            }
-          }
-        )
-        wsClient.connect(outlineChannel.request_id, getAuthToken(), {
-          route: "outline",
-          queryParams: { channel_token: outlineChannel.channel_token },
+          },
         })
-        project = await createOutline(payload)
+        if (completedTask.status === "failed") {
+          throw new Error(completedTask.error_message || "生成大纲失败，请稍后重试。")
+        }
+        project = completedTask.result_payload
+        if (!project) {
+          throw new Error("大纲任务已完成，但未返回项目结果。")
+        }
       }
       setProject(project)
       await loadProjects()
       setOpen(false)
       reset()
-    } catch {
-      // Error state is handled in the store and surfaced by the page shell.
+    } catch (error) {
+      setError(formatUserErrorMessage(error, "生成大纲失败，请稍后重试。"))
     } finally {
-      outlineProgressUnsubRef.current?.()
-      outlineProgressUnsubRef.current = null
-      wsRef.current?.disconnect()
-      wsRef.current = null
       setOutlineProgressStage(null)
     }
   }
