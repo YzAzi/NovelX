@@ -30,8 +30,13 @@ from ..models import (
     StoryProject,
 )
 from ..node_indexer import NodeIndexer
-from ..runtime import notifier
 from ..schema_utils import pydantic_json_schema_inline, pydantic_to_openai_function_inline
+
+
+def _get_notifier():
+    from ..runtime import notifier
+
+    return notifier
 
 
 async def create_outline_project(
@@ -43,22 +48,23 @@ async def create_outline_project(
         await get_project_or_404(session, payload.base_project_id)
 
     request_id = payload.request_id
+    outline_notifier = _get_notifier() if request_id else None
 
     async def report_progress(stage: str, details: dict | None = None) -> None:
         if progress_callback:
             await progress_callback(stage, details or {})
-        if not request_id:
+        if not request_id or outline_notifier is None:
             return
-        await notifier.notify_outline_progress(request_id, stage, details or {})
+        await outline_notifier.notify_outline_progress(request_id, stage, details or {})
 
-    if request_id:
-        await notifier.notify_outline_progress(request_id, "queued", {})
+    if request_id and outline_notifier is not None:
+        await outline_notifier.notify_outline_progress(request_id, "queued", {})
 
     try:
         project = await run_drafting_workflow(payload, report_progress if request_id else None)
     except WorkflowError as exc:
-        if request_id:
-            await notifier.notify_outline_progress(
+        if request_id and outline_notifier is not None:
+            await outline_notifier.notify_outline_progress(
                 request_id,
                 "failed",
                 {"error": str(exc)},
@@ -68,8 +74,8 @@ async def create_outline_project(
             detail=str(exc),
         ) from exc
     except Exception as exc:
-        if request_id:
-            await notifier.notify_outline_progress(
+        if request_id and outline_notifier is not None:
+            await outline_notifier.notify_outline_progress(
                 request_id,
                 "failed",
                 {"error": str(exc)},

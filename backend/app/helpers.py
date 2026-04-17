@@ -19,8 +19,13 @@ from .models import (
     StyleReferencePreview,
     StyleRetrievalPreviewResponse,
 )
-from .runtime import style_knowledge_manager
 from .style_knowledge import StyleDocument
+
+
+def _get_style_knowledge_manager():
+    from .runtime import style_knowledge_manager
+
+    return style_knowledge_manager
 
 
 async def get_project_or_404(
@@ -279,6 +284,7 @@ async def resolve_style_preview(
 
     preferred_focuses = infer_style_focuses(instruction, text)
     style_query = build_style_query(instruction, text, preferred_focuses)
+    style_knowledge_manager = _get_style_knowledge_manager()
     style_hits = await style_knowledge_manager.search_style_documents(
         query=style_query,
         documents=selected_documents,
@@ -317,6 +323,7 @@ async def resolve_accessible_style_documents(
         return []
 
     documents_by_id: dict[str, StyleDocument] = {}
+    style_knowledge_manager = _get_style_knowledge_manager()
     project_documents = await style_knowledge_manager.list_project_documents(project_id)
     for document in project_documents:
         if document.id in remaining_ids:

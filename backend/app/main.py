@@ -9,6 +9,7 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Request,
+    Response,
     WebSocket,
     status,
 )
@@ -68,6 +69,11 @@ from .services.ws import (
 from .vectorstore import add_documents
 
 logger = logging.getLogger(__name__)
+
+DEPRECATED_SYNC_API_DOCS = (
+    "该同步接口已弃用，请改用异步任务接口：先提交任务获取 task_id，"
+    "再通过 /api/tasks/{task_id} 查询状态或结果。"
+)
 
 ANALYSIS_PROMPT_PATH = Path(__file__).parent / "prompts" / "outline_analysis_prompt.txt"
 ANALYSIS_PROMPT_TEMPLATE = ANALYSIS_PROMPT_PATH.read_text(encoding="utf-8")
@@ -179,15 +185,29 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
+def mark_deprecated_sync_api(response: Response, replacement_path: str) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "Wed, 31 Dec 2026 23:59:59 GMT"
+    response.headers["Link"] = f'<{replacement_path}>; rel="successor-version"'
+    response.headers["X-API-Warn"] = (
+        f"Deprecated synchronous API. Use {replacement_path} with task polling instead."
+    )
+
+
 @app.post(
     "/api/create_outline",
     response_model=StoryProject,
     status_code=status.HTTP_200_OK,
+    deprecated=True,
+    summary="同步创建大纲（已弃用）",
+    description=DEPRECATED_SYNC_API_DOCS,
 )
 async def create_outline(
     payload: CreateOutlineRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    mark_deprecated_sync_api(response, "/api/tasks/outline")
     return await create_outline_project(payload, session)
 
 
@@ -195,11 +215,16 @@ async def create_outline(
     "/api/story_directions",
     response_model=StoryDirectionResponse,
     status_code=status.HTTP_200_OK,
+    deprecated=True,
+    summary="同步生成故事方向（已弃用）",
+    description=DEPRECATED_SYNC_API_DOCS,
 )
 async def story_directions(
     payload: StoryDirectionRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    mark_deprecated_sync_api(response, "/api/tasks/story_directions")
     return await generate_story_directions(
         payload=payload,
         session=session,
@@ -211,11 +236,16 @@ async def story_directions(
     "/api/idea_lab/stage",
     response_model=IdeaLabStageResponse,
     status_code=status.HTTP_200_OK,
+    deprecated=True,
+    summary="同步生成 Idea Lab 阶段结果（已弃用）",
+    description=DEPRECATED_SYNC_API_DOCS,
 )
 async def idea_lab_stage(
     payload: IdeaLabStageRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    mark_deprecated_sync_api(response, "/api/tasks/idea_lab/stage")
     return await generate_idea_lab_stage(
         payload=payload,
         session=session,
@@ -227,12 +257,20 @@ async def idea_lab_stage(
     "/api/projects/{project_id}/outline/import",
     response_model=StoryProject,
     status_code=status.HTTP_200_OK,
+    deprecated=True,
+    summary="同步导入大纲（已弃用）",
+    description=DEPRECATED_SYNC_API_DOCS,
 )
 async def import_outline(
     project_id: str,
     payload: OutlineImportRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    mark_deprecated_sync_api(
+        response,
+        f"/api/tasks/projects/{project_id}/outline/import",
+    )
     return await import_outline_into_project(
         project_id=project_id,
         payload=payload,
