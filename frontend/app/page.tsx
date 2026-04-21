@@ -597,7 +597,7 @@ export default function Home() {
 
         <div className="relative mx-auto flex w-full max-w-[1100px] flex-col gap-8 lg:flex-row lg:items-stretch lg:gap-0">
           {/* 左侧：品牌展示 - 更有艺术感的排版 */}
-          <section className="hidden flex-1 flex-col justify-between rounded-l-[32px] border-y border-l border-border/60 bg-background/30 p-10 backdrop-blur-md lg:flex">
+          <section className="hidden flex-1 flex-col justify-between rounded-l-[16px] border-y border-l border-border/60 bg-background/30 p-10 backdrop-blur-md lg:flex">
             <div className="space-y-8">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
@@ -782,7 +782,7 @@ export default function Home() {
             initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-            className="rounded-[30px] border border-border/60 bg-background/72 px-3 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-xl sm:px-4"
+            className="rounded-[15px] border border-border/60 bg-background/72 px-3 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-xl sm:px-4"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -828,7 +828,7 @@ export default function Home() {
                       <Settings size={16} />
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-h-[85vh] w-[95vw] overflow-y-auto rounded-[28px] sm:max-w-2xl">
+                  <DialogContent className="max-h-[85vh] w-[95vw] overflow-y-auto rounded-[14px] sm:max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>偏好设置</DialogTitle>
                       <DialogDescription>
@@ -1125,14 +1125,14 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
               className="relative mt-10 w-full max-w-[1080px]"
             >
-              <div className="overflow-hidden rounded-[38px] border border-border/60 bg-background/78 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.07)] backdrop-blur-xl sm:p-5">
+              <div className="overflow-hidden rounded-[19px] border border-border/60 bg-background/78 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.07)] backdrop-blur-xl sm:p-5">
                 {featuredProjectId ? (
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
                     <Link
                       href={`/projects/${featuredProjectId}/outline`}
-                      className="flex min-w-0 items-center gap-4 rounded-[28px] border border-border/50 bg-primary/[0.08] px-4 py-4 text-left transition-transform duration-300 hover:-translate-y-0.5 lg:w-[40%] lg:flex-none"
+                      className="flex min-w-0 items-center gap-4 rounded-[14px] border border-border/50 bg-primary/[0.08] px-4 py-4 text-left transition-transform duration-300 hover:-translate-y-0.5 lg:w-[40%] lg:flex-none"
                     >
-                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[11px] bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                         <ArrowUpRight size={18} />
                       </span>
                       <span className="min-w-0 flex-1">
@@ -1149,7 +1149,7 @@ export default function Home() {
                     </Link>
 
                     <div className="grid flex-1 gap-3 sm:grid-cols-3">
-                      <Button asChild className="h-16 rounded-[24px] text-sm font-semibold shadow-lg shadow-primary/20">
+                      <Button asChild className="h-16 rounded-[12px] text-sm font-semibold shadow-lg shadow-primary/20">
                         <Link href={`/projects/${featuredProjectId}/outline`}>
                           <Layout size={15} />
                           继续大纲
@@ -1158,7 +1158,7 @@ export default function Home() {
                       <Button
                         asChild
                         variant="ghost"
-                        className="h-16 rounded-[24px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
+                        className="h-16 rounded-[12px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
                       >
                         <Link href={`/projects/${featuredProjectId}/writing`}>
                           <PenTool size={15} />
@@ -1168,7 +1168,7 @@ export default function Home() {
                       <Button
                         asChild
                         variant="ghost"
-                        className="h-16 rounded-[24px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
+                        className="h-16 rounded-[12px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
                       >
                         <Link href={`/analysis/${featuredProjectId}`}>
                           <Sparkles size={15} />
@@ -1179,8 +1179,8 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-                    <div className="flex min-w-0 items-center gap-4 rounded-[28px] border border-border/50 bg-primary/[0.08] px-4 py-4 text-left lg:flex-1">
-                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                    <div className="flex min-w-0 items-center gap-4 rounded-[14px] border border-border/50 bg-primary/[0.08] px-4 py-4 text-left lg:flex-1">
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[11px] bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                         <Sparkles size={18} />
                       </span>
                       <span className="min-w-0 flex-1">
@@ -1199,12 +1199,12 @@ export default function Home() {
                     <div className="flex flex-1 flex-col gap-3 sm:flex-row">
                       <CreateDialog
                         triggerLabel="新建大纲"
-                        triggerClassName="h-16 w-full rounded-[24px] px-8 text-sm font-semibold shadow-lg shadow-primary/20"
+                        triggerClassName="h-16 w-full rounded-[12px] px-8 text-sm font-semibold shadow-lg shadow-primary/20"
                       />
                       <Button
                         asChild
                         variant="ghost"
-                        className="h-16 rounded-[24px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
+                        className="h-16 rounded-[12px] border border-border/55 bg-background/72 text-sm font-semibold hover:bg-background"
                       >
                         <Link href="/idea-lab">
                           <Sparkles size={15} />

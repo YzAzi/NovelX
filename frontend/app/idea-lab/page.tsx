@@ -434,7 +434,7 @@ export default function IdeaLabPage() {
                 </p>
               </div>
             </div>
-            <div className="rounded-[24px] border border-border/60 bg-background/55 px-4 py-3 text-sm text-muted-foreground">
+            <div className="rounded-[12px] border border-border/60 bg-background/55 px-4 py-3 text-sm text-muted-foreground">
               当前账号：<span className="font-medium text-foreground">{authUser.username}</span>
             </div>
           </div>
@@ -492,7 +492,7 @@ export default function IdeaLabPage() {
                       ))}
                     </select>
                   </div>
-                  <div className="rounded-[24px] border border-border/60 bg-background/55 px-4 py-4">
+                  <div className="rounded-[12px] border border-border/60 bg-background/55 px-4 py-4">
                     <div className="text-sm font-medium">使用方式</div>
                     <div className="mt-2 space-y-2 text-sm leading-6 text-muted-foreground">
                       <div>1. 先生成第一步的 3 个故事方向。</div>
@@ -531,7 +531,7 @@ export default function IdeaLabPage() {
                     <div
                       key={stage}
                       className={cn(
-                        "rounded-[24px] border px-4 py-4 transition-colors",
+                        "rounded-[12px] border px-4 py-4 transition-colors",
                         isActive
                           ? "border-primary/30 bg-primary/8"
                           : isDone
@@ -562,13 +562,13 @@ export default function IdeaLabPage() {
 
             <div className="px-4 py-4 sm:px-6 sm:py-6">
               {stageError ? (
-                <div className="mb-5 rounded-[24px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                <div className="mb-5 rounded-[12px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
                   {stageError}
                 </div>
               ) : null}
 
               {isGeneratingStage || isCreatingProject ? (
-                <div className="mb-5 rounded-[24px] border border-primary/20 bg-primary/6 px-4 py-3 text-sm text-muted-foreground">
+                <div className="mb-5 rounded-[12px] border border-primary/20 bg-primary/6 px-4 py-3 text-sm text-muted-foreground">
                   {[
                     isGeneratingStage && currentStageTaskId
                       ? `阶段任务已提交，正在后台执行。任务 ID：${currentStageTaskId}`
@@ -584,7 +584,7 @@ export default function IdeaLabPage() {
 
               {activeResponse ? (
                 <div className="space-y-5">
-                  <div className="rounded-[28px] border border-border/60 bg-background/55 px-4 py-4">
+                  <div className="rounded-[14px] border border-border/60 bg-background/55 px-4 py-4">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="text-lg font-semibold">{activeResponse.stage_title}</div>
@@ -616,7 +616,7 @@ export default function IdeaLabPage() {
                           type="button"
                           onClick={() => handleSelectOption(index)}
                           className={cn(
-                            "rounded-[28px] border p-5 text-left transition-all",
+                            "rounded-[14px] border p-5 text-left transition-all",
                             isSelected
                               ? "border-primary/35 bg-primary/7 shadow-[0_18px_48px_rgba(77,102,177,0.12)] ring-1 ring-primary/20"
                               : "border-border/70 bg-background/72 hover:border-primary/25 hover:bg-background",
@@ -720,8 +720,8 @@ export default function IdeaLabPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex min-h-[340px] flex-col items-center justify-center rounded-[28px] border border-dashed border-border/70 bg-background/45 px-6 text-center">
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[22px] bg-primary/10 text-primary">
+                <div className="flex min-h-[340px] flex-col items-center justify-center rounded-[14px] border border-dashed border-border/70 bg-background/45 px-6 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
                     <Sparkles className="h-6 w-6" />
                   </div>
                   <div className="text-xl font-semibold">先启动第一步</div>
@@ -747,7 +747,7 @@ export default function IdeaLabPage() {
               ) : (
                 <div className="space-y-4">
                   {selectedPath.map((item) => (
-                    <div key={item.stage} className="rounded-[24px] border border-border/60 bg-background/55 px-4 py-4">
+                    <div key={item.stage} className="rounded-[12px] border border-border/60 bg-background/55 px-4 py-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold">{item.label}</div>
                         <div className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] text-primary">
@@ -802,7 +802,7 @@ export default function IdeaLabPage() {
                     return (
                       <div
                         key={task.id}
-                        className="rounded-[22px] border border-border/60 bg-background/55 px-4 py-4"
+                        className="rounded-[11px] border border-border/60 bg-background/55 px-4 py-4"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">

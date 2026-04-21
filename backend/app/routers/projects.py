@@ -29,6 +29,7 @@ from ..models import (
 )
 from ..node_indexer import NodeIndexer
 from ..runtime import style_knowledge_manager, version_manager
+from ..services.chapter_memory import summarize_chapter
 from ..versioning import IndexSnapshot
 
 router = APIRouter(tags=["projects"])
@@ -172,7 +173,7 @@ async def create_project_chapter(
     project = await get_project_or_404(session, project_id)
     title = (payload.title or "").strip() or "未命名章节"
     max_order = max((chapter.order for chapter in project.chapters), default=0)
-    new_chapter = StoryChapter(title=title, content="", order=max_order + 1)
+    new_chapter = StoryChapter(title=title, content="", order=max_order + 1, summary="")
     project.chapters.append(new_chapter)
     project.updated_at = datetime.utcnow()
     await update_project(session, project_id, project)
@@ -209,6 +210,8 @@ async def update_project_chapter(
         chapter.title = title
     if payload.content is not None:
         chapter.content = payload.content
+    if payload.title is not None or payload.content is not None:
+        chapter.summary = await summarize_chapter(chapter.title, chapter.content)
     if payload.order is not None:
         if payload.order < 1:
             raise HTTPException(

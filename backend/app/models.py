@@ -88,6 +88,7 @@ class StoryChapter(BaseModel):
     title: str
     content: str
     order: int
+    summary: str = ""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -96,6 +97,7 @@ class StoryChapter(BaseModel):
                 "title": "第一章 雨夜",
                 "content": "雨落在屋檐上，像一阵迟到的鼓点。",
                 "order": 1,
+                "summary": "主角在雨夜抵达旧城，准备追查失踪案的第一条线索。",
             }
         }
     )
@@ -554,6 +556,8 @@ class WritingAssistantRequest(BaseModel):
     text: str
     instruction: str
     stream: bool = True
+    chapter_id: str | None = None
+    mode: str = "transform"
     style_document_ids: list[str] = Field(default_factory=list)
 
 

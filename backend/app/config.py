@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     model_name_drafting: str | None = None
     model_name_sync: str | None = None
     model_name_extraction: str | None = None
+    model_name_summary: str | None = None
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     chroma_persist_path: str = str(
         Path(__file__).resolve().parent.parent / "data" / "chroma_db"
@@ -71,7 +72,7 @@ def _resolve_user_id(user_id: str | None = None) -> str | None:
 def _get_model_overrides(user_id: str) -> dict[str, str | None]:
     return _model_overrides_by_user.setdefault(
         user_id,
-        {"drafting": None, "sync": None, "extraction": None},
+        {"drafting": None, "sync": None, "extraction": None, "summary": None},
     )
 
 
@@ -96,6 +97,13 @@ def get_model_name(role: str, user_id: str | None = None) -> str:
         return settings.model_name_sync or settings.model_name or "gpt-4o"
     if role == "extraction":
         return settings.model_name_extraction or settings.model_name or "gpt-4o"
+    if role == "summary":
+        return (
+            settings.model_name_summary
+            or settings.model_name_drafting
+            or settings.model_name
+            or "gpt-4o"
+        )
     return settings.model_name or "gpt-4o"
 
 

@@ -611,7 +611,7 @@ export async function getStyleKnowledgeBase(
       method: "GET",
       signal: options.signal,
     },
-    { showLoading: false },
+    { showLoading: false, suppressGlobalError: true },
   )
 }
 
@@ -720,6 +720,50 @@ export async function importCleanedStyleLibraryFile(
       throw new Error(detail)
     }
     return (await response.json()) as StyleKnowledgeImportResponse
+  } catch (error) {
+    if (!isAbortError(error)) {
+      const message = formatUserErrorMessage(error)
+      setError(message)
+    }
+    throw error
+  } finally {
+    setLoading(false)
+  }
+}
+
+export async function uploadStyleLibrarySourceFile(
+  libraryId: string,
+  file: File,
+  options: { signal?: AbortSignal } = {},
+): Promise<StyleKnowledgeUploadResponse> {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const { setLoading, setError } = useProjectStore.getState()
+  setLoading(true)
+  setError(null)
+  try {
+    const response = await fetch(
+      buildApiUrl(`/api/style_libraries/${encodeURIComponent(libraryId)}/documents/upload`),
+      {
+        method: "POST",
+        body: formData,
+        headers: buildAuthHeaders(),
+        signal: options.signal,
+      }
+    )
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null)
+      const detail =
+        typeof errorPayload?.detail === "string"
+          ? errorPayload.detail
+          : errorPayload?.detail?.message ?? `Request failed with ${response.status}`
+      if (response.status === 401) {
+        handleUnauthorized()
+      }
+      throw new Error(detail)
+    }
+    return (await response.json()) as StyleKnowledgeUploadResponse
   } catch (error) {
     if (!isAbortError(error)) {
       const message = formatUserErrorMessage(error)

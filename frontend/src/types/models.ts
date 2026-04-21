@@ -13,6 +13,7 @@ export interface StoryChapter {
   title: string
   content: string
   order: number
+  summary?: string
 }
 
 export interface CharacterProfile {
@@ -393,6 +394,8 @@ export interface WritingAssistantRequest {
   text: string
   instruction: string
   stream?: boolean
+  chapter_id?: string | null
+  mode?: "transform" | "continue"
   style_document_ids?: string[]
 }
 

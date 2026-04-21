@@ -215,8 +215,8 @@ export function ProjectList({
           className={cn(
             "flex flex-col items-center justify-center text-center backdrop-blur-sm",
             isRail
-              ? "rounded-[28px] border border-dashed border-border/50 bg-background/45 px-5 py-14"
-              : "rounded-[32px] border-2 border-dashed border-border/40 bg-card/30 py-24"
+              ? "rounded-[14px] border border-dashed border-border/50 bg-background/45 px-5 py-14"
+              : "rounded-[16px] border-2 border-dashed border-border/40 bg-card/30 py-24"
           )}
         >
           <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/5 text-primary/40">
@@ -262,8 +262,8 @@ export function ProjectList({
                   className={cn(
                     "group relative cursor-pointer overflow-hidden border border-border/60 backdrop-blur-md transition-all duration-300",
                     isRail
-                      ? "rounded-[24px] bg-background/66 px-4 py-4 hover:border-primary/40 hover:bg-background/78"
-                      : "flex min-h-[360px] flex-col rounded-[30px] bg-background/74 p-7 shadow-[0_18px_55px_rgba(0,0,0,0.05)] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_28px_75px_rgba(0,0,0,0.08)]",
+                      ? "rounded-[12px] bg-background/66 px-4 py-4 hover:border-primary/40 hover:bg-background/78"
+                      : "flex min-h-[360px] flex-col rounded-[15px] bg-background/74 p-7 shadow-[0_18px_55px_rgba(0,0,0,0.05)] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_28px_75px_rgba(0,0,0,0.08)]",
                     isFeatured && !isRail && "bg-gradient-to-br from-primary/[0.18] via-primary/[0.12] to-secondary/[0.18] text-primary-foreground shadow-[0_24px_80px_rgba(77,102,177,0.16)]",
                     isActive && "border-primary/50 ring-2 ring-primary/5"
                   )}
@@ -448,7 +448,7 @@ export function ProjectList({
                     <div
                       className={cn(
                         "absolute inset-0 z-10 flex items-center justify-center bg-background/40 backdrop-blur-[2px]",
-                        isRail ? "rounded-[24px]" : "rounded-[24px]"
+                        isRail ? "rounded-[12px]" : "rounded-[12px]"
                       )}
                     >
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -993,3 +993,179 @@ PermissionError: [Errno 13] Permission denied: '/home/ubuntu/novel/backend/data/
 2026-04-17 10:23:06,032 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 403 Forbidden"
 2026-04-17 10:23:19,274 INFO app.main POST /api/writing_assistant 34.00ms
 2026-04-17 10:23:19,677 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 403 Forbidden"
+2026-04-17 13:52:36,235 INFO app.main GET /api/auth/me 15.51ms
+2026-04-17 13:52:36,762 INFO app.main GET /api/auth/me 0.56ms
+2026-04-17 13:52:49,725 INFO app.main POST /api/auth/login 89.27ms
+2026-04-17 13:52:49,769 INFO app.main GET /api/projects 10.07ms
+2026-04-17 13:52:49,823 INFO app.main GET /api/projects 3.58ms
+2026-04-17 13:52:49,865 INFO app.main GET /api/models 5.76ms
+2026-04-17 13:53:06,147 INFO app.main GET /api/auth/me 7.14ms
+2026-04-17 13:53:06,167 INFO app.main GET /api/projects 3.41ms
+2026-04-17 13:53:06,192 INFO app.main GET /api/tasks 6.99ms
+2026-04-17 14:09:32,202 INFO app.main GET /api/auth/me 9.28ms
+2026-04-17 14:09:32,231 INFO app.main GET /api/projects 8.03ms
+2026-04-17 14:09:32,257 INFO app.main GET /api/tasks 6.52ms
+2026-04-17 14:09:58,382 INFO app.main GET /api/auth/me 3.76ms
+2026-04-17 14:09:58,397 INFO app.main GET /api/projects 2.84ms
+2026-04-17 14:09:58,412 INFO app.main GET /api/models 2.66ms
+2026-04-17 14:09:58,455 INFO app.main GET /api/projects 6.56ms
+2026-04-17 14:27:21,203 INFO app.main GET /api/auth/me 3.33ms
+2026-04-17 14:27:21,259 INFO app.main GET /api/projects 3.22ms
+2026-04-17 14:27:21,290 INFO app.main GET /api/models 2.46ms
+2026-04-17 14:27:21,340 INFO app.main GET /api/projects 3.21ms
+2026-04-17 14:27:22,750 INFO app.main GET /api/auth/me 3.56ms
+2026-04-17 14:27:22,770 INFO app.main GET /api/projects 3.16ms
+2026-04-17 14:27:22,791 INFO app.main GET /api/tasks 4.25ms
+2026-04-17 14:27:27,558 INFO app.main GET /api/auth/me 3.17ms
+2026-04-17 14:27:27,577 INFO app.main GET /api/projects 3.25ms
+2026-04-17 14:27:27,594 INFO app.main GET /api/models 2.79ms
+2026-04-17 14:27:27,622 INFO app.main GET /api/projects 3.39ms
+2026-04-17 14:27:33,410 INFO app.main GET /api/auth/me 3.23ms
+2026-04-17 14:27:33,426 INFO app.main GET /api/projects 2.83ms
+2026-04-17 14:27:33,443 INFO app.main GET /api/tasks 4.14ms
+2026-04-21 08:52:42,910 INFO app.main GET /api/auth/me 9.15ms
+2026-04-21 08:53:59,117 INFO app.main GET /api/auth/me 32.94ms
+2026-04-21 08:53:59,622 INFO app.main GET /api/auth/me 0.50ms
+2026-04-21 08:54:11,851 INFO app.main POST /api/auth/login 121.51ms
+2026-04-21 08:54:11,880 INFO app.main GET /api/projects 11.51ms
+2026-04-21 08:54:11,905 INFO app.main GET /api/projects 3.59ms
+2026-04-21 08:54:11,965 INFO app.main GET /api/models 5.89ms
+2026-04-21 08:54:19,973 INFO app.main GET /api/projects/project_lingmai_town_001 197.78ms
+2026-04-21 08:54:54,953 INFO app.main GET /api/projects/project_lingmai_town_001 4.07ms
+2026-04-21 08:56:16,219 INFO app.main GET /api/auth/me 0.52ms
+2026-04-21 08:57:10,126 INFO app.main GET /api/projects/project_lingmai_town_001 5.16ms
+2026-04-21 08:57:12,831 INFO app.main GET /api/projects 0.44ms
+2026-04-21 09:00:47,045 INFO app.main GET /api/auth/me 5.59ms
+2026-04-21 09:00:47,070 INFO app.main GET /api/projects 5.18ms
+2026-04-21 09:00:47,094 INFO app.main GET /api/models 3.18ms
+2026-04-21 09:00:47,133 INFO app.main GET /api/projects 3.61ms
+2026-04-21 09:00:48,671 INFO app.main GET /api/projects/project_lingmai_town_001 8.83ms
+2026-04-21 09:00:58,882 INFO app.main GET /api/projects/project_lingmai_town_001 3.91ms
+2026-04-21 09:02:20,168 INFO app.main GET /api/projects/project_lingmai_town_001 10.57ms
+2026-04-21 09:02:21,594 INFO app.main GET /api/projects/project_lingmai_town_001 4.23ms
+2026-04-21 09:02:22,156 INFO app.main GET /api/auth/me 3.62ms
+2026-04-21 09:02:22,185 INFO app.main GET /api/projects 5.50ms
+2026-04-21 09:02:22,236 INFO app.main GET /api/models 2.71ms
+2026-04-21 09:02:22,275 INFO app.main GET /api/projects 3.10ms
+2026-04-21 09:02:23,306 INFO app.main GET /api/style_libraries 6.18ms
+2026-04-21 09:02:23,311 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 7.39ms
+2026-04-21 09:52:23,257 INFO app.main GET /api/projects/project_lingmai_town_001 11.39ms
+2026-04-21 09:52:27,455 INFO app.main GET /api/projects/project_lingmai_town_001 4.48ms
+2026-04-21 09:52:54,363 INFO app.main GET /api/projects/project_lingmai_town_001 4.24ms
+2026-04-21 09:52:55,517 INFO app.main GET /api/projects/project_lingmai_town_001 7.81ms
+2026-04-21 09:55:48,270 INFO app.main GET /api/auth/me 3.46ms
+2026-04-21 09:55:48,336 INFO app.main GET /api/projects 4.48ms
+2026-04-21 09:55:48,418 INFO app.main GET /api/models 5.96ms
+2026-04-21 09:55:48,517 INFO app.main GET /api/projects 4.03ms
+2026-04-21 09:55:49,913 INFO app.main GET /api/projects/project_lingmai_town_001 3.75ms
+2026-04-21 10:03:55,289 INFO app.main GET /api/projects/project_lingmai_town_001 11.45ms
+2026-04-21 10:03:57,954 INFO app.main GET /api/auth/me 4.76ms
+2026-04-21 10:03:57,977 INFO app.main GET /api/projects 5.49ms
+2026-04-21 10:03:58,001 INFO app.main GET /api/models 8.07ms
+2026-04-21 10:03:58,036 INFO app.main GET /api/projects 3.52ms
+2026-04-21 10:03:59,264 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 8.09ms
+2026-04-21 10:03:59,266 INFO app.main GET /api/style_libraries 8.00ms
+2026-04-21 10:04:22,169 INFO app.main GET /api/projects/project_lingmai_town_001 3.92ms
+2026-04-21 10:04:26,267 INFO app.main GET /api/projects/project_lingmai_town_001 4.06ms
+2026-04-21 10:04:28,628 INFO app.main GET /api/projects/project_lingmai_town_001 3.92ms
+2026-04-21 10:04:31,559 INFO app.main GET /api/auth/me 3.71ms
+2026-04-21 10:04:31,587 INFO app.main GET /api/projects 3.20ms
+2026-04-21 10:04:31,612 INFO app.main GET /api/models 2.40ms
+2026-04-21 10:04:31,662 INFO app.main GET /api/projects 3.27ms
+2026-04-21 10:04:32,859 INFO app.main GET /api/projects/project_lingmai_town_001 4.03ms
+2026-04-21 10:09:27,375 INFO app.main GET /api/projects/project_lingmai_town_001 10.72ms
+2026-04-21 10:09:30,017 INFO app.main GET /api/auth/me 3.57ms
+2026-04-21 10:09:30,044 INFO app.main GET /api/projects 5.70ms
+2026-04-21 10:09:30,082 INFO app.main GET /api/models 5.89ms
+2026-04-21 10:09:30,125 INFO app.main GET /api/projects 3.40ms
+2026-04-21 10:09:32,502 INFO app.main GET /api/projects/project_lingmai_town_001 6.14ms
+2026-04-21 10:09:42,147 INFO app.main GET /api/auth/me 3.11ms
+2026-04-21 10:09:42,166 INFO app.main GET /api/projects 2.99ms
+2026-04-21 10:09:42,192 INFO app.main GET /api/models 5.13ms
+2026-04-21 10:09:42,212 INFO app.main GET /api/projects 3.09ms
+2026-04-21 10:09:52,417 INFO app.main GET /api/style_libraries 6.51ms
+2026-04-21 10:09:52,418 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 8.39ms
+2026-04-21 10:10:00,818 INFO app.main GET /api/projects/project_lingmai_town_001 3.98ms
+2026-04-21 10:10:57,051 INFO app.main GET /api/auth/me 0.47ms
+2026-04-21 10:11:06,926 INFO app.main POST /api/auth/login 65.20ms
+2026-04-21 10:11:06,957 INFO app.main GET /api/projects 4.24ms
+2026-04-21 10:11:06,989 INFO app.main GET /api/projects 3.89ms
+2026-04-21 10:11:07,033 INFO app.main GET /api/models 2.51ms
+2026-04-21 10:11:09,404 INFO app.main GET /api/projects/project_lingmai_town_001 3.83ms
+2026-04-21 10:11:22,869 INFO app.main GET /api/projects/project_lingmai_town_001 4.06ms
+2026-04-21 10:11:24,044 INFO app.main GET /api/projects/project_lingmai_town_001 4.30ms
+2026-04-21 10:11:24,452 INFO app.main GET /api/auth/me 3.67ms
+2026-04-21 10:11:24,479 INFO app.main GET /api/projects 3.13ms
+2026-04-21 10:11:24,497 INFO app.main GET /api/models 4.45ms
+2026-04-21 10:11:24,529 INFO app.main GET /api/projects 3.17ms
+2026-04-21 10:11:25,573 INFO app.main GET /api/style_libraries 3.27ms
+2026-04-21 10:11:25,578 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 3.31ms
+2026-04-21 10:22:41,404 INFO app.main GET /ws/project_lingmai_town_001 4.19ms
+2026-04-21 10:26:11,364 INFO app.main GET /api/projects/project_lingmai_town_001 38.23ms
+2026-04-21 10:26:11,413 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 10.68ms
+2026-04-21 10:26:11,421 INFO app.main GET /api/style_libraries 16.73ms
+2026-04-21 10:26:24,063 INFO app.main GET /api/auth/me 3.65ms
+2026-04-21 10:26:24,085 INFO app.main GET /api/projects 6.68ms
+2026-04-21 10:26:24,139 INFO app.main GET /api/models 4.53ms
+2026-04-21 10:26:24,164 INFO app.main GET /api/projects 3.43ms
+2026-04-21 10:26:27,276 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 6.41ms
+2026-04-21 10:26:27,277 INFO app.main GET /api/style_libraries 6.96ms
+2026-04-21 10:46:15,536 INFO app.main GET /api/projects/project_lingmai_town_001 11.73ms
+2026-04-21 10:46:15,583 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 7.67ms
+2026-04-21 10:46:15,588 INFO app.main GET /api/style_libraries 9.78ms
+2026-04-21 10:48:08,484 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 10:48:08,786 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 10:48:08,787 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-21 10:48:08,787 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-21 10:48:10,488 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 10:48:10,489 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 10:48:10,491 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 10:48:11,603 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 10:48:11,607 INFO app.main POST /api/projects/project_lingmai_town_001/style_knowledge/upload 80999.52ms
+2026-04-21 10:57:50,078 INFO app.main POST /api/style_libraries 16.98ms
+2026-04-21 10:58:36,996 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge/upload 0.43ms
+2026-04-21 10:59:04,196 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 10:59:04,630 INFO app.main POST /api/projects/project_lingmai_town_001/style_knowledge/upload 36992.84ms
+2026-04-21 10:59:28,228 INFO app.main GET /api/projects/project_lingmai_town_001 4.43ms
+2026-04-21 10:59:28,276 INFO app.main GET /api/projects/project_lingmai_town_001/style_knowledge 7.50ms
+2026-04-21 10:59:28,280 INFO app.main GET /api/style_libraries 9.55ms
+2026-04-21 14:12:10,896 INFO app.main GET /api/projects/project_lingmai_town_001 97.71ms
+2026-04-21 14:12:11,335 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 14:12:11,352 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-21 14:12:11,352 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-21 14:12:13,441 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 14:12:13,443 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 14:12:13,444 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 14:12:14,441 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 14:12:14,777 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionDeleteEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 14:12:14,795 INFO app.main GET /api/style_libraries 3851.13ms
+2026-04-21 14:12:29,226 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionDeleteEvent: capture() takes 1 positional argument but 3 were given
+2026-04-21 14:12:29,240 INFO app.main DELETE /api/style_libraries/fe711c12-d5eb-403c-917e-5efa0e55cf1b 43.89ms
+2026-04-21 14:14:08,454 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 14:14:08,737 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 85320.96ms
+2026-04-21 14:19:09,973 INFO app.main POST /api/projects/project_lingmai_town_001/chapters 14.54ms
+2026-04-21 14:19:10,012 INFO app.main GET /api/style_libraries 5.70ms
+2026-04-21 14:19:15,883 INFO app.main PUT /api/projects/project_lingmai_town_001/chapters/c60d306f-2c2b-4310-bb6c-9ef4bfb3ae78 11.54ms
+2026-04-21 14:19:15,911 INFO app.main GET /api/style_libraries 5.50ms
+2026-04-21 14:19:20,110 INFO app.main POST /api/projects/project_lingmai_town_001/chapters 14.26ms
+2026-04-21 14:19:20,134 INFO app.main GET /api/style_libraries 5.26ms
+2026-04-21 14:19:23,441 INFO app.main DELETE /api/projects/project_lingmai_town_001/chapters/23a1a234-5cb1-4e53-9300-6ea8a09326f1 13.07ms
+2026-04-21 14:19:23,469 INFO app.main GET /api/style_libraries 5.19ms
+2026-04-21 14:19:30,149 INFO app.main GET /api/style_libraries 6.00ms
+2026-04-21 14:22:55,672 INFO app.main GET /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 0.52ms
+2026-04-21 14:24:47,241 INFO app.main DELETE /api/projects/project_lingmai_town_001/chapters/c60d306f-2c2b-4310-bb6c-9ef4bfb3ae78 14.01ms
+2026-04-21 14:24:47,309 INFO app.main GET /api/style_libraries 5.80ms
+2026-04-21 14:24:48,615 INFO app.main POST /api/projects/project_lingmai_town_001/chapters 13.32ms
+2026-04-21 14:24:48,663 INFO app.main GET /api/style_libraries 5.26ms
+2026-04-21 14:24:50,744 INFO app.main DELETE /api/projects/project_lingmai_town_001/chapters/e24283f1-bc80-4be9-9e10-18f2a73a14b8 17.46ms
+2026-04-21 14:24:50,798 INFO app.main GET /api/style_libraries 5.99ms
+2026-04-21 15:03:45,928 INFO app.main GET /api/projects/project_lingmai_town_001 11.06ms
+2026-04-21 15:03:46,669 INFO app.main GET /api/style_libraries 10.74ms
+2026-04-21 15:03:49,313 INFO app.main POST /api/projects/project_lingmai_town_001/chapters 17.06ms
+2026-04-21 15:03:49,345 INFO app.main GET /api/style_libraries 5.87ms
+2026-04-21 15:03:54,298 INFO app.main POST /api/writing_assistant 610.65ms
+2026-04-21 15:03:56,666 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 15:12:47,236 INFO app.main GET /api/writing_assistant 0.45ms
+2026-04-21 16:07:06,585 INFO app.main GET /api/style_libraries/fe711c12-d5eb-403c-917e-5efa0e55cf1b 2.52ms
+2026-04-21 16:10:57,126 INFO app.main GET /api/projects/project_lingmai_town_001 60.30ms
+2026-04-21 16:10:57,179 INFO app.main GET /api/style_libraries 14.40ms

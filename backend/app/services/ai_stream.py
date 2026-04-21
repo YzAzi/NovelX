@@ -23,6 +23,11 @@ from ..knowledge_graph import load_graph
 from ..models import OutlineAnalysisRequest, StoryNode, WritingAssistantRequest
 from ..node_indexer import NodeIndexer
 from ..runtime import conflict_detector
+from .chapter_memory import (
+    build_continue_instruction,
+    format_chapter_summaries_for_prompt,
+    format_outline_context_for_chapter,
+)
 
 WRITING_ASSISTANT_SYSTEM_PROMPT = (
     Path(__file__).resolve().parent.parent
@@ -165,6 +170,11 @@ async def writing_assistant_stream_response(
     project = await get_project_or_404(session, payload.project_id)
     graph = load_graph(payload.project_id)
     config = project.writer_config
+    current_chapter = next(
+        (chapter for chapter in project.chapters if chapter.id == payload.chapter_id),
+        None,
+    )
+    is_continue_mode = (payload.mode or "transform").lower() == "continue"
 
     api_key = config.api_key or get_api_key("default") or get_api_key("drafting")
     if not api_key:
@@ -203,11 +213,14 @@ async def writing_assistant_stream_response(
 
     style_context = ""
     if payload.style_document_ids:
+        preview_text = payload.text.strip()
+        if not preview_text:
+            preview_text = current_chapter.title if current_chapter else payload.instruction
         preview = await resolve_style_preview(
             session=session,
             project_id=payload.project_id,
             instruction=payload.instruction,
-            text=payload.text,
+            text=preview_text,
             style_document_ids=payload.style_document_ids,
             top_k=6,
         )
@@ -219,6 +232,20 @@ async def writing_assistant_stream_response(
                     prefix = f"{prefix}（{item.focus}）"
                 lines.append(f"- {prefix}: {item.content}")
             style_context = "\n".join(lines)
+
+    chapter_memory_context = ""
+    outline_context = ""
+    if is_continue_mode:
+        chapter_memory_context = format_chapter_summaries_for_prompt(
+            project,
+            current_chapter_id=payload.chapter_id,
+            max_items=10,
+        )
+        outline_context = format_outline_context_for_chapter(
+            project,
+            chapter_id=payload.chapter_id,
+            max_nodes=6,
+        )
 
     messages = [{"role": "system", "content": system_prompt}]
     if guardrails:
@@ -252,12 +279,50 @@ async def writing_assistant_stream_response(
                 ),
             }
         )
-    messages.append(
-        {
-            "role": "user",
-            "content": f"{payload.instruction}\n\n[Text Start]\n{payload.text}\n[Text End]",
-        }
-    )
+    if is_continue_mode:
+        if outline_context:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"以下是当前章节相关的大纲上下文，请续写时严格参考：\n{outline_context}",
+                }
+            )
+        if chapter_memory_context and chapter_memory_context != "无":
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"以下是已完成章节的剧情摘要，请保持前后文连续：\n{chapter_memory_context}",
+                }
+            )
+        continue_instruction = build_continue_instruction(
+            project,
+            current_chapter,
+            payload.text,
+        )
+        chapter_label = (
+            f"第{current_chapter.order}章《{current_chapter.title}》"
+            if current_chapter
+            else "当前章节"
+        )
+        existing_text = payload.text.strip() or "无，需从零开始起草。"
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"{continue_instruction}\n\n"
+                    f"补充要求：{payload.instruction}\n\n"
+                    f"[Chapter]\n{chapter_label}\n\n"
+                    f"[Existing Text]\n{existing_text}\n"
+                ),
+            }
+        )
+    else:
+        messages.append(
+            {
+                "role": "user",
+                "content": f"{payload.instruction}\n\n[Text Start]\n{payload.text}\n[Text End]",
+            }
+        )
 
     async def event_stream():
         yield "event: start\ndata: {}\n\n"

@@ -17,9 +17,13 @@ export function ProjectRouteGuard({
   projectId,
   children,
 }: ProjectRouteGuardProps) {
-  const { currentProject, error, loadProject, resetWorkspace } = useProjectStore()
-  const [isBootstrapping, setIsBootstrapping] = useState(false)
+  const currentProjectId = useProjectStore((state) => state.currentProject?.id ?? null)
+  const loadProject = useProjectStore((state) => state.loadProject)
+  const resetWorkspace = useProjectStore((state) => state.resetWorkspace)
+  const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [sessionChecked, setSessionChecked] = useState(false)
+  const [bootError, setBootError] = useState<string | null>(null)
+  const [bootstrappedProjectId, setBootstrappedProjectId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -35,8 +39,7 @@ export function ProjectRouteGuard({
         window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
       }
     }
-    
-    // Defer state update to avoid synchronous cascading renders
+
     Promise.resolve().then(() => setSessionChecked(true))
 
     return () => {
@@ -45,23 +48,58 @@ export function ProjectRouteGuard({
   }, [resetWorkspace, router])
 
   useEffect(() => {
-    if (!sessionChecked || !projectId || currentProject?.id === projectId) {
+    if (!sessionChecked || !projectId) {
       return
     }
-    let cancelled = false
-    
-    // Defer state update to avoid synchronous cascading renders
-    Promise.resolve().then(() => setIsBootstrapping(true))
-    
-    void loadProject(projectId).finally(() => {
-      if (!cancelled) {
+
+    if (currentProjectId === projectId) {
+      Promise.resolve().then(() => {
+        setBootError(null)
+        setBootstrappedProjectId(projectId)
         setIsBootstrapping(false)
+      })
+      return
+    }
+
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        setBootError(null)
+        setBootstrappedProjectId(null)
+        setIsBootstrapping(true)
       }
     })
+
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled) {
+        setBootError("项目加载超时，请检查网络或稍后重试。")
+        setIsBootstrapping(false)
+      }
+    }, 15000)
+
+    void loadProject(projectId)
+      .then((project) => {
+        if (cancelled) {
+          return
+        }
+        if (project?.id !== projectId) {
+          setBootError("未能加载目标项目，请返回首页后重试。")
+          setBootstrappedProjectId(null)
+        } else {
+          setBootstrappedProjectId(projectId)
+        }
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId)
+        if (!cancelled) {
+          setIsBootstrapping(false)
+        }
+      })
     return () => {
       cancelled = true
+      window.clearTimeout(timeoutId)
     }
-  }, [currentProject?.id, loadProject, projectId, sessionChecked])
+  }, [currentProjectId, loadProject, projectId, sessionChecked])
 
   if (!projectId) {
     return (
@@ -76,12 +114,30 @@ export function ProjectRouteGuard({
     )
   }
 
-  if (!sessionChecked || isBootstrapping || currentProject?.id !== projectId) {
-    if (!isBootstrapping && error) {
+  if (!sessionChecked || isBootstrapping || bootstrappedProjectId !== projectId) {
+    if (!isBootstrapping && bootError) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-background px-4">
           <div className="space-y-4 text-center">
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm text-destructive">{bootError}</p>
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                重新加载
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/">返回主页</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (!isBootstrapping && !bootError && sessionChecked && bootstrappedProjectId !== projectId) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-destructive">未能定位到当前项目，请返回首页重新进入。</p>
             <Button asChild variant="outline">
               <Link href="/">返回主页</Link>
             </Button>

@@ -106,6 +106,9 @@ def format_history_snippets(history: list[dict]) -> str:
     return "\n".join(lines)
 
 
+SHORT_PROJECT_WORD_LIMIT = 100_000
+
+
 def estimate_outline_words(project: StoryProject) -> int:
     total = count_words(project.world_view)
     for node in project.nodes:
@@ -116,9 +119,8 @@ def estimate_outline_words(project: StoryProject) -> int:
 
 def choose_analysis_scope(project: StoryProject) -> str:
     preference = (project.analysis_profile or "auto").lower()
-    total_nodes = len(project.nodes)
     total_words = estimate_outline_words(project)
-    is_short = total_nodes <= 20 and total_words <= 6000
+    is_short = total_words < SHORT_PROJECT_WORD_LIMIT
 
     if preference == "short":
         return "full" if is_short else "retrieval"

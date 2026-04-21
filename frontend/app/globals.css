@@ -38,18 +38,18 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-sm: 0.35rem;
+  --radius-md: 0.425rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 0.875rem;
+  --radius-4xl: 1rem;
   --shadow-paper: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 4px 12px 0 rgb(0 0 0 / 0.03);
 }
 
 :root {
-  --radius: 0.95rem;
+  --radius: 0.5rem;
   --font-app-sans: "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-app-serif: "Iowan Old Style", "Source Han Serif SC", "Songti SC", "STSong", serif;
   --font-app-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "Menlo", monospace;
@@ -228,19 +228,19 @@
   }
 
   .panel-shell {
-    @apply rounded-[28px] border border-border/70 bg-[var(--panel-glass)] shadow-[0_24px_80px_rgba(0,0,0,0.08)] backdrop-blur-xl;
+    @apply rounded-[14px] border border-border/70 bg-[var(--panel-glass)] shadow-[0_24px_80px_rgba(0,0,0,0.08)] backdrop-blur-xl;
   }
 
   .panel-shell-strong {
-    @apply rounded-[32px] border border-border/80 bg-[var(--panel-glass)] shadow-[0_30px_90px_rgba(0,0,0,0.12)] backdrop-blur-xl;
+    @apply rounded-[16px] border border-border/80 bg-[var(--panel-glass)] shadow-[0_30px_90px_rgba(0,0,0,0.12)] backdrop-blur-xl;
   }
 
   .empty-state-panel {
-    @apply rounded-[28px] border border-dashed border-border/70 bg-background/55 px-6 py-8 text-center shadow-[0_18px_48px_rgba(0,0,0,0.05)];
+    @apply rounded-[14px] border border-dashed border-border/70 bg-background/55 px-6 py-8 text-center shadow-[0_18px_48px_rgba(0,0,0,0.05)];
   }
 
   .form-panel {
-    @apply rounded-[24px] border border-border/70 bg-background/65 p-4 shadow-[0_12px_36px_rgba(0,0,0,0.05)];
+    @apply rounded-[12px] border border-border/70 bg-background/65 p-4 shadow-[0_12px_36px_rgba(0,0,0,0.05)];
   }
 
   .form-select {

@@ -671,7 +671,7 @@ export function CharacterGraph() {
   } as CSSProperties
 
   const filterPanelContent = (
-    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -777,7 +777,7 @@ export function CharacterGraph() {
   )
 
   const rosterPanelContent = (
-    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -860,7 +860,7 @@ export function CharacterGraph() {
   )
 
   const focusPanelContent = (
-    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -938,7 +938,7 @@ export function CharacterGraph() {
   )
 
   const relationPanelContent = (
-    <div className="rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -1029,7 +1029,7 @@ export function CharacterGraph() {
 
   return (
     <section
-      className="relative overflow-hidden rounded-[32px] border border-black/5 bg-[var(--cg-bg)] text-[var(--cg-ink)] shadow-[0_32px_120px_rgba(38,24,14,0.12)]"
+      className="relative overflow-hidden rounded-[16px] border border-black/5 bg-[var(--cg-bg)] text-[var(--cg-ink)] shadow-[0_32px_120px_rgba(38,24,14,0.12)]"
       style={cssVars}
     >
       <div className="pointer-events-none absolute inset-0">
@@ -1140,7 +1140,7 @@ export function CharacterGraph() {
         </aside>
 
         <section className="space-y-5">
-          <div className="rounded-[30px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_56px_rgba(32,25,18,0.09)]">
+          <div className="rounded-[15px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_56px_rgba(32,25,18,0.09)]">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--cg-muted)]">Graph Stage</p>
@@ -1199,7 +1199,7 @@ export function CharacterGraph() {
 
             <div
               ref={containerRef}
-              className="relative min-h-[420px] overflow-hidden rounded-[28px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,239,228,0.92))] sm:min-h-[520px] xl:min-h-[620px]"
+              className="relative min-h-[420px] overflow-hidden rounded-[14px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,239,228,0.92))] sm:min-h-[520px] xl:min-h-[620px]"
               onMouseMove={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect()
                 setPointerPosition({
@@ -1465,7 +1465,7 @@ export function CharacterGraph() {
       </div>
 
       <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
-        <SheetContent side="bottom" className="h-[82vh] rounded-t-[28px] border-t border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 xl:hidden" style={cssVars}>
+        <SheetContent side="bottom" className="h-[82vh] rounded-t-[14px] border-t border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 xl:hidden" style={cssVars}>
           <SheetHeader className="border-b border-[var(--cg-border)]">
             <SheetTitle>移动面板</SheetTitle>
             <SheetDescription>在手机上查看筛选、角色列表和关系清单。</SheetDescription>
@@ -1503,7 +1503,7 @@ export function CharacterGraph() {
           }
         }}
       >
-        <DialogContent className="flex h-[88vh] w-[94vw] max-w-5xl flex-col gap-6 rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 sm:h-[84vh] sm:w-[92vw] sm:rounded-[32px]" style={cssVars}>
+        <DialogContent className="flex h-[88vh] w-[94vw] max-w-5xl flex-col gap-6 rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 sm:h-[84vh] sm:w-[92vw] sm:rounded-[16px]" style={cssVars}>
           <DialogHeader className="border-b border-[var(--cg-border)] px-4 py-4 sm:px-6 sm:py-5">
             <DialogTitle className="font-serif text-[2rem] text-[var(--cg-ink)]">
               {selectedCharacter?.name || "角色档案"}
@@ -1517,7 +1517,7 @@ export function CharacterGraph() {
           ) : (
             <div className="grid flex-1 gap-4 overflow-hidden px-4 pb-4 sm:gap-6 sm:px-6 sm:pb-6 lg:grid-cols-[260px_minmax(0,1fr)]">
               <aside className="space-y-4">
-                <div className="rounded-[28px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,220,201,0.4))] p-4">
+                <div className="rounded-[14px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,220,201,0.4))] p-4">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">Character Card</p>
                   <p className="mt-3 font-serif text-3xl text-[var(--cg-ink)]">{selectedCharacter.name}</p>
                   <p className="mt-3 text-sm leading-6 text-[var(--cg-muted)]">
@@ -1566,7 +1566,7 @@ export function CharacterGraph() {
                         className="mt-2 min-h-[200px] rounded-3xl border-[var(--cg-border)] bg-white text-base leading-7"
                       />
                     ) : (
-                      <div className="mt-2 rounded-[28px] border border-[var(--cg-border)] bg-white px-5 py-4 text-base leading-8 text-[var(--cg-ink)]">
+                      <div className="mt-2 rounded-[14px] border border-[var(--cg-border)] bg-white px-5 py-4 text-base leading-8 text-[var(--cg-ink)]">
                         {selectedCharacter.description || "暂无描述"}
                       </div>
                     )}
@@ -1604,7 +1604,7 @@ export function CharacterGraph() {
                   <div>
                     <p className="text-sm font-medium text-[var(--cg-muted)]">登场章节</p>
                     {editMode ? (
-                      <div className="mt-3 max-h-[320px] space-y-2 overflow-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
+                      <div className="mt-3 max-h-[320px] space-y-2 overflow-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
                         {chapters.map((node) => (
                           <label key={node.id} className="flex items-center gap-3 rounded-2xl bg-white/70 px-3 py-2 text-sm text-[var(--cg-ink)]">
                             <input
@@ -1686,7 +1686,7 @@ export function CharacterGraph() {
       </Dialog>
 
       <Dialog open={showAddCharacter} onOpenChange={setShowAddCharacter}>
-        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[30px]" style={cssVars}>
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[15px]" style={cssVars}>
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[var(--cg-ink)]">新增角色</DialogTitle>
           </DialogHeader>
@@ -1720,7 +1720,7 @@ export function CharacterGraph() {
             </div>
             <div>
               <p className="text-xs text-[var(--cg-muted)]">登场章节</p>
-              <div className="mt-2 max-h-[220px] space-y-2 overflow-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-3">
+              <div className="mt-2 max-h-[220px] space-y-2 overflow-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-3">
                 {chapters.map((node) => (
                   <label key={node.id} className="flex items-center gap-2 rounded-2xl bg-white/70 px-3 py-2 text-sm text-[var(--cg-ink)]">
                     <input
@@ -1762,7 +1762,7 @@ export function CharacterGraph() {
       </Dialog>
 
       <Dialog open={showAddRelation} onOpenChange={setShowAddRelation}>
-        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[30px]" style={cssVars}>
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[15px]" style={cssVars}>
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[var(--cg-ink)]">新增角色关系</DialogTitle>
           </DialogHeader>
@@ -1858,12 +1858,12 @@ export function CharacterGraph() {
           }
         }}
       >
-        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[28px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[30px]" style={cssVars}>
+        <DialogContent className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[15px]" style={cssVars}>
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-[var(--cg-ink)]">编辑角色关系</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-[24px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-3">
+            <div className="rounded-[12px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-3">
               <p className="text-xs text-[var(--cg-muted)]">关系双方</p>
               <p className="mt-1 text-sm font-medium text-[var(--cg-ink)]">
                 {editingRelationPair

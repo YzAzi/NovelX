@@ -36,7 +36,7 @@ interface ProjectStore {
   setOutlineProgressStage: (stage: string | null) => void
   setNodeEditorOpen: (open: boolean) => void
   loadProjects: () => Promise<void>
-  loadProject: (projectId: string) => Promise<void>
+  loadProject: (projectId: string) => Promise<StoryProject | null>
   removeProject: (projectId: string) => Promise<void>
   updateNode: (node: StoryNode) => void
   updateNodeFromServer: (node: StoryNode) => void
@@ -140,8 +140,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         syncNodeId: null,
         conflicts: [],
       })
+      return project
     } catch (error) {
       setError(formatUserErrorMessage(error, "加载项目失败，请稍后重试。"))
+      return null
     }
   },
   removeProject: async (projectId) => {

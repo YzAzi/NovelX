@@ -13,7 +13,6 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { CreateDialog } from "@/components/create-dialog"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { History } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -97,7 +96,6 @@ export function ProjectHeader({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <CreateDialog />
           {setVersionOpen && (
             <Button
               variant="ghost"
@@ -144,20 +142,6 @@ export function ProjectHeader({
             </Link>
           )
         })}
-        <div className="ml-auto flex items-center gap-2">
-          <CreateDialog />
-          {setVersionOpen && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 rounded-xl text-xs"
-              onClick={() => setVersionOpen(true)}
-            >
-              <History size={13} />
-              版本历史
-            </Button>
-          )}
-        </div>
       </nav>
 
       {/* Optional children (e.g., module-specific toolbar) */}

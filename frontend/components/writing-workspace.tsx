@@ -29,7 +29,6 @@ import {
   deleteStyleLibraryDocument,
   deleteChapter,
   formatUserErrorMessage,
-  getStyleKnowledgeBase,
   handleUnauthorized,
   importCleanedStyleLibraryFile,
   listStyleLibraries,
@@ -37,9 +36,7 @@ import {
   updateChapter,
   updateProjectSettings,
   updateStyleLibraryDocumentTitle,
-  updateStyleKnowledgeTitle,
-  deleteStyleKnowledgeDocument,
-  uploadStyleKnowledgeFile,
+  uploadStyleLibrarySourceFile,
 } from "@/src/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -62,11 +59,6 @@ import type {
   WriterConfig,
 } from "@/src/types/models"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
 import {
   Select,
   SelectContent,
@@ -125,6 +117,15 @@ const UPLOAD_STAGES = [
   "构建文笔知识库",
 ] as const
 
+function countChapterWords(text: string) {
+  if (!text) {
+    return 0
+  }
+  const cjkChars = text.match(/[\u4e00-\u9fff]/g) ?? []
+  const tokens = text.match(/[A-Za-z0-9]+/g) ?? []
+  return cjkChars.length + tokens.length
+}
+
 export function WritingWorkspace() {
   const { currentProject, setError, setProject } = useProjectStore()
   const shouldReduceMotion = useReducedMotion()
@@ -147,7 +148,6 @@ export function WritingWorkspace() {
     style_strength: "medium",
     style_preset: "default",
   })
-  const [styleDocs, setStyleDocs] = useState<StyleDocument[]>([])
   const [styleLibraries, setStyleLibraries] = useState<StyleLibraryBundle[]>([])
   const [selectedStyleIds, setSelectedStyleIds] = useState<string[]>([])
   const [styleError, setStyleError] = useState<string | null>(null)
@@ -165,6 +165,7 @@ export function WritingWorkspace() {
   const [newLibraryDescription, setNewLibraryDescription] = useState("")
   const [isCreatingLibrary, setIsCreatingLibrary] = useState(false)
   const [isPolishing, setIsPolishing] = useState(false)
+  const [isContinuing, setIsContinuing] = useState(false)
   const [stylePreview, setStylePreview] = useState<StyleRetrievalPreviewResponse | null>(null)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [selectionDraft, setSelectionDraft] = useState({ start: 0, end: 0 })
@@ -172,12 +173,15 @@ export function WritingWorkspace() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const styleFileRef = useRef<HTMLInputElement>(null)
   const cleanedStyleFileRef = useRef<HTMLInputElement>(null)
+  const selectedLibraryGroupRef = useRef<HTMLDivElement | null>(null)
+  const styleDocRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const skipCommitRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
+  const [recentImportedDocId, setRecentImportedDocId] = useState<string | null>(null)
 
   // Sort nodes
   const sortedChapters = useMemo(() => {
@@ -186,8 +190,8 @@ export function WritingWorkspace() {
   }, [currentProject])
 
   const allStyleDocs = useMemo(
-    () => [...styleDocs, ...styleLibraries.flatMap((item) => item.documents)],
-    [styleDocs, styleLibraries],
+    () => styleLibraries.flatMap((item) => item.documents),
+    [styleLibraries],
   )
 
   // Set initial active chapter
@@ -225,7 +229,6 @@ export function WritingWorkspace() {
 
   useEffect(() => {
     if (!currentProject) {
-      setStyleDocs([])
       setStyleLibraries([])
       setSelectedStyleIds([])
       setStylePreview(null)
@@ -235,23 +238,6 @@ export function WritingWorkspace() {
     const controller = new AbortController()
     setIsStyleLoading(true)
     setStyleError(null)
-    getStyleKnowledgeBase(currentProject.id, { signal: controller.signal })
-      .then((base) => {
-        setStyleDocs(base.documents ?? [])
-      })
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : "加载文笔知识库失败"
-        setStyleError(message)
-      })
-      .finally(() => setIsStyleLoading(false))
-    return () => controller.abort()
-  }, [currentProject])
-
-  useEffect(() => {
-    if (!currentProject) {
-      return
-    }
-    const controller = new AbortController()
     listStyleLibraries({ signal: controller.signal })
       .then((bundles) => {
         setStyleLibraries(bundles)
@@ -263,9 +249,10 @@ export function WritingWorkspace() {
         })
       })
       .catch((error) => {
-        const message = error instanceof Error ? error.message : "加载共享文笔库失败"
+        const message = error instanceof Error ? error.message : "加载知识库失败"
         setStyleError(message)
       })
+      .finally(() => setIsStyleLoading(false))
     return () => controller.abort()
   }, [currentProject])
 
@@ -298,6 +285,24 @@ export function WritingWorkspace() {
   useEffect(() => {
     setSelectionDraft({ start: 0, end: 0 })
   }, [activeChapterId])
+
+  useEffect(() => {
+    if (!recentImportedDocId) {
+      return
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      const target =
+        styleDocRefs.current[recentImportedDocId] ?? selectedLibraryGroupRef.current
+      target?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+    const timerId = window.setTimeout(() => {
+      setRecentImportedDocId(null)
+    }, 4200)
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      window.clearTimeout(timerId)
+    }
+  }, [recentImportedDocId, styleLibraries])
 
   const syncSelectionDraft = () => {
     if (!textareaRef.current) {
@@ -393,6 +398,86 @@ export function WritingWorkspace() {
     return [instruction, presetText, strengthText, ...outputRules].filter(Boolean).join("\n")
   }
 
+  const requestWritingAssistant = async (payload: {
+    text: string
+    instruction: string
+    chapterId?: string | null
+    mode?: "transform" | "continue"
+  }) => {
+    if (!currentProject) {
+      return ""
+    }
+    const response = await fetch(buildApiUrl("/api/writing_assistant"), {
+      method: "POST",
+      headers: buildAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        project_id: currentProject.id,
+        text: payload.text,
+        instruction: payload.instruction,
+        stream: true,
+        chapter_id: payload.chapterId ?? null,
+        mode: payload.mode ?? "transform",
+        style_document_ids: selectedStyleIds,
+      }),
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        handleUnauthorized()
+      }
+      const detail = await response.text()
+      throw new Error(detail || "Failed to call AI")
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+      return ""
+    }
+
+    const decoder = new TextDecoder()
+    let resultText = ""
+    let buffer = ""
+    let streamError: string | null = null
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const parts = buffer.split("\n\n")
+      buffer = parts.pop() ?? ""
+
+      for (const part of parts) {
+        const lines = part.split("\n")
+        let event = "message"
+        const dataLines: string[] = []
+
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            event = line.replace("event:", "").trim()
+          } else if (line.startsWith("data:")) {
+            dataLines.push(line.replace(/^data:\s?/, ""))
+          }
+        }
+
+        const data = dataLines.join("\n")
+        if (event === "start" || data === "[DONE]") {
+          continue
+        }
+        if (event === "error") {
+          streamError = data || "写作助手处理失败，请稍后重试。"
+          break
+        }
+        resultText += data
+      }
+
+      if (streamError) {
+        throw new Error(streamError)
+      }
+    }
+
+    return resultText
+  }
+
   const handleAssist = async (
     mode: "polish" | "expand",
     scope: "selection" | "full",
@@ -427,69 +512,10 @@ export function WritingWorkspace() {
         setStylePreview(preview)
       }
 
-      const response = await fetch(buildApiUrl("/api/writing_assistant"), {
-        method: "POST",
-        headers: buildAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          project_id: currentProject.id,
-          text: textToPolish,
-          instruction,
-          stream: true,
-          style_document_ids: selectedStyleIds,
-        }),
+      const polishedText = await requestWritingAssistant({
+        text: textToPolish,
+        instruction,
       })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized()
-        }
-        const detail = await response.text()
-        throw new Error(detail || "Failed to call AI")
-      }
-      
-      const reader = response.body?.getReader()
-      if (!reader) return
-      
-      const decoder = new TextDecoder()
-      let polishedText = ""
-      let buffer = ""
-      let streamError: string | null = null
-      
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split("\n\n")
-        buffer = parts.pop() ?? ""
-
-        for (const part of parts) {
-          const lines = part.split("\n")
-          let event = "message"
-          const dataLines: string[] = []
-
-          for (const line of lines) {
-            if (line.startsWith("event:")) {
-              event = line.replace("event:", "").trim()
-            } else if (line.startsWith("data:")) {
-              dataLines.push(line.replace(/^data:\s?/, ""))
-            }
-          }
-
-          const data = dataLines.join("\n")
-          if (event === "start" || data === "[DONE]") {
-            continue
-          }
-          if (event === "error") {
-            streamError = data || "写作助手处理失败，请稍后重试。"
-            break
-          }
-          polishedText += data
-        }
-
-        if (streamError) {
-          throw new Error(streamError)
-        }
-      }
       
       if (scope === "full") {
          setContent(polishedText)
@@ -504,6 +530,51 @@ export function WritingWorkspace() {
       setError(formatUserErrorMessage(error, "写作助手处理失败，请稍后重试。"))
     } finally {
       setIsPolishing(false)
+    }
+  }
+
+  const handleContinueChapter = async () => {
+    if (!currentProject || !activeChapterId) {
+      return
+    }
+    const continueInstruction = [
+      buildInstruction("expand"),
+      "任务目标：如果当前章节已有正文，请从现有结尾自然续写；如果当前章节还是空白，请直接生成本章开头。",
+    ].join("\n")
+
+    setIsContinuing(true)
+    try {
+      if (selectedStyleIds.length > 0) {
+        const preview = await previewStyleReferences(currentProject.id, {
+          instruction: continueInstruction,
+          text: content.trim() || chapterTitle.trim() || "当前章节续写",
+          style_document_ids: selectedStyleIds,
+          top_k: 5,
+        })
+        setStylePreview(preview)
+      }
+
+      const generatedText = await requestWritingAssistant({
+        text: content,
+        instruction: continueInstruction,
+        chapterId: activeChapterId,
+        mode: "continue",
+      })
+      if (!generatedText.trim()) {
+        return
+      }
+      setContent((prev) => {
+        if (!prev.trim()) {
+          return generatedText
+        }
+        const separator = prev.endsWith("\n") ? "\n" : "\n\n"
+        return `${prev}${separator}${generatedText}`
+      })
+    } catch (error) {
+      console.error("Continue failed", error)
+      setError(formatUserErrorMessage(error, "AI 续写失败，请稍后重试。"))
+    } finally {
+      setIsContinuing(false)
     }
   }
 
@@ -600,11 +671,23 @@ export function WritingWorkspace() {
   }
 
   const handleStyleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (!currentProject) {
-      return
-    }
     const file = event.target.files?.[0]
     if (!file) {
+      return
+    }
+    if (!selectedLibraryId) {
+      setStyleError(
+        styleLibraries.length === 0
+          ? "请先新建知识库，再导入小说。"
+          : "请先选择一个知识库，再导入小说。"
+      )
+      setStyleUploadNotice(null)
+      if (styleLibraries.length === 0) {
+        setIsCreateLibraryOpen(true)
+      }
+      if (styleFileRef.current) {
+        styleFileRef.current.value = ""
+      }
       return
     }
     if (!file.name.endsWith(".txt") && !file.name.endsWith(".md")) {
@@ -615,16 +698,34 @@ export function WritingWorkspace() {
     setStyleError(null)
     setStyleUploadNotice(null)
     try {
-      const result: StyleKnowledgeUploadResponse = await uploadStyleKnowledgeFile(
-        currentProject.id,
+      const result: StyleKnowledgeUploadResponse = await uploadStyleLibrarySourceFile(
+        selectedLibraryId,
         file,
       )
       const doc = result.document
-      setStyleDocs((prev) => [doc, ...prev])
+      const activeLibrary = styleLibraries.find((bundle) => bundle.library.id === selectedLibraryId)
+      setStyleLibraries((prev) =>
+        prev.map((bundle) =>
+          bundle.library.id !== selectedLibraryId
+            ? bundle
+            : {
+                ...bundle,
+                documents: [doc, ...bundle.documents],
+                total_chunks: bundle.total_chunks + (doc.chunks?.length ?? 0),
+                total_characters: bundle.total_characters + (doc.content?.length ?? 0),
+              }
+        )
+      )
       setSelectedStyleIds((prev) =>
         prev.includes(doc.id) ? prev : [doc.id, ...prev]
       )
-      const summary = `已完成 ${result.successful_batches}/${result.total_batches} 个批次，保留 ${doc.curated_segments ?? 0} 个片段。`
+      setIsAiPanelOpen(true)
+      if (window.innerWidth < 768) {
+        setMobileAiSheetOpen(true)
+      }
+      setRecentImportedDocId(doc.id)
+      const libraryLabel = activeLibrary?.library.name ?? "所选知识库"
+      const summary = `已导入到「${libraryLabel}」，完成 ${result.successful_batches}/${result.total_batches} 个批次，保留 ${doc.curated_segments ?? 0} 个片段。`
       if (result.warnings.length > 0 || result.failed_batches > 0) {
         setStyleUploadNotice(
           `${summary} 存在部分批次失败，但系统已用成功批次完成构建。`
@@ -646,7 +747,7 @@ export function WritingWorkspace() {
   const handleCreateLibrary = async () => {
     const nextName = newLibraryName.trim()
     if (!nextName) {
-      setStyleError("共享文笔库名称不能为空")
+      setStyleError("知识库名称不能为空")
       return
     }
     setIsCreatingLibrary(true)
@@ -667,9 +768,9 @@ export function WritingWorkspace() {
       setIsCreateLibraryOpen(false)
       setNewLibraryName("")
       setNewLibraryDescription("")
-      setStyleUploadNotice(`已创建共享文笔库：${library.name}`)
+      setStyleUploadNotice(`已创建知识库：${library.name}`)
     } catch (error) {
-      const message = error instanceof Error ? error.message : "创建共享文笔库失败"
+      const message = error instanceof Error ? error.message : "创建知识库失败"
       setStyleError(message)
     } finally {
       setIsCreatingLibrary(false)
@@ -682,7 +783,7 @@ export function WritingWorkspace() {
       return
     }
     if (!selectedLibraryId) {
-      setStyleError("请先创建或选择一个共享文笔库")
+      setStyleError("请先创建或选择一个知识库")
       if (cleanedStyleFileRef.current) {
         cleanedStyleFileRef.current.value = ""
       }
@@ -733,7 +834,7 @@ export function WritingWorkspace() {
         })
       }
       setStyleUploadNotice(
-        `已向共享文笔库导入 ${result.imported_count} 份已清洗素材。`
+        `已向所选知识库导入 ${result.imported_count} 份已清洗素材。`
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : "导入已清洗素材失败"
@@ -761,44 +862,33 @@ export function WritingWorkspace() {
   }
 
   const handleConfirmRename = async (doc: StyleDocument) => {
-    if (!currentProject) {
-      return
-    }
     const nextTitle = renameValue.trim()
     if (!nextTitle) {
       setStyleError("标题不能为空")
       return
     }
     try {
-      if (doc.scope === "library" && doc.library_id) {
-        const updated = await updateStyleLibraryDocumentTitle(doc.library_id, doc.id, {
-          title: nextTitle,
-        })
-        setStyleLibraries((prev) =>
-          prev.map((bundle) =>
-            bundle.library.id !== doc.library_id
-              ? bundle
-              : {
-                  ...bundle,
-                  documents: bundle.documents.map((item) =>
-                    item.id === doc.id ? updated : item
-                  ),
-                }
-          )
+      if (!doc.library_id) {
+        setStyleError("当前素材未绑定知识库，无法重命名。")
+        return
+      }
+      const updated = await updateStyleLibraryDocumentTitle(doc.library_id, doc.id, {
+        title: nextTitle,
+      })
+      setStyleLibraries((prev) =>
+        prev.map((bundle) =>
+          bundle.library.id !== doc.library_id
+            ? bundle
+            : {
+                ...bundle,
+                documents: bundle.documents.map((item) =>
+                  item.id === doc.id ? updated : item
+                ),
+              }
         )
-        if (previewDoc?.id === doc.id) {
-          setPreviewDoc(updated)
-        }
-      } else {
-        const updated = await updateStyleKnowledgeTitle(currentProject.id, doc.id, {
-          title: nextTitle,
-        })
-        setStyleDocs((prev) =>
-          prev.map((item) => (item.id === doc.id ? updated : item))
-        )
-        if (previewDoc?.id === doc.id) {
-          setPreviewDoc(updated)
-        }
+      )
+      if (previewDoc?.id === doc.id) {
+        setPreviewDoc(updated)
       }
       handleCancelRename()
     } catch (error) {
@@ -808,34 +898,30 @@ export function WritingWorkspace() {
   }
 
   const handleDeleteStyleDoc = async (doc: StyleDocument) => {
-    if (!currentProject) {
-      return
-    }
     try {
-      if (doc.scope === "library" && doc.library_id) {
-        await deleteStyleLibraryDocument(doc.library_id, doc.id)
-        setStyleLibraries((prev) =>
-          prev.map((bundle) =>
-            bundle.library.id !== doc.library_id
-              ? bundle
-              : {
-                  ...bundle,
-                  documents: bundle.documents.filter((item) => item.id !== doc.id),
-                  total_chunks: Math.max(
-                    0,
-                    bundle.total_chunks - (doc.chunks?.length ?? 0),
-                  ),
-                  total_characters: Math.max(
-                    0,
-                    bundle.total_characters - (doc.content?.length ?? 0),
-                  ),
-                }
-          )
-        )
-      } else {
-        await deleteStyleKnowledgeDocument(currentProject.id, doc.id)
-        setStyleDocs((prev) => prev.filter((item) => item.id !== doc.id))
+      if (!doc.library_id) {
+        setStyleError("当前素材未绑定知识库，无法删除。")
+        return
       }
+      await deleteStyleLibraryDocument(doc.library_id, doc.id)
+      setStyleLibraries((prev) =>
+        prev.map((bundle) =>
+          bundle.library.id !== doc.library_id
+            ? bundle
+            : {
+                ...bundle,
+                documents: bundle.documents.filter((item) => item.id !== doc.id),
+                total_chunks: Math.max(
+                  0,
+                  bundle.total_chunks - (doc.chunks?.length ?? 0),
+                ),
+                total_characters: Math.max(
+                  0,
+                  bundle.total_characters - (doc.content?.length ?? 0),
+                ),
+              }
+        )
+      )
       setSelectedStyleIds((prev) => prev.filter((id) => id !== doc.id))
       if (previewDoc?.id === doc.id) {
         setPreviewDoc(null)
@@ -847,7 +933,7 @@ export function WritingWorkspace() {
   }
 
   const handleDeleteLibrary = async (libraryId: string, libraryName: string) => {
-    const confirmed = window.confirm(`确定删除共享文笔库「${libraryName}」吗？库内素材会一并删除。`)
+    const confirmed = window.confirm(`确定删除知识库「${libraryName}」吗？库内素材会一并删除。`)
     if (!confirmed) {
       return
     }
@@ -868,9 +954,25 @@ export function WritingWorkspace() {
           : prev
       )
     } catch (error) {
-      const message = error instanceof Error ? error.message : "删除共享文笔库失败"
+      const message = error instanceof Error ? error.message : "删除知识库失败"
       setStyleError(message)
     }
+  }
+
+  const handleTriggerSourceUpload = () => {
+    if (!selectedLibraryId) {
+      setStyleError(
+        styleLibraries.length === 0
+          ? "请先新建知识库，再导入小说。"
+          : "请先选择一个知识库，再导入小说。"
+      )
+      setStyleUploadNotice(null)
+      if (styleLibraries.length === 0) {
+        setIsCreateLibraryOpen(true)
+      }
+      return
+    }
+    styleFileRef.current?.click()
   }
 
   const handleStartEditTitle = (chapterId: string, title: string) => {
@@ -954,6 +1056,7 @@ export function WritingWorkspace() {
   const motionTransition = shouldReduceMotion
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 280, damping: 28, mass: 0.9 }
+  const chapterWordCount = countChapterWords(content)
 
   const chapterSidebarContent = (
     <>
@@ -977,7 +1080,7 @@ export function WritingWorkspace() {
             variant="ghost"
             size="icon-sm"
             onClick={() => setIsSidebarOpen(false)}
-            className="hidden rounded-xl text-muted-foreground hover:text-foreground xl:inline-flex"
+            className="hidden rounded-xl text-muted-foreground hover:text-foreground md:inline-flex"
             title="收起侧边栏"
           >
             <PanelLeftClose className="h-4 w-4" />
@@ -1054,7 +1157,7 @@ export function WritingWorkspace() {
                               {chapter.title || "未命名章节"}
                             </div>
                             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground/80">
-                              <span>第 {chapter.order + 1} 章</span>
+                              <span>第 {chapter.order} 章</span>
                               <span className="h-0.5 w-0.5 rounded-full bg-current/40" />
                               <span>{chapter.content?.length ?? 0} 字</span>
                             </div>
@@ -1118,7 +1221,7 @@ export function WritingWorkspace() {
             variant="ghost"
             size="icon-sm"
             onClick={() => setIsAiPanelOpen(false)}
-            className="hidden rounded-xl text-muted-foreground hover:text-foreground xl:inline-flex"
+            className="hidden rounded-xl text-muted-foreground hover:text-foreground md:inline-flex"
           >
             <PanelRightClose className="h-4 w-4" />
           </Button>
@@ -1132,7 +1235,7 @@ export function WritingWorkspace() {
             initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={motionTransition}
-            className="relative overflow-hidden rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,rgba(77,102,177,0.1),rgba(255,255,255,0.84))] p-4"
+            className="relative overflow-hidden rounded-[14px] border border-primary/20 bg-[linear-gradient(180deg,rgba(77,102,177,0.1),rgba(255,255,255,0.84))] p-4"
           >
             <motion.div
               aria-hidden
@@ -1143,9 +1246,9 @@ export function WritingWorkspace() {
             <div className="relative">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-medium text-sm text-primary">智能润色与扩写</h3>
+                  <h3 className="font-medium text-sm text-primary">智能续写、润色与扩写</h3>
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    当前预设为 {activePreset.label}，可针对选区精修，也可整体重整节奏与文风。
+                    当前预设为 {activePreset.label}，可直接续写当前章节，也可针对选区精修或整体重整节奏与文风。
                   </p>
                 </div>
                 <motion.div
@@ -1156,12 +1259,24 @@ export function WritingWorkspace() {
                 </motion.div>
               </div>
 
+              <div className="mt-4">
+                <Button
+                  size="sm"
+                  onClick={handleContinueChapter}
+                  disabled={isPolishing || isContinuing}
+                  className="h-11 w-full rounded-2xl shadow-[0_14px_32px_rgba(77,102,177,0.22)]"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {content.trim() ? "AI续写本章" : "生成本章开头"}
+                </Button>
+              </div>
+
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleAssist("polish", "selection")}
-                  disabled={isPolishing}
+                  disabled={isPolishing || isContinuing}
                   className="h-10 rounded-2xl bg-background/60"
                 >
                   <PenLine className="h-3.5 w-3.5" /> 选中润色
@@ -1169,7 +1284,7 @@ export function WritingWorkspace() {
                 <Button
                   size="sm"
                   onClick={() => handleAssist("polish", "full")}
-                  disabled={isPolishing}
+                  disabled={isPolishing || isContinuing}
                   className="h-10 rounded-2xl shadow-[0_14px_32px_rgba(77,102,177,0.22)]"
                 >
                   <Sparkles className="h-3.5 w-3.5" /> 全文润色
@@ -1178,7 +1293,7 @@ export function WritingWorkspace() {
                   variant="outline"
                   size="sm"
                   onClick={() => handleAssist("expand", "selection")}
-                  disabled={isPolishing}
+                  disabled={isPolishing || isContinuing}
                   className="h-10 rounded-2xl bg-background/60"
                 >
                   <PenLine className="h-3.5 w-3.5" /> 选中扩写
@@ -1186,7 +1301,7 @@ export function WritingWorkspace() {
                 <Button
                   size="sm"
                   onClick={() => handleAssist("expand", "full")}
-                  disabled={isPolishing}
+                  disabled={isPolishing || isContinuing}
                   className="h-10 rounded-2xl shadow-[0_14px_32px_rgba(77,102,177,0.22)]"
                 >
                   <Sparkles className="h-3.5 w-3.5" /> 全文扩写
@@ -1222,7 +1337,7 @@ export function WritingWorkspace() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
                     transition={motionTransition}
-                    className="mt-4 space-y-3 rounded-[22px] border border-border/60 bg-background/82 p-3"
+                    className="mt-4 space-y-3 rounded-[11px] border border-border/60 bg-background/82 p-3"
                   >
                     <div className="space-y-1">
                       <div className="text-xs font-medium text-foreground">本次优先参考</div>
@@ -1277,27 +1392,27 @@ export function WritingWorkspace() {
             initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...motionTransition, delay: shouldReduceMotion ? 0 : 0.05 }}
-            className="rounded-[28px] border border-border/60 bg-background/72 p-4"
+            className="rounded-[14px] border border-border/60 bg-background/72 p-4"
           >
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-medium text-foreground">仿写文笔知识库</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  项目内素材继续支持原始小说清洗；共享文笔库支持跨项目复用，并可直接导入已清洗 JSON / TXT / MD。
+              <div className="min-w-0">
+                <h3 className="text-sm font-medium text-foreground">知识库</h3>
+                <p className="mt-1 break-words text-xs text-muted-foreground">
+                  所有文笔素材都统一沉淀在当前账号的知识库中。导入小说前请先选择知识库，也支持继续向同一个知识库追加已清洗素材。
                 </p>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 rounded-[22px] border border-border/60 bg-background/60 p-3">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-4 grid gap-3 rounded-[11px] border border-border/60 bg-background/60 p-3">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 rounded-2xl"
+                  className="h-10 w-full rounded-2xl"
                   disabled={isStyleUploading}
-                  onClick={() => styleFileRef.current?.click()}
+                  onClick={handleTriggerSourceUpload}
                 >
-                  {isStyleUploading ? "处理中..." : "导入原始小说"}
+                  {isStyleUploading ? "处理中..." : "导入小说"}
                 </Button>
                 <input
                   ref={styleFileRef}
@@ -1309,19 +1424,19 @@ export function WritingWorkspace() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 rounded-2xl"
+                  className="h-10 w-full rounded-2xl"
                   onClick={() => setIsCreateLibraryOpen(true)}
                 >
-                  新建共享库
+                  新建知识库
                 </Button>
               </div>
-              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid gap-2">
                 <Select
                   value={selectedLibraryId || undefined}
                   onValueChange={setSelectedLibraryId}
                 >
-                  <SelectTrigger className="h-10 rounded-2xl bg-background/70">
-                    <SelectValue placeholder="选择共享文笔库" />
+                  <SelectTrigger className="h-10 w-full min-w-0 rounded-2xl bg-background/70">
+                    <SelectValue placeholder="选择知识库" />
                   </SelectTrigger>
                   <SelectContent>
                     {styleLibraries.length > 0 ? (
@@ -1332,16 +1447,16 @@ export function WritingWorkspace() {
                       ))
                     ) : (
                       <SelectItem value="__empty__" disabled>
-                        暂无共享文笔库
+                        暂无知识库
                       </SelectItem>
                     )}
                   </SelectContent>
                 </Select>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="grid gap-2 sm:grid-cols-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-10 rounded-2xl"
+                    className="h-10 w-full rounded-2xl"
                     disabled={!selectedLibraryId || isLibraryUploading}
                     onClick={() => cleanedStyleFileRef.current?.click()}
                   >
@@ -1357,7 +1472,7 @@ export function WritingWorkspace() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-10 rounded-2xl text-destructive hover:text-destructive"
+                    className="h-10 w-full rounded-2xl text-destructive hover:text-destructive"
                     disabled={!selectedLibraryBundle}
                     onClick={() =>
                       selectedLibraryBundle
@@ -1368,14 +1483,14 @@ export function WritingWorkspace() {
                         : undefined
                     }
                   >
-                    删除共享库
+                    删除知识库
                   </Button>
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground">
+              <div className="break-words text-xs leading-relaxed text-muted-foreground">
                 {selectedLibraryBundle
-                  ? `当前共享库：${selectedLibraryBundle.library.name}，共 ${selectedLibraryBundle.documents.length} 份素材。`
-                  : "创建一个共享文笔库后，就能在多个项目之间复用同一套风格素材。"}
+                  ? `当前知识库：${selectedLibraryBundle.library.name}，共 ${selectedLibraryBundle.documents.length} 份素材。`
+                  : "请先新建或选择一个知识库，然后再导入小说或已清洗素材。"}
               </div>
             </div>
 
@@ -1417,7 +1532,7 @@ export function WritingWorkspace() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
                   transition={motionTransition}
-                  className="mt-3 rounded-[22px] border border-primary/20 bg-primary/5 p-3"
+                  className="mt-3 rounded-[11px] border border-primary/20 bg-primary/5 p-3"
                 >
                   <div className="flex items-center justify-between gap-3 text-xs text-primary">
                     <span>正在处理：{styleUploadStage}</span>
@@ -1442,40 +1557,34 @@ export function WritingWorkspace() {
                   <Skeleton className="h-24 w-full rounded-3xl" />
                 </div>
               ) : allStyleDocs.length === 0 ? (
-                <div className="rounded-[22px] border border-dashed border-border/70 bg-background/50 px-4 py-5 text-xs leading-relaxed text-muted-foreground">
-                  暂无文笔素材。你可以导入原始小说到当前项目，也可以把已清洗素材导入共享文笔库后跨项目复用。
+                <div className="rounded-[11px] border border-dashed border-border/70 bg-background/50 px-4 py-5 text-xs leading-relaxed text-muted-foreground">
+                  还没有任何知识库素材。先新建一个知识库，再导入小说或已清洗素材。
                 </div>
               ) : (
                 <motion.div layout className="space-y-2">
-                  {[
-                    {
-                      key: "project",
-                      title: "当前项目素材",
-                      description: "仅在当前项目可见",
-                      documents: styleDocs,
-                    },
-                    ...styleLibraries.map((bundle) => ({
-                      key: bundle.library.id,
-                      title: bundle.library.name,
-                      description:
-                        bundle.library.description ||
-                        `共享文笔库 · ${bundle.documents.length} 份素材`,
-                      documents: bundle.documents,
-                    })),
-                  ].map((group) =>
+                  {styleLibraries.map((group) =>
                     group.documents.length > 0 ? (
-                      <div key={group.key} className="space-y-2">
-                        <div className="rounded-2xl border border-border/50 bg-muted/20 px-3 py-2">
-                          <div className="text-xs font-medium text-foreground">{group.title}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">{group.description}</div>
+                      <div key={group.library.id} className="space-y-2">
+                        <div
+                          ref={group.library.id === selectedLibraryId ? selectedLibraryGroupRef : undefined}
+                          className="rounded-2xl border border-border/50 bg-muted/20 px-3 py-2"
+                        >
+                          <div className="break-words text-xs font-medium text-foreground">{group.library.name}</div>
+                          <div className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">
+                            {group.library.description || `知识库 · ${group.documents.length} 份素材`}
+                          </div>
                         </div>
                         <AnimatePresence initial={false}>
                           {group.documents.map((doc, index) => {
                             const checked = selectedStyleIds.includes(doc.id)
                             const isRenaming = renamingDocId === doc.id
+                            const isRecentlyImported = recentImportedDocId === doc.id
                             return (
                               <motion.div
                                 key={doc.id}
+                                ref={(node) => {
+                                  styleDocRefs.current[doc.id] = node
+                                }}
                                 layout
                                 initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -1485,7 +1594,9 @@ export function WritingWorkspace() {
                                   delay: shouldReduceMotion ? 0 : index * 0.025,
                                 }}
                                 className={cn(
-                                  "rounded-[22px] border px-3 py-3 text-xs transition-all",
+                                  "rounded-[11px] border px-3 py-3 text-xs transition-all",
+                                  isRecentlyImported &&
+                                    "border-primary/55 bg-primary/12 shadow-[0_0_0_1px_rgba(77,102,177,0.18)] shadow-primary/10",
                                   checked
                                     ? "border-primary/35 bg-primary/10 shadow-lg shadow-primary/5 scale-[1.01]"
                                     : getStyleCardColor(doc.title)
@@ -1506,34 +1617,34 @@ export function WritingWorkspace() {
                                         className="h-9 text-xs"
                                       />
                                     ) : (
-                                      <div className="font-medium text-foreground line-clamp-1">
+                                      <div className="break-words text-[13px] font-medium leading-5 text-foreground">
                                         {doc.title || "未命名风格"}
                                       </div>
                                     )}
-                                    <div className="mt-1 text-xs text-muted-foreground">
+                                    <div className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
                                       {formatCuratedStats(doc)}
                                     </div>
                                   </div>
                                 </div>
-                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <div className="mt-3 grid grid-cols-2 gap-2">
                                   {isRenaming ? (
                                     <>
-                                      <Button size="sm" className="h-8 rounded-xl text-xs" onClick={() => handleConfirmRename(doc)}>
+                                      <Button size="sm" className="h-8 w-full rounded-xl text-xs" onClick={() => handleConfirmRename(doc)}>
                                         保存
                                       </Button>
-                                      <Button size="sm" variant="outline" className="h-8 rounded-xl text-xs" onClick={handleCancelRename}>
+                                      <Button size="sm" variant="outline" className="h-8 w-full rounded-xl text-xs" onClick={handleCancelRename}>
                                         取消
                                       </Button>
                                     </>
                                   ) : (
                                     <>
-                                      <Button size="sm" variant="outline" className="h-8 rounded-xl text-xs" onClick={() => handleOpenPreview(doc)}>
+                                      <Button size="sm" variant="outline" className="h-8 w-full rounded-xl text-xs" onClick={() => handleOpenPreview(doc)}>
                                         预览
                                       </Button>
-                                      <Button size="sm" variant="outline" className="h-8 rounded-xl text-xs" onClick={() => handleStartRename(doc)}>
+                                      <Button size="sm" variant="outline" className="h-8 w-full rounded-xl text-xs" onClick={() => handleStartRename(doc)}>
                                         重命名
                                       </Button>
-                                      <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs text-destructive hover:text-destructive" onClick={() => handleDeleteStyleDoc(doc)}>
+                                      <Button size="sm" variant="ghost" className="col-span-2 h-8 w-full rounded-xl text-xs text-destructive hover:text-destructive" onClick={() => handleDeleteStyleDoc(doc)}>
                                         删除
                                       </Button>
                                     </>
@@ -1552,14 +1663,14 @@ export function WritingWorkspace() {
           </motion.div>
 
           <AnimatePresence initial={false}>
-            {isPolishing ? (
+            {isPolishing || isContinuing ? (
               <motion.div
                 key="polishing-indicator"
                 initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
                 transition={motionTransition}
-                className="relative flex flex-col items-center justify-center overflow-hidden rounded-[24px] border border-primary/15 bg-primary/5 px-4 py-8 text-muted-foreground"
+                className="relative flex flex-col items-center justify-center overflow-hidden rounded-[12px] border border-primary/15 bg-primary/5 px-4 py-8 text-muted-foreground"
               >
                 <motion.div
                   aria-hidden
@@ -1573,7 +1684,7 @@ export function WritingWorkspace() {
                 >
                   <Sparkles className="h-5 w-5 text-primary" />
                 </motion.div>
-                <span className="mt-2 text-xs">AI 正在思考中...</span>
+                <span className="mt-2 text-xs">{isContinuing ? "AI 正在续写中..." : "AI 正在处理中..."}</span>
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -1583,29 +1694,28 @@ export function WritingWorkspace() {
   )
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(180deg,var(--bg-main-start),var(--bg-main-end))]">
-      <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
-        {/* 左侧章节目录 */}
-        <AnimatePresence initial={false}>
-          {!isZenMode && isSidebarOpen && (
-            <ResizablePanel
-              defaultSize={20}
-              minSize={15}
-              maxSize={30}
-              className="hidden xl:block"
-            >
-              <aside className="flex h-full flex-col border-r border-border/40 bg-background/35 backdrop-blur-xl">
-                {chapterSidebarContent}
-              </aside>
-            </ResizablePanel>
-          )}
-        </AnimatePresence>
+    <div className="relative w-full overflow-hidden rounded-[14px] bg-[linear-gradient(180deg,var(--bg-main-start),var(--bg-main-end))]">
+      <div
+        className={cn(
+          "min-h-[72vh] md:h-[calc(100vh-13.5rem)] md:min-h-[720px] md:grid",
+          isZenMode
+            ? "md:grid-cols-[minmax(0,1fr)]"
+            : isSidebarOpen && isAiPanelOpen
+              ? "md:grid-cols-[248px_minmax(0,1fr)_380px]"
+              : isSidebarOpen
+                ? "md:grid-cols-[248px_minmax(0,1fr)]"
+                : isAiPanelOpen
+                  ? "md:grid-cols-[minmax(0,1fr)_380px]"
+                  : "md:grid-cols-[minmax(0,1fr)]",
+        )}
+      >
+        {!isZenMode && isSidebarOpen ? (
+          <aside className="hidden h-full min-h-0 flex-col border-r border-border/40 bg-background/35 backdrop-blur-xl md:flex">
+            {chapterSidebarContent}
+          </aside>
+        ) : null}
 
-        {!isZenMode && isSidebarOpen && <ResizableHandle withHandle className="hidden xl:flex" />}
-
-        {/* 中间编辑主区 */}
-        <ResizablePanel defaultSize={isZenMode ? 100 : 55} minSize={40}>
-          <div className="flex h-full flex-col">
+        <div className="flex min-h-[72vh] min-w-0 flex-col md:h-full">
             <motion.div
               layout
               className="border-b border-border/50 bg-background/70 px-3 py-3 backdrop-blur-md sm:px-4"
@@ -1618,7 +1728,7 @@ export function WritingWorkspace() {
                         {sortedChapters.length} 个章节
                       </motion.div>
                       <motion.div layout className="status-pill">
-                        {content.length} 字
+                        {chapterWordCount} 字
                       </motion.div>
                       <motion.div layout className="status-pill">
                         {selectedStyleIds.length} / {allStyleDocs.length} 份风格素材
@@ -1647,19 +1757,19 @@ export function WritingWorkspace() {
                       placeholder="输入章节标题..."
                     />
                     <div className="mt-2 text-sm text-muted-foreground">
-                      {activeChapter ? `当前编辑：第 ${activeChapter.order + 1} 章` : "创建首个章节后开始写作"}
+                      {activeChapter ? `当前编辑：第 ${activeChapter.order} 章` : "创建首个章节后开始写作"}
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="hidden xl:flex items-center gap-2 mr-2 px-3 h-9 rounded-xl border border-border/40 bg-background/40 text-muted-foreground transition-all hover:border-primary/30">
+                    <div className="mr-2 hidden h-9 items-center gap-2 rounded-xl border border-border/40 bg-background/40 px-3 text-muted-foreground transition-all hover:border-primary/30 md:flex">
                       <Search className="h-3.5 w-3.5" />
                       <span className="text-xs">⌘K 搜索操作...</span>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-xl xl:hidden"
+                      className="rounded-xl md:hidden"
                       onClick={() => setMobileChapterSheetOpen(true)}
                     >
                       <FileText className="h-4 w-4" />
@@ -1668,7 +1778,7 @@ export function WritingWorkspace() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-xl xl:hidden"
+                      className="rounded-xl md:hidden"
                       onClick={() => setMobileAiSheetOpen(true)}
                     >
                       <Sparkles className="h-4 w-4" />
@@ -1677,7 +1787,7 @@ export function WritingWorkspace() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      className="hidden rounded-xl xl:inline-flex"
+                      className="hidden rounded-xl md:inline-flex"
                       onClick={() => setIsSidebarOpen((prev) => !prev)}
                     >
                       {isSidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
@@ -1685,7 +1795,7 @@ export function WritingWorkspace() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      className="hidden rounded-xl xl:inline-flex"
+                      className="hidden rounded-xl md:inline-flex"
                       onClick={() => setIsAiPanelOpen((prev) => !prev)}
                     >
                       {isAiPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
@@ -1740,8 +1850,8 @@ export function WritingWorkspace() {
                   }
                   transition={motionTransition}
                   className={cn(
-                    "relative w-full transition-all duration-500 p-6 sm:p-10",
-                    isZenMode ? "max-w-[1100px] border-transparent bg-transparent shadow-none" : "max-w-[980px] rounded-[34px] border surface-card bg-background/95 shadow-xl",
+                    "relative w-full transition-all duration-500 p-6 pb-14 sm:p-10 sm:pb-16",
+                    isZenMode ? "max-w-[1100px] border-transparent bg-transparent shadow-none" : "max-w-[980px] rounded-[17px] border surface-card bg-background/95 shadow-xl",
                   )}
                 >
                   <motion.div
@@ -1785,12 +1895,17 @@ export function WritingWorkspace() {
                     onMouseUp={syncSelectionDraft}
                     spellCheck={false}
                   />
+                  <div className="pointer-events-none absolute bottom-4 left-6 sm:bottom-5 sm:left-10">
+                    <div className="rounded-full border border-border/60 bg-background/88 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
+                      本章字数 {chapterWordCount} / 4000
+                    </div>
+                  </div>
                 </motion.div>
                 <div className="h-20 shrink-0" />
               </div>
             </ScrollArea>
 
-            <div className="border-t border-border/50 bg-background/88 px-3 py-2 backdrop-blur xl:hidden">
+            <div className="border-t border-border/50 bg-background/88 px-3 py-2 backdrop-blur md:hidden">
               <div className="grid grid-cols-3 gap-2">
                 <Button variant="ghost" className="h-10 rounded-xl" onClick={() => setMobileChapterSheetOpen(true)}>
                   <FileText className="h-4 w-4" />
@@ -1806,30 +1921,17 @@ export function WritingWorkspace() {
                 </Button>
               </div>
             </div>
-          </div>
-        </ResizablePanel>
+        </div>
 
-        {!isZenMode && isAiPanelOpen && <ResizableHandle withHandle className="hidden xl:flex" />}
-
-        {/* 右侧 AI 助手 */}
-        <AnimatePresence initial={false}>
-          {!isZenMode && isAiPanelOpen && (
-            <ResizablePanel
-              defaultSize={25}
-              minSize={20}
-              maxSize={40}
-              className="hidden xl:block"
-            >
-              <aside className="flex h-full flex-col border-l border-border/40 bg-background/40 backdrop-blur-xl">
-                {aiPanelContent}
-              </aside>
-            </ResizablePanel>
-          )}
-        </AnimatePresence>
-      </ResizablePanelGroup>
+        {!isZenMode && isAiPanelOpen ? (
+          <aside className="hidden h-full min-h-0 flex-col border-l border-border/40 bg-background/40 backdrop-blur-xl md:flex">
+            {aiPanelContent}
+          </aside>
+        ) : null}
+      </div>
 
       <Sheet open={mobileChapterSheetOpen} onOpenChange={setMobileChapterSheetOpen}>
-        <SheetContent side="left" className="w-[88vw] max-w-none p-0 sm:max-w-sm xl:hidden">
+        <SheetContent side="left" className="w-[88vw] max-w-none p-0 sm:max-w-sm md:hidden">
           <SheetHeader className="border-b border-border/50">
             <SheetTitle>章节目录</SheetTitle>
             <SheetDescription>切换章节、重命名或新建章节。</SheetDescription>
@@ -1839,7 +1941,7 @@ export function WritingWorkspace() {
       </Sheet>
 
       <Sheet open={mobileAiSheetOpen} onOpenChange={setMobileAiSheetOpen}>
-        <SheetContent side="right" className="w-[92vw] max-w-none p-0 sm:max-w-lg xl:hidden">
+        <SheetContent side="right" className="w-[92vw] max-w-none p-0 sm:max-w-lg md:hidden">
           <SheetHeader className="border-b border-border/50">
             <SheetTitle>AI 助手</SheetTitle>
             <SheetDescription>润色、扩写和文风素材都集中在这里。</SheetDescription>
@@ -1851,9 +1953,9 @@ export function WritingWorkspace() {
       <Dialog open={isCreateLibraryOpen} onOpenChange={setIsCreateLibraryOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>新建共享文笔库</DialogTitle>
+            <DialogTitle>新建知识库</DialogTitle>
             <DialogDescription>
-              共享库中的素材可以在多个项目里重复勾选使用，适合沉淀长期可复用的文风参考。
+              知识库中的素材会在当前账号下共享，可在多个项目里反复勾选使用。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1870,7 +1972,7 @@ export function WritingWorkspace() {
               <Textarea
                 value={newLibraryDescription}
                 onChange={(event) => setNewLibraryDescription(event.target.value)}
-                placeholder="可选，用一句话说明这个共享库适合什么风格。"
+                placeholder="可选，用一句话说明这个知识库适合什么风格。"
                 rows={3}
               />
             </div>
@@ -1914,7 +2016,7 @@ export function WritingWorkspace() {
                 transition={motionTransition}
                 className="space-y-4"
               >
-                <div className="rounded-[28px] border border-border/70 bg-background/72 p-4">
+                <div className="rounded-[14px] border border-border/70 bg-background/72 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium text-foreground">风格预设</div>
@@ -1940,7 +2042,7 @@ export function WritingWorkspace() {
                           whileTap={shouldReduceMotion ? undefined : { scale: 0.99 }}
                           onClick={() => handlePresetChange(item.key)}
                           className={cn(
-                            "rounded-[22px] border px-4 py-3 text-left transition-[border-color,background-color,box-shadow]",
+                            "rounded-[11px] border px-4 py-3 text-left transition-[border-color,background-color,box-shadow]",
                             isSelected
                               ? "border-primary/30 bg-[linear-gradient(180deg,rgba(77,102,177,0.12),rgba(255,255,255,0.96))] shadow-[0_18px_38px_rgba(77,102,177,0.12)]"
                               : "border-border/70 bg-background/78 hover:border-primary/18 hover:bg-background"
@@ -1956,7 +2058,7 @@ export function WritingWorkspace() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-border/70 bg-background/72 p-4">
+                <div className="rounded-[14px] border border-border/70 bg-background/72 p-4">
                   <div className="text-sm font-medium text-foreground">改写强度</div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     控制模型对句式和节奏的介入程度。
@@ -1981,7 +2083,7 @@ export function WritingWorkspace() {
                             }))
                           }
                           className={cn(
-                            "rounded-[20px] border px-3 py-3 text-left transition-[border-color,background-color,box-shadow]",
+                            "rounded-[10px] border px-3 py-3 text-left transition-[border-color,background-color,box-shadow]",
                             isSelected
                               ? "border-primary/30 bg-primary/8 shadow-[0_12px_26px_rgba(77,102,177,0.12)]"
                               : "border-border/70 bg-background/70 hover:border-primary/18"
@@ -1997,7 +2099,7 @@ export function WritingWorkspace() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-border/70 bg-background/72 p-4">
+                <div className="rounded-[14px] border border-border/70 bg-background/72 p-4">
                   <div className="text-sm font-medium text-foreground">指令细化</div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     把系统定位和具体润色策略拆开写，效果通常比一段大杂烩 prompt 更稳定。
@@ -2040,7 +2142,7 @@ export function WritingWorkspace() {
                 transition={{ ...motionTransition, delay: shouldReduceMotion ? 0 : 0.05 }}
                 className="space-y-4"
               >
-                <div className="rounded-[28px] border border-border/70 bg-background/72 p-4">
+                <div className="rounded-[14px] border border-border/70 bg-background/72 p-4">
                   <div className="text-sm font-medium text-foreground">连接设置</div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     这里可以调整当前写作助手使用的模型与服务连接。
@@ -2074,7 +2176,7 @@ export function WritingWorkspace() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-primary/18 bg-[linear-gradient(180deg,rgba(77,102,177,0.08),rgba(255,255,255,0.86))] p-4">
+                <div className="rounded-[14px] border border-primary/18 bg-[linear-gradient(180deg,rgba(77,102,177,0.08),rgba(255,255,255,0.86))] p-4">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-sm font-medium text-foreground">实时组合预览</div>
@@ -2088,13 +2190,13 @@ export function WritingWorkspace() {
                   </div>
 
                   <div className="mt-4 space-y-3">
-                    <div className="rounded-[22px] border border-border/60 bg-background/84 p-3">
+                    <div className="rounded-[11px] border border-border/60 bg-background/84 p-3">
                       <div className="text-xs font-medium text-foreground">润色预览</div>
                       <div className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                         {polishInstructionPreview}
                       </div>
                     </div>
-                    <div className="rounded-[22px] border border-border/60 bg-background/84 p-3">
+                    <div className="rounded-[11px] border border-border/60 bg-background/84 p-3">
                       <div className="text-xs font-medium text-foreground">扩写预览</div>
                       <div className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                         {expandInstructionPreview}

@@ -284,7 +284,7 @@ export default function OutlineAnalysisPage() {
     return (
       <div className="app-backdrop flex h-screen w-full items-center justify-center px-4">
         <div className="panel-shell-strong w-full max-w-lg p-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[22px] bg-primary/10 text-primary">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
             <Search className="h-6 w-6" />
           </div>
           <h2 className="text-xl font-semibold text-foreground">请先选择一个项目</h2>
@@ -330,7 +330,7 @@ export default function OutlineAnalysisPage() {
                 setMobileHistoryOpen(false)
               }}
               disabled={isStreaming}
-              className="w-full rounded-[22px] border border-border/70 bg-background/70 px-4 py-4 text-left transition hover:border-primary/30 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-[11px] border border-border/70 bg-background/70 px-4 py-4 text-left transition hover:border-primary/30 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 rounded-xl bg-primary/10 p-2 text-primary">
@@ -385,7 +385,7 @@ export default function OutlineAnalysisPage() {
       </ScrollArea>
 
       <div className="border-t border-border/60 px-4 py-4">
-        <div className="rounded-[22px] border border-border/70 bg-[linear-gradient(135deg,rgba(77,102,177,0.08),rgba(223,191,144,0.12))] p-4">
+        <div className="rounded-[11px] border border-border/70 bg-[linear-gradient(135deg,rgba(77,102,177,0.08),rgba(223,191,144,0.12))] p-4">
           <div className="text-sm font-semibold text-foreground">使用建议</div>
           <div className="mt-2 text-sm leading-6 text-muted-foreground">
             先做一次全局一致性检查，再点历史问题回跳，继续追问局部修改方案。
@@ -456,9 +456,9 @@ export default function OutlineAnalysisPage() {
                   disabled={isStreaming}
                 >
                   <option value="auto">自动配置</option>
-                  <option value="short">短篇 (全量)</option>
-                  <option value="medium">中篇 (RAG)</option>
-                  <option value="long">长篇 (RAG)</option>
+                  <option value="short">全量分析</option>
+                  <option value="medium">检索分析</option>
+                  <option value="long">深度检索分析</option>
                 </select>
                 <Button
                   size="sm"
@@ -483,7 +483,7 @@ export default function OutlineAnalysisPage() {
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-[24px] border border-border/70 bg-background/70 px-4 py-4">
+              <div className="rounded-[12px] border border-border/70 bg-background/70 px-4 py-4">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
                   分析模式
                 </div>
@@ -491,16 +491,16 @@ export default function OutlineAnalysisPage() {
                   {selectedProfile === "auto"
                     ? "自动"
                     : selectedProfile === "short"
-                      ? "短篇"
+                      ? "全量"
                       : selectedProfile === "medium"
-                        ? "中篇"
-                        : "长篇"}
+                        ? "检索"
+                        : "深度检索"}
                 </div>
                 <div className="mt-1 text-sm text-muted-foreground">
-                  自动匹配全量分析或 RAG 模式
+                  自动模式下按大纲文本字数判断：少于 10 万字走全量分析，10 万字及以上走检索分析
                 </div>
               </div>
-              <div className="rounded-[24px] border border-border/70 bg-background/70 px-4 py-4">
+              <div className="rounded-[12px] border border-border/70 bg-background/70 px-4 py-4">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
                   历史记录
                 </div>
@@ -509,7 +509,7 @@ export default function OutlineAnalysisPage() {
                   已保存的对话轮次会在这里继续衔接
                 </div>
               </div>
-              <div className="rounded-[24px] border border-border/70 bg-background/70 px-4 py-4">
+              <div className="rounded-[12px] border border-border/70 bg-background/70 px-4 py-4">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
                   当前状态
                 </div>
@@ -567,7 +567,7 @@ export default function OutlineAnalysisPage() {
                 <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6 sm:py-8">
                   {orderedMessages.length === 0 ? (
                     <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
-                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[22px] bg-primary/10 text-primary">
+                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
                         <Sparkles size={24} />
                       </div>
                       <h3 className="text-lg font-semibold text-foreground">AI 大纲分析助手</h3>
@@ -594,7 +594,7 @@ export default function OutlineAnalysisPage() {
                         >
                           <div
                             className={cn(
-                              "max-w-[92%] rounded-[24px] px-5 py-4 text-sm leading-7 shadow-sm sm:max-w-[80%]",
+                              "max-w-[92%] rounded-[12px] px-5 py-4 text-sm leading-7 shadow-sm sm:max-w-[80%]",
                               message.role === "user"
                                 ? "rounded-br-md bg-primary text-primary-foreground"
                                 : "rounded-bl-md border border-border/70 bg-background/85 text-card-foreground"
@@ -631,7 +631,7 @@ export default function OutlineAnalysisPage() {
 
             <div className="border-t border-border/60 bg-background/88 px-4 py-4 backdrop-blur">
               <div className="mx-auto w-full max-w-4xl">
-                <div className="relative rounded-[28px] border border-border bg-background/80 p-3 shadow-sm transition-all focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20">
+                <div className="relative rounded-[14px] border border-border bg-background/80 p-3 shadow-sm transition-all focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20">
                   <Textarea
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
