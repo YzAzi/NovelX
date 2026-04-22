@@ -14,17 +14,17 @@ export default function ProjectWritingPage() {
 
   return (
     <ProjectRouteGuard projectId={projectId}>
-      <div className="app-backdrop relative min-h-screen text-foreground">
-        <div className="relative mx-3 mt-3 flex flex-col gap-3 md:mx-4">
+      <div className="app-backdrop relative flex min-h-[100dvh] flex-col overflow-x-hidden overflow-y-auto text-foreground">
+        <div className="relative mx-3 mt-3 flex min-h-[calc(100dvh-0.75rem)] flex-1 flex-col gap-3 pb-3 md:mx-4">
           <ProjectHeader
             projectId={projectId}
             activeModule="writing"
           />
-          <div className="panel-shell-strong min-h-[calc(100vh-10rem)] overflow-hidden">
+          <div className="panel-shell-strong flex min-h-[calc(100dvh-11rem)] flex-1 flex-col overflow-hidden">
             <ProjectWorkspaceHeader
               moduleKey="writing"
             />
-            <div className="p-2 sm:p-3">
+            <div className="min-h-[680px] flex-1 p-2 sm:min-h-[720px] sm:p-3">
               <WritingWorkspace />
             </div>
           </div>

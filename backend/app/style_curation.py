@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import re
 
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
@@ -17,8 +18,9 @@ CURATION_PROMPT = PromptTemplate.from_template(
 
 _BATCH_CHAR_LIMIT = 5000
 _BATCH_OVERLAP = 400
-_BATCH_TIMEOUT_SECONDS = 45
+_BATCH_TIMEOUT_SECONDS = 60
 _BATCH_MAX_RETRIES = 2
+_SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[。！？!?；;])")
 
 
 class CuratedStylePassage(BaseModel):
@@ -43,6 +45,68 @@ class StyleCurationResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+def _slice_batch_by_chars(text: str) -> list[str]:
+    stripped = text.strip()
+    if not stripped:
+        return []
+    if len(stripped) <= _BATCH_CHAR_LIMIT:
+        return [stripped]
+
+    batches: list[str] = []
+    start = 0
+    text_length = len(stripped)
+    step = max(1, _BATCH_CHAR_LIMIT - _BATCH_OVERLAP)
+    while start < text_length:
+        end = min(text_length, start + _BATCH_CHAR_LIMIT)
+        batch = stripped[start:end].strip()
+        if batch:
+            batches.append(batch)
+        if end >= text_length:
+            break
+        start += step
+    return batches
+
+
+def _split_long_paragraph(paragraph: str) -> list[str]:
+    stripped = paragraph.strip()
+    if not stripped:
+        return []
+    if len(stripped) <= _BATCH_CHAR_LIMIT:
+        return [stripped]
+
+    sentences = [item.strip() for item in _SENTENCE_SPLIT_PATTERN.split(stripped) if item.strip()]
+    if len(sentences) <= 1:
+        return _slice_batch_by_chars(stripped)
+
+    batches: list[str] = []
+    current: list[str] = []
+    current_len = 0
+
+    for sentence in sentences:
+        sentence_len = len(sentence)
+        if sentence_len > _BATCH_CHAR_LIMIT:
+            if current:
+                batches.append("".join(current).strip())
+                current = []
+                current_len = 0
+            batches.extend(_slice_batch_by_chars(sentence))
+            continue
+
+        if current and current_len + sentence_len > _BATCH_CHAR_LIMIT:
+            batches.append("".join(current).strip())
+            overlap = batches[-1][-_BATCH_OVERLAP :].strip()
+            current = [overlap] if overlap else []
+            current_len = len(overlap)
+
+        current.append(sentence)
+        current_len += sentence_len
+
+    if current:
+        batches.append("".join(current).strip())
+
+    return [batch for batch in batches if batch]
+
+
 def _split_batches(text: str) -> list[str]:
     stripped = text.strip()
     if not stripped:
@@ -52,16 +116,25 @@ def _split_batches(text: str) -> list[str]:
     if not paragraphs:
         return [stripped]
 
+    normalized_paragraphs: list[str] = []
+    for paragraph in paragraphs:
+        normalized_paragraphs.extend(_split_long_paragraph(paragraph))
+
     batches: list[str] = []
     current: list[str] = []
     current_len = 0
-    for paragraph in paragraphs:
+    for paragraph in normalized_paragraphs:
         paragraph_len = len(paragraph)
         if current and current_len + paragraph_len + 2 > _BATCH_CHAR_LIMIT:
             batches.append("\n\n".join(current))
             overlap = "\n\n".join(current)[-_BATCH_OVERLAP :].strip()
+            overlap_len = len(overlap)
+            if paragraph_len + (overlap_len + 2 if overlap else 0) > _BATCH_CHAR_LIMIT:
+                current = [paragraph]
+                current_len = paragraph_len
+                continue
             current = [overlap] if overlap else []
-            current_len = len(overlap)
+            current_len = overlap_len
         current.append(paragraph)
         current_len += paragraph_len + 2
 

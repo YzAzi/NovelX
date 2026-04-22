@@ -60,13 +60,6 @@ import type {
 } from "@/src/types/models"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -157,7 +150,6 @@ export function WritingWorkspace() {
   const [isLibraryUploading, setIsLibraryUploading] = useState(false)
   const [styleUploadStage, setStyleUploadStage] = useState("等待上传")
   const [previewDoc, setPreviewDoc] = useState<StyleDocument | null>(null)
-  const [renamingDocId, setRenamingDocId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
   const [selectedLibraryId, setSelectedLibraryId] = useState<string>("")
   const [isCreateLibraryOpen, setIsCreateLibraryOpen] = useState(false)
@@ -166,6 +158,7 @@ export function WritingWorkspace() {
   const [isCreatingLibrary, setIsCreatingLibrary] = useState(false)
   const [isPolishing, setIsPolishing] = useState(false)
   const [isContinuing, setIsContinuing] = useState(false)
+  const [continuePrompt, setContinuePrompt] = useState("")
   const [stylePreview, setStylePreview] = useState<StyleRetrievalPreviewResponse | null>(null)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [selectionDraft, setSelectionDraft] = useState({ start: 0, end: 0 })
@@ -173,15 +166,18 @@ export function WritingWorkspace() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const styleFileRef = useRef<HTMLInputElement>(null)
   const cleanedStyleFileRef = useRef<HTMLInputElement>(null)
-  const selectedLibraryGroupRef = useRef<HTMLDivElement | null>(null)
-  const styleDocRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const skipCommitRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [recentImportedDocId, setRecentImportedDocId] = useState<string | null>(null)
+  const [activeLibraryDocId, setActiveLibraryDocId] = useState<string>("")
+  const [isRenameDocDialogOpen, setIsRenameDocDialogOpen] = useState(false)
+  const isWorkspaceLocked = isSaving
 
   // Sort nodes
   const sortedChapters = useMemo(() => {
@@ -194,12 +190,26 @@ export function WritingWorkspace() {
     [styleLibraries],
   )
 
+  const markChapterDirty = () => {
+    setHasUnsavedChanges(true)
+    setSaveSuccess(false)
+  }
+
   // Set initial active chapter
   useEffect(() => {
     if (!activeChapterId && sortedChapters.length > 0) {
       setActiveChapterId(sortedChapters[0].id)
     }
   }, [sortedChapters, activeChapterId])
+
+  useEffect(() => {
+    if (!isWorkspaceLocked) {
+      return
+    }
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+  }, [isWorkspaceLocked])
 
   // Sync content when active chapter changes
   useEffect(() => {
@@ -208,6 +218,8 @@ export function WritingWorkspace() {
     if (chapter) {
       setContent(chapter.content || "")
       setChapterTitle(chapter.title || "")
+      setHasUnsavedChanges(false)
+      setLastSavedAt(currentProject.updated_at ?? null)
     }
   }, [activeChapterId, currentProject])
 
@@ -245,7 +257,7 @@ export function WritingWorkspace() {
           if (prev && bundles.some((item) => item.library.id === prev)) {
             return prev
           }
-          return bundles[0]?.library.id ?? ""
+          return ""
         })
       })
       .catch((error) => {
@@ -269,6 +281,16 @@ export function WritingWorkspace() {
   }, [allStyleDocs, previewDoc])
 
   useEffect(() => {
+    if (!selectedLibraryId) {
+      setSelectedStyleIds([])
+      return
+    }
+    const currentDocs =
+      styleLibraries.find((bundle) => bundle.library.id === selectedLibraryId)?.documents ?? []
+    setSelectedStyleIds(currentDocs.map((doc) => doc.id))
+  }, [selectedLibraryId, styleLibraries])
+
+  useEffect(() => {
     if (!isStyleUploading) {
       setStyleUploadStage("等待上传")
       return
@@ -290,19 +312,26 @@ export function WritingWorkspace() {
     if (!recentImportedDocId) {
       return
     }
-    const frameId = window.requestAnimationFrame(() => {
-      const target =
-        styleDocRefs.current[recentImportedDocId] ?? selectedLibraryGroupRef.current
-      target?.scrollIntoView({ behavior: "smooth", block: "center" })
-    })
+    setActiveLibraryDocId(recentImportedDocId)
     const timerId = window.setTimeout(() => {
       setRecentImportedDocId(null)
     }, 4200)
     return () => {
-      window.cancelAnimationFrame(frameId)
       window.clearTimeout(timerId)
     }
   }, [recentImportedDocId, styleLibraries])
+
+  useEffect(() => {
+    const currentDocs =
+      styleLibraries.find((bundle) => bundle.library.id === selectedLibraryId)?.documents ?? []
+    if (currentDocs.length === 0) {
+      setActiveLibraryDocId("")
+      return
+    }
+    if (!currentDocs.some((doc) => doc.id === activeLibraryDocId)) {
+      setActiveLibraryDocId(currentDocs[0]?.id ?? "")
+    }
+  }, [activeLibraryDocId, selectedLibraryId, styleLibraries])
 
   const syncSelectionDraft = () => {
     if (!textareaRef.current) {
@@ -328,27 +357,21 @@ export function WritingWorkspace() {
       })
       setProject(response)
       setSaveSuccess(true)
+      setHasUnsavedChanges(false)
+      setLastSavedAt(response.updated_at ?? new Date().toISOString())
       setTimeout(() => setSaveSuccess(false), 2000)
     } catch (error) {
       console.error("Failed to save content", error)
+      setError(formatUserErrorMessage(error, "保存失败，请稍后重试。"))
     } finally {
       setIsSaving(false)
     }
   }
 
-  const handleTitleBlur = async () => {
-    if (!currentProject || !activeChapterId) return
-    const chapter = currentProject.chapters.find((item) => item.id === activeChapterId)
-    if (!chapter) return
-    const nextTitle = chapterTitle.trim() || "未命名章节"
-    if (nextTitle === chapter.title) return
-    try {
-      const response = await updateChapter(currentProject.id, activeChapterId, {
-        title: nextTitle,
-      })
-      setProject(response)
-    } catch (error) {
-      console.error("Failed to update chapter title", error)
+  const handleTitleBlur = () => {
+    const normalizedTitle = chapterTitle.trimStart()
+    if (normalizedTitle !== chapterTitle) {
+      setChapterTitle(normalizedTitle)
     }
   }
 
@@ -516,13 +539,15 @@ export function WritingWorkspace() {
         text: textToPolish,
         instruction,
       })
-      
+
       if (scope === "full") {
-         setContent(polishedText)
+        setContent(polishedText)
+        markChapterDirty()
       } else if (replacementRange) {
-         const before = content.substring(0, replacementRange.start)
-         const after = content.substring(replacementRange.end)
-         setContent(before + polishedText + after)
+        const before = content.substring(0, replacementRange.start)
+        const after = content.substring(replacementRange.end)
+        setContent(before + polishedText + after)
+        markChapterDirty()
       }
 
     } catch (error) {
@@ -540,6 +565,7 @@ export function WritingWorkspace() {
     const continueInstruction = [
       buildInstruction("expand"),
       "任务目标：如果当前章节已有正文，请从现有结尾自然续写；如果当前章节还是空白，请直接生成本章开头。",
+      continuePrompt.trim() ? `本次续写要求：${continuePrompt.trim()}` : "",
     ].join("\n")
 
     setIsContinuing(true)
@@ -570,6 +596,7 @@ export function WritingWorkspace() {
         const separator = prev.endsWith("\n") ? "\n" : "\n\n"
         return `${prev}${separator}${generatedText}`
       })
+      markChapterDirty()
     } catch (error) {
       console.error("Continue failed", error)
       setError(formatUserErrorMessage(error, "AI 续写失败，请稍后重试。"))
@@ -644,12 +671,6 @@ export function WritingWorkspace() {
       polish_instruction: preset?.polish ?? prev.polish_instruction,
       expand_instruction: preset?.expand ?? prev.expand_instruction,
     }))
-  }
-
-  const handleStyleToggle = (docId: string) => {
-    setSelectedStyleIds((prev) =>
-      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
-    )
   }
 
   const formatCuratedStats = (doc: StyleDocument) => {
@@ -852,13 +873,14 @@ export function WritingWorkspace() {
   }
 
   const handleStartRename = (doc: StyleDocument) => {
-    setRenamingDocId(doc.id)
+    setActiveLibraryDocId(doc.id)
     setRenameValue(doc.title || "")
+    setIsRenameDocDialogOpen(true)
   }
 
   const handleCancelRename = () => {
-    setRenamingDocId(null)
     setRenameValue("")
+    setIsRenameDocDialogOpen(false)
   }
 
   const handleConfirmRename = async (doc: StyleDocument) => {
@@ -926,6 +948,9 @@ export function WritingWorkspace() {
       if (previewDoc?.id === doc.id) {
         setPreviewDoc(null)
       }
+      if (activeLibraryDocId === doc.id) {
+        setActiveLibraryDocId("")
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "删除失败"
       setStyleError(message)
@@ -950,7 +975,7 @@ export function WritingWorkspace() {
       }
       setSelectedLibraryId((prev) =>
         prev === libraryId
-          ? styleLibraries.find((bundle) => bundle.library.id !== libraryId)?.library.id ?? ""
+          ? ""
           : prev
       )
     } catch (error) {
@@ -1028,20 +1053,15 @@ export function WritingWorkspace() {
     }
   }
 
-  const getStyleCardColor = (title: string = "") => {
-    const t = title.toLowerCase()
-    if (t.includes("暖") || t.includes("温") || t.includes("warm")) return "border-orange-200/50 bg-orange-50/10 dark:bg-orange-950/10"
-    if (t.includes("冷") || t.includes("硬") || t.includes("noir")) return "border-blue-200/50 bg-blue-50/10 dark:bg-blue-950/10"
-    if (t.includes("诗") || t.includes("美") || t.includes("poetic")) return "border-purple-200/50 bg-purple-50/10 dark:bg-purple-950/10"
-    return "border-border/60 bg-background/60"
-  }
-
   if (!currentProject) return null
 
   const activeChapter = sortedChapters.find((chapter) => chapter.id === activeChapterId)
   const selectedLibraryBundle = styleLibraries.find(
     (item) => item.library.id === selectedLibraryId
   )
+  const currentLibraryDocs = selectedLibraryBundle?.documents ?? []
+  const activeLibraryDoc =
+    currentLibraryDocs.find((doc) => doc.id === activeLibraryDocId) ?? currentLibraryDocs[0] ?? null
   const selectedTextLength = Math.max(0, selectionDraft.end - selectionDraft.start)
   const activePreset =
     STYLE_PRESETS.find((item) => item.key === configForm.style_preset) ?? STYLE_PRESETS[0]
@@ -1057,6 +1077,16 @@ export function WritingWorkspace() {
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 280, damping: 28, mass: 0.9 }
   const chapterWordCount = countChapterWords(content)
+  const saveStatusLabel = isSaving
+    ? "正在保存并更新摘要"
+    : hasUnsavedChanges
+      ? "未保存"
+      : lastSavedAt
+        ? `最后保存 ${new Date(lastSavedAt).toLocaleTimeString("zh-CN", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`
+        : "尚未保存"
 
   const chapterSidebarContent = (
     <>
@@ -1253,13 +1283,38 @@ export function WritingWorkspace() {
                 </div>
                 <motion.div
                   layout
-                  className="rounded-full border border-primary/15 bg-background/78 px-3 py-1 text-xs text-muted-foreground shadow-sm"
+                  className={cn(
+                    "shrink-0 rounded-2xl border px-3 py-2 text-right shadow-sm backdrop-blur",
+                    selectedTextLength > 0
+                      ? "border-primary/25 bg-primary/10 text-primary"
+                      : "border-border/60 bg-background/72 text-muted-foreground",
+                  )}
                 >
-                  {selectedTextLength > 0 ? `已选 ${selectedTextLength} 字` : "未选择片段"}
+                  <div className="text-[10px] uppercase tracking-[0.18em] opacity-70">
+                    {selectedTextLength > 0 ? "文本选区" : "等待选区"}
+                  </div>
+                  <div className="mt-1 text-xs font-medium">
+                    {selectedTextLength > 0 ? `已选 ${selectedTextLength} 字` : "未选中正文"}
+                  </div>
                 </motion.div>
               </div>
 
               <div className="mt-4">
+                <div className="mb-2 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs font-medium text-foreground">本次续写要求</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      留空则按默认续写逻辑处理
+                    </div>
+                  </div>
+                  <Textarea
+                    value={continuePrompt}
+                    onChange={(event) => setContinuePrompt(event.target.value)}
+                    placeholder="例如：这一段多写人物对话，不要过早揭示真相，节奏压慢一些。"
+                    rows={3}
+                    className="min-h-[88px] rounded-2xl border-border/60 bg-background/72 text-sm"
+                  />
+                </div>
                 <Button
                   size="sm"
                   onClick={handleContinueChapter}
@@ -1431,27 +1486,21 @@ export function WritingWorkspace() {
                 </Button>
               </div>
               <div className="grid gap-2">
-                <Select
-                  value={selectedLibraryId || undefined}
-                  onValueChange={setSelectedLibraryId}
+                <select
+                  value={selectedLibraryId || ""}
+                  onChange={(event) => setSelectedLibraryId(event.target.value)}
+                  className="h-10 w-full min-w-0 rounded-2xl border border-input bg-background/70 px-3 text-sm text-foreground outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={styleLibraries.length === 0}
                 >
-                  <SelectTrigger className="h-10 w-full min-w-0 rounded-2xl bg-background/70">
-                    <SelectValue placeholder="选择知识库" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {styleLibraries.length > 0 ? (
-                      styleLibraries.map((bundle) => (
-                        <SelectItem key={bundle.library.id} value={bundle.library.id}>
-                          {bundle.library.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="__empty__" disabled>
-                        暂无知识库
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                  <option value="">
+                    {styleLibraries.length > 0 ? "不使用知识库" : "暂无知识库"}
+                  </option>
+                  {styleLibraries.map((bundle) => (
+                    <option key={bundle.library.id} value={bundle.library.id}>
+                      {bundle.library.name}
+                    </option>
+                  ))}
+                </select>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button
                     size="sm"
@@ -1561,102 +1610,118 @@ export function WritingWorkspace() {
                   还没有任何知识库素材。先新建一个知识库，再导入小说或已清洗素材。
                 </div>
               ) : (
-                <motion.div layout className="space-y-2">
-                  {styleLibraries.map((group) =>
-                    group.documents.length > 0 ? (
-                      <div key={group.library.id} className="space-y-2">
-                        <div
-                          ref={group.library.id === selectedLibraryId ? selectedLibraryGroupRef : undefined}
-                          className="rounded-2xl border border-border/50 bg-muted/20 px-3 py-2"
-                        >
-                          <div className="break-words text-xs font-medium text-foreground">{group.library.name}</div>
-                          <div className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">
-                            {group.library.description || `知识库 · ${group.documents.length} 份素材`}
-                          </div>
+                <motion.div layout className="space-y-3">
+                  <div className="rounded-[11px] border border-border/60 bg-background/60 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-foreground">检索范围</div>
+                        <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                          选择知识库后，将默认检索当前知识库的全部素材；不选择知识库时不启用文笔检索。
                         </div>
-                        <AnimatePresence initial={false}>
-                          {group.documents.map((doc, index) => {
-                            const checked = selectedStyleIds.includes(doc.id)
-                            const isRenaming = renamingDocId === doc.id
-                            const isRecentlyImported = recentImportedDocId === doc.id
-                            return (
-                              <motion.div
-                                key={doc.id}
-                                ref={(node) => {
-                                  styleDocRefs.current[doc.id] = node
-                                }}
-                                layout
-                                initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-                                transition={{
-                                  ...motionTransition,
-                                  delay: shouldReduceMotion ? 0 : index * 0.025,
-                                }}
-                                className={cn(
-                                  "rounded-[11px] border px-3 py-3 text-xs transition-all",
-                                  isRecentlyImported &&
-                                    "border-primary/55 bg-primary/12 shadow-[0_0_0_1px_rgba(77,102,177,0.18)] shadow-primary/10",
-                                  checked
-                                    ? "border-primary/35 bg-primary/10 shadow-lg shadow-primary/5 scale-[1.01]"
-                                    : getStyleCardColor(doc.title)
-                                )}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <input
-                                    type="checkbox"
-                                    className="mt-0.5 h-4 w-4 rounded border-border text-primary"
-                                    checked={checked}
-                                    onChange={() => handleStyleToggle(doc.id)}
-                                  />
-                                  <div className="min-w-0 flex-1">
-                                    {isRenaming ? (
-                                      <Input
-                                        value={renameValue}
-                                        onChange={(event) => setRenameValue(event.target.value)}
-                                        className="h-9 text-xs"
-                                      />
-                                    ) : (
-                                      <div className="break-words text-[13px] font-medium leading-5 text-foreground">
-                                        {doc.title || "未命名风格"}
-                                      </div>
-                                    )}
-                                    <div className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
-                                      {formatCuratedStats(doc)}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="mt-3 grid grid-cols-2 gap-2">
-                                  {isRenaming ? (
-                                    <>
-                                      <Button size="sm" className="h-8 w-full rounded-xl text-xs" onClick={() => handleConfirmRename(doc)}>
-                                        保存
-                                      </Button>
-                                      <Button size="sm" variant="outline" className="h-8 w-full rounded-xl text-xs" onClick={handleCancelRename}>
-                                        取消
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Button size="sm" variant="outline" className="h-8 w-full rounded-xl text-xs" onClick={() => handleOpenPreview(doc)}>
-                                        预览
-                                      </Button>
-                                      <Button size="sm" variant="outline" className="h-8 w-full rounded-xl text-xs" onClick={() => handleStartRename(doc)}>
-                                        重命名
-                                      </Button>
-                                      <Button size="sm" variant="ghost" className="col-span-2 h-8 w-full rounded-xl text-xs text-destructive hover:text-destructive" onClick={() => handleDeleteStyleDoc(doc)}>
-                                        删除
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              </motion.div>
-                            )
-                          })}
-                        </AnimatePresence>
                       </div>
-                    ) : null
-                  )}
+                      <div className="shrink-0 rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground">
+                        {selectedLibraryBundle ? `${currentLibraryDocs.length} 份素材` : "未启用"}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-border/60 bg-background/72 px-3 py-2">
+                      <div className="break-words text-xs font-medium text-foreground">
+                        {selectedLibraryBundle ? selectedLibraryBundle.library.name : "未选择知识库"}
+                      </div>
+                      <div className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+                        {selectedLibraryBundle
+                          ? selectedLibraryBundle.library.description || `当前将自动使用该知识库内全部 ${currentLibraryDocs.length} 份素材参与检索。`
+                          : "当前不会注入任何文笔知识库素材。"}
+                      </div>
+                    </div>
+
+                    {selectedLibraryBundle && currentLibraryDocs.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {currentLibraryDocs.slice(0, 4).map((doc) => (
+                          <div
+                            key={doc.id}
+                            className={cn(
+                              "rounded-full border px-3 py-1 text-[11px] text-foreground transition-colors",
+                              recentImportedDocId === doc.id
+                                ? "border-primary/35 bg-primary/10"
+                                : "border-border/60 bg-background/78"
+                            )}
+                          >
+                            {doc.title || "未命名风格"}
+                          </div>
+                        ))}
+                        {currentLibraryDocs.length > 4 ? (
+                          <div className="rounded-full border border-border/60 bg-background/78 px-3 py-1 text-[11px] text-muted-foreground">
+                            另有 {currentLibraryDocs.length - 4} 份
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-[11px] border border-border/60 bg-background/60 p-3">
+                    <div className="text-xs font-medium text-foreground">素材管理</div>
+                    <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      通过下拉选择单份素材，再执行预览、重命名或删除。
+                    </div>
+
+                    <div className="mt-3 grid gap-2">
+                      <select
+                        value={activeLibraryDoc?.id || ""}
+                        onChange={(event) => setActiveLibraryDocId(event.target.value)}
+                        disabled={currentLibraryDocs.length === 0}
+                        className="h-10 w-full rounded-2xl border border-input bg-background/72 px-3 text-sm text-foreground outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="" disabled>
+                          {currentLibraryDocs.length > 0 ? "选择要管理的素材" : "当前知识库暂无素材"}
+                        </option>
+                        {currentLibraryDocs.map((doc) => (
+                          <option key={doc.id} value={doc.id}>
+                            {doc.title || "未命名风格"}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="rounded-2xl border border-border/60 bg-background/72 px-3 py-2">
+                        <div className="break-words text-xs font-medium text-foreground">
+                          {activeLibraryDoc?.title || "未选择素材"}
+                        </div>
+                        <div className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+                          {activeLibraryDoc ? formatCuratedStats(activeLibraryDoc) : "选择一份素材后即可查看详情。"}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 rounded-xl text-xs"
+                          disabled={!activeLibraryDoc}
+                          onClick={() => activeLibraryDoc && handleOpenPreview(activeLibraryDoc)}
+                        >
+                          预览
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 rounded-xl text-xs"
+                          disabled={!activeLibraryDoc}
+                          onClick={() => activeLibraryDoc && handleStartRename(activeLibraryDoc)}
+                        >
+                          重命名
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-9 rounded-xl text-xs text-destructive hover:text-destructive"
+                          disabled={!activeLibraryDoc}
+                          onClick={() => activeLibraryDoc && handleDeleteStyleDoc(activeLibraryDoc)}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -1694,10 +1759,11 @@ export function WritingWorkspace() {
   )
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[14px] bg-[linear-gradient(180deg,var(--bg-main-start),var(--bg-main-end))]">
+    <div className="relative min-h-[680px] w-full overflow-hidden rounded-[14px] bg-[linear-gradient(180deg,var(--bg-main-start),var(--bg-main-end))] sm:min-h-[720px]">
       <div
         className={cn(
-          "min-h-[72vh] md:h-[calc(100vh-13.5rem)] md:min-h-[720px] md:grid",
+          "flex min-h-[680px] flex-col md:grid sm:min-h-[720px]",
+          isWorkspaceLocked && "select-none",
           isZenMode
             ? "md:grid-cols-[minmax(0,1fr)]"
             : isSidebarOpen && isAiPanelOpen
@@ -1715,7 +1781,7 @@ export function WritingWorkspace() {
           </aside>
         ) : null}
 
-        <div className="flex min-h-[72vh] min-w-0 flex-col md:h-full">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col md:h-full">
             <motion.div
               layout
               className="border-b border-border/50 bg-background/70 px-3 py-3 backdrop-blur-md sm:px-4"
@@ -1730,8 +1796,19 @@ export function WritingWorkspace() {
                       <motion.div layout className="status-pill">
                         {chapterWordCount} 字
                       </motion.div>
+                      <motion.div
+                        layout
+                        className={cn(
+                          "status-pill",
+                          hasUnsavedChanges && "border-amber-500/25 bg-amber-500/10 text-amber-700"
+                        )}
+                      >
+                        {saveStatusLabel}
+                      </motion.div>
                       <motion.div layout className="status-pill">
-                        {selectedStyleIds.length} / {allStyleDocs.length} 份风格素材
+                        {selectedLibraryBundle
+                          ? `${selectedStyleIds.length} 份知识库素材`
+                          : "未启用知识库"}
                       </motion.div>
                       <AnimatePresence initial={false}>
                         {selectedTextLength > 0 ? (
@@ -1752,8 +1829,12 @@ export function WritingWorkspace() {
                     <input
                       className="w-full rounded-2xl bg-transparent px-1 font-serif text-2xl font-semibold leading-tight tracking-tight text-foreground placeholder:text-muted-foreground/30 outline-none transition-[background-color,box-shadow] focus:bg-background/45 sm:text-3xl"
                       value={chapterTitle}
-                      onChange={(event) => setChapterTitle(event.target.value)}
+                      onChange={(event) => {
+                        setChapterTitle(event.target.value)
+                        markChapterDirty()
+                      }}
                       onBlur={handleTitleBlur}
+                      readOnly={isWorkspaceLocked}
                       placeholder="输入章节标题..."
                     />
                     <div className="mt-2 text-sm text-muted-foreground">
@@ -1771,6 +1852,7 @@ export function WritingWorkspace() {
                       size="sm"
                       className="rounded-xl md:hidden"
                       onClick={() => setMobileChapterSheetOpen(true)}
+                      disabled={isWorkspaceLocked}
                     >
                       <FileText className="h-4 w-4" />
                       章节
@@ -1780,6 +1862,7 @@ export function WritingWorkspace() {
                       size="sm"
                       className="rounded-xl md:hidden"
                       onClick={() => setMobileAiSheetOpen(true)}
+                      disabled={isWorkspaceLocked}
                     >
                       <Sparkles className="h-4 w-4" />
                       AI 助手
@@ -1789,6 +1872,7 @@ export function WritingWorkspace() {
                       size="icon-sm"
                       className="hidden rounded-xl md:inline-flex"
                       onClick={() => setIsSidebarOpen((prev) => !prev)}
+                      disabled={isWorkspaceLocked}
                     >
                       {isSidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
                     </Button>
@@ -1797,6 +1881,7 @@ export function WritingWorkspace() {
                       size="icon-sm"
                       className="hidden rounded-xl md:inline-flex"
                       onClick={() => setIsAiPanelOpen((prev) => !prev)}
+                      disabled={isWorkspaceLocked}
                     >
                       {isAiPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                     </Button>
@@ -1805,6 +1890,7 @@ export function WritingWorkspace() {
                       size="sm"
                       onClick={() => setIsConfigOpen(true)}
                       className="rounded-xl"
+                      disabled={isWorkspaceLocked}
                     >
                       <Settings2 className="h-4 w-4" />
                       配置
@@ -1815,6 +1901,7 @@ export function WritingWorkspace() {
                       onClick={toggleZenMode}
                       className={cn("rounded-xl transition-all", isZenMode && "bg-primary text-primary-foreground shadow-lg shadow-primary/25")}
                       title="禅定模式"
+                      disabled={isWorkspaceLocked}
                     >
                       <Sparkles className={cn("h-4 w-4", isZenMode && "animate-pulse")} />
                       {isZenMode ? "沉浸中" : "禅定"}
@@ -1822,21 +1909,25 @@ export function WritingWorkspace() {
                     <Button
                       size="sm"
                       onClick={handleSaveContent}
-                      disabled={isSaving}
+                      disabled={isSaving || !hasUnsavedChanges}
                       className={cn(
                         "rounded-xl transition-all duration-300",
-                        saveSuccess ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20" : "shadow-[0_14px_28px_rgba(77,102,177,0.18)]"
+                        saveSuccess
+                          ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
+                          : hasUnsavedChanges
+                            ? "shadow-[0_14px_28px_rgba(77,102,177,0.18)]"
+                            : "bg-muted text-muted-foreground shadow-none hover:bg-muted"
                       )}
                     >
                       {saveSuccess ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-                      {isSaving ? "保存中" : saveSuccess ? "已保存" : "保存"}
+                      {isSaving ? "保存中" : saveSuccess ? "已保存" : hasUnsavedChanges ? "保存" : "已同步"}
                     </Button>
                   </div>
                 </div>
               </div>
             </motion.div>
 
-            <ScrollArea className="flex-1 w-full bg-transparent">
+            <ScrollArea className="min-h-0 flex-1 w-full bg-transparent">
               <div className="flex min-h-full flex-col items-center px-4 py-6 sm:px-6 sm:py-8">
                 <motion.div
                   layout
@@ -1887,13 +1978,17 @@ export function WritingWorkspace() {
                     )}
                     placeholder="在此开始你的创作..."
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={(e) => {
+                      setContent(e.target.value)
+                      markChapterDirty()
+                    }}
                     onFocus={() => setIsEditorFocused(true)}
                     onBlur={() => setIsEditorFocused(false)}
                     onSelect={syncSelectionDraft}
                     onKeyUp={syncSelectionDraft}
                     onMouseUp={syncSelectionDraft}
                     spellCheck={false}
+                    readOnly={isWorkspaceLocked}
                   />
                   <div className="pointer-events-none absolute bottom-4 left-6 sm:bottom-5 sm:left-10">
                     <div className="rounded-full border border-border/60 bg-background/88 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
@@ -1907,17 +2002,17 @@ export function WritingWorkspace() {
 
             <div className="border-t border-border/50 bg-background/88 px-3 py-2 backdrop-blur md:hidden">
               <div className="grid grid-cols-3 gap-2">
-                <Button variant="ghost" className="h-10 rounded-xl" onClick={() => setMobileChapterSheetOpen(true)}>
+                <Button variant="ghost" className="h-10 rounded-xl" onClick={() => setMobileChapterSheetOpen(true)} disabled={isWorkspaceLocked}>
                   <FileText className="h-4 w-4" />
                   章节
                 </Button>
-                <Button variant="ghost" className="h-10 rounded-xl" onClick={() => setMobileAiSheetOpen(true)}>
+                <Button variant="ghost" className="h-10 rounded-xl" onClick={() => setMobileAiSheetOpen(true)} disabled={isWorkspaceLocked}>
                   <Sparkles className="h-4 w-4" />
                   AI
                 </Button>
-                <Button className="h-10 rounded-xl" onClick={handleSaveContent} disabled={isSaving}>
+                <Button className="h-10 rounded-xl" onClick={handleSaveContent} disabled={isSaving || !hasUnsavedChanges}>
                   <Save className="h-4 w-4" />
-                  保存
+                  {isSaving ? "保存中" : hasUnsavedChanges ? "保存" : "已同步"}
                 </Button>
               </div>
             </div>
@@ -1929,6 +2024,82 @@ export function WritingWorkspace() {
           </aside>
         ) : null}
       </div>
+
+      <AnimatePresence initial={false}>
+        {isWorkspaceLocked ? (
+          <motion.div
+            key="save-overlay"
+            initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.985 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.99 }}
+            transition={motionTransition}
+            className="absolute inset-0 z-40 flex items-center justify-center bg-[rgba(9,12,18,0.24)] backdrop-blur-[6px]"
+          >
+            <motion.div
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={motionTransition}
+              className="relative mx-6 w-full max-w-md overflow-hidden rounded-[16px] border border-primary/20 bg-background/92 px-6 py-6 text-center shadow-[0_24px_80px_rgba(15,23,42,0.18)]"
+            >
+              <motion.div
+                aria-hidden
+                className="absolute inset-x-8 top-4 h-16 rounded-full bg-primary/14 blur-3xl"
+                animate={
+                  shouldReduceMotion
+                    ? undefined
+                    : { opacity: [0.35, 0.8, 0.35], scale: [0.94, 1.08, 0.94] }
+                }
+                transition={
+                  shouldReduceMotion
+                    ? undefined
+                    : { duration: 2.1, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }
+                }
+              />
+              <div className="relative flex flex-col items-center">
+                <motion.div
+                  className="flex h-12 w-12 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary"
+                  animate={shouldReduceMotion ? undefined : { rotate: 360 }}
+                  transition={
+                    shouldReduceMotion
+                      ? undefined
+                      : { duration: 2.4, repeat: Number.POSITIVE_INFINITY, ease: "linear" }
+                  }
+                >
+                  <Save className="h-5 w-5" />
+                </motion.div>
+                <div className="mt-4 text-sm font-semibold text-foreground">正在保存章节</div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  正在同步正文并生成本章摘要，完成前暂时不可操作。
+                </div>
+                <div className="mt-5 flex items-center gap-2">
+                  {[0, 1, 2].map((item) => (
+                    <motion.span
+                      key={item}
+                      className="h-2.5 w-2.5 rounded-full bg-primary/70"
+                      animate={
+                        shouldReduceMotion
+                          ? undefined
+                          : { y: [0, -6, 0], opacity: [0.35, 1, 0.35] }
+                      }
+                      transition={
+                        shouldReduceMotion
+                          ? undefined
+                          : {
+                              duration: 0.9,
+                              repeat: Number.POSITIVE_INFINITY,
+                              ease: "easeInOut",
+                              delay: item * 0.12,
+                            }
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <Sheet open={mobileChapterSheetOpen} onOpenChange={setMobileChapterSheetOpen}>
         <SheetContent side="left" className="w-[88vw] max-w-none p-0 sm:max-w-sm md:hidden">
@@ -2213,6 +2384,46 @@ export function WritingWorkspace() {
               取消
             </Button>
             <Button onClick={handleSaveConfig}>保存设置</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isRenameDocDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          handleCancelRename()
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>重命名素材</DialogTitle>
+            <DialogDescription>
+              {activeLibraryDoc
+                ? `当前素材：${activeLibraryDoc.title || "未命名风格"}`
+                : "请选择一份素材后再重命名。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">素材名称</label>
+            <Input
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              placeholder="输入新的素材名称"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelRename}>
+              取消
+            </Button>
+            <Button
+              onClick={() => {
+                if (activeLibraryDoc) {
+                  handleConfirmRename(activeLibraryDoc)
+                }
+              }}
+              disabled={!activeLibraryDoc}
+            >
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

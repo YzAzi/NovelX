@@ -1169,3 +1169,428 @@ PermissionError: [Errno 13] Permission denied: '/home/ubuntu/novel/backend/data/
 2026-04-21 16:07:06,585 INFO app.main GET /api/style_libraries/fe711c12-d5eb-403c-917e-5efa0e55cf1b 2.52ms
 2026-04-21 16:10:57,126 INFO app.main GET /api/projects/project_lingmai_town_001 60.30ms
 2026-04-21 16:10:57,179 INFO app.main GET /api/style_libraries 14.40ms
+2026-04-22 10:04:36,406 INFO app.main GET /api/projects/project_lingmai_town_001 307.33ms
+2026-04-22 10:04:36,535 INFO app.main GET /api/style_libraries 42.60ms
+2026-04-22 10:05:59,361 INFO app.main POST /api/writing_assistant 2394.01ms
+2026-04-22 10:06:08,376 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 10:08:24,277 INFO app.main GET /api/projects/project_lingmai_town_001 0.49ms
+2026-04-22 10:31:00,380 INFO app.main GET /api/projects/project_lingmai_town_001 50.19ms
+2026-04-22 10:31:00,451 INFO app.main GET /api/style_libraries 14.73ms
+2026-04-22 10:38:45,087 INFO app.main GET /api/projects/project_lingmai_town_001 10.27ms
+2026-04-22 10:38:45,145 INFO app.main GET /api/style_libraries 9.16ms
+2026-04-22 10:41:28,200 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 10:41:28,536 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 10:41:28,548 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-22 10:41:28,548 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-22 10:41:30,410 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 10:41:30,411 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 10:41:30,413 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 10:41:31,717 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 10:41:31,731 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 60225.52ms
+2026-04-22 10:42:58,866 INFO app.main GET /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 0.46ms
+2026-04-22 10:47:13,064 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 10:47:13,384 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 39730.73ms
+2026-04-22 10:50:17,014 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 10:50:17,268 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 32479.04ms
+2026-04-22 10:54:03,957 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 10:54:04,332 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 39589.07ms
+2026-04-22 11:00:12,482 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 11:00:12,721 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 78298.70ms
+2026-04-22 11:08:08,730 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 11:08:09,086 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 40414.15ms
+2026-04-22 13:40:08,660 INFO app.main GET /api/projects/project_lingmai_town_001 11.36ms
+2026-04-22 13:40:08,730 INFO app.main GET /api/style_libraries 13.64ms
+2026-04-22 13:58:53,689 INFO app.main GET /api/projects/project_lingmai_town_001 28.50ms
+2026-04-22 13:58:53,779 INFO app.main GET /api/style_libraries 13.06ms
+2026-04-22 14:04:42,399 INFO app.main GET /api/projects/project_lingmai_town_001 305.29ms
+2026-04-22 14:04:42,574 INFO app.main GET /api/style_libraries 56.83ms
+2026-04-22 14:06:15,711 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:06:16,001 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:06:16,010 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-22 14:06:16,010 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-22 14:06:17,768 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:06:17,769 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:06:17,771 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:06:18,745 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:06:18,759 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 30608.38ms
+2026-04-22 14:15:33,350 INFO app.main GET /api/projects/project_lingmai_town_001 10.98ms
+2026-04-22 14:15:33,404 INFO app.main GET /api/style_libraries 12.83ms
+2026-04-22 14:15:56,952 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:16:25,946 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:16:43,843 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:17:06,620 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:17:36,130 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:18:04,108 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:18:24,787 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:18:58,704 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:19:24,008 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:19:53,323 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:19:53,584 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:19:53,585 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-22 14:19:53,585 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-22 14:19:55,186 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:19:55,188 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:19:55,190 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:19:57,234 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 14:19:57,249 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 257590.77ms
+2026-04-22 14:35:36,000 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:35:56,974 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:36:22,822 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:36:44,634 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:37:06,832 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:37:35,060 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:38:00,178 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:38:34,779 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:38:41,420 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 408 Request Timeout"
+2026-04-22 14:38:41,421 INFO openai._base_client Retrying request to /chat/completions in 0.408249 seconds
+2026-04-22 14:38:42,115 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:42,115 INFO openai._base_client Retrying request to /chat/completions in 0.822891 seconds
+2026-04-22 14:38:43,213 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:43,359 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:43,359 INFO openai._base_client Retrying request to /chat/completions in 0.425778 seconds
+2026-04-22 14:38:43,929 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:43,930 INFO openai._base_client Retrying request to /chat/completions in 0.848925 seconds
+2026-04-22 14:38:45,053 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:45,220 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:45,221 INFO openai._base_client Retrying request to /chat/completions in 0.447501 seconds
+2026-04-22 14:38:45,813 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:45,814 INFO openai._base_client Retrying request to /chat/completions in 0.904434 seconds
+2026-04-22 14:38:46,990 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:47,136 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:47,137 INFO openai._base_client Retrying request to /chat/completions in 0.389138 seconds
+2026-04-22 14:38:47,673 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:47,673 INFO openai._base_client Retrying request to /chat/completions in 0.975988 seconds
+2026-04-22 14:38:48,921 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:49,065 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:49,065 INFO openai._base_client Retrying request to /chat/completions in 0.469780 seconds
+2026-04-22 14:38:49,680 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:49,681 INFO openai._base_client Retrying request to /chat/completions in 0.819765 seconds
+2026-04-22 14:38:50,776 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:50,919 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:50,919 INFO openai._base_client Retrying request to /chat/completions in 0.427552 seconds
+2026-04-22 14:38:51,492 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:51,492 INFO openai._base_client Retrying request to /chat/completions in 0.851999 seconds
+2026-04-22 14:38:52,616 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 14:38:53,852 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 229361.16ms
+2026-04-22 14:49:23,611 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:49:46,573 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:50:09,418 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:50:31,532 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:50:56,985 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:51:19,887 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:51:49,440 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:52:16,589 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:52:43,319 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:53:04,530 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 14:53:06,096 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 240742.77ms
+2026-04-22 15:06:38,923 INFO app.main GET /api/projects/project_lingmai_town_001 10.47ms
+2026-04-22 15:06:38,980 INFO app.main GET /api/style_libraries 13.27ms
+2026-04-22 15:07:16,835 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:07:41,066 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:07:59,725 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:08:30,092 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:08:50,924 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:09:10,436 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:09:29,192 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:09:59,510 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:10:30,843 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:10:54,533 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:10:54,792 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:10:54,793 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-22 15:10:54,793 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-22 15:10:56,172 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:10:56,173 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:10:56,175 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:10:57,694 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:10:57,713 INFO app.main POST /api/style_libraries/2c126a4a-62a5-464c-a92f-e6c7e8ccaf91/documents/upload 240684.06ms
+2026-04-22 15:46:26,791 INFO app.main GET /api/projects/project_lingmai_town_001 27.87ms
+2026-04-22 15:46:26,847 INFO app.main GET /api/style_libraries 17.16ms
+2026-04-22 15:48:20,373 INFO app.main POST /api/style_libraries 14.96ms
+2026-04-22 15:49:02,986 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:49:11,911 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 408 Request Timeout"
+2026-04-22 15:49:11,911 INFO openai._base_client Retrying request to /chat/completions in 0.468093 seconds
+2026-04-22 15:49:12,662 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:12,663 INFO openai._base_client Retrying request to /chat/completions in 0.871883 seconds
+2026-04-22 15:49:13,817 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:13,968 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:13,968 INFO openai._base_client Retrying request to /chat/completions in 0.459271 seconds
+2026-04-22 15:49:14,575 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:14,575 INFO openai._base_client Retrying request to /chat/completions in 0.758614 seconds
+2026-04-22 15:49:15,614 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:15,763 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:15,763 INFO openai._base_client Retrying request to /chat/completions in 0.484833 seconds
+2026-04-22 15:49:16,395 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:16,396 INFO openai._base_client Retrying request to /chat/completions in 0.869301 seconds
+2026-04-22 15:49:17,547 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:17,696 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:17,696 INFO openai._base_client Retrying request to /chat/completions in 0.467931 seconds
+2026-04-22 15:49:18,311 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:18,312 INFO openai._base_client Retrying request to /chat/completions in 0.994558 seconds
+2026-04-22 15:49:19,587 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:19,739 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:19,739 INFO openai._base_client Retrying request to /chat/completions in 0.489918 seconds
+2026-04-22 15:49:20,375 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:20,376 INFO openai._base_client Retrying request to /chat/completions in 0.902927 seconds
+2026-04-22 15:49:21,559 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:21,708 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:21,709 INFO openai._base_client Retrying request to /chat/completions in 0.418476 seconds
+2026-04-22 15:49:22,275 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:22,276 INFO openai._base_client Retrying request to /chat/completions in 0.871364 seconds
+2026-04-22 15:49:23,426 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:23,574 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:23,575 INFO openai._base_client Retrying request to /chat/completions in 0.403116 seconds
+2026-04-22 15:49:24,126 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:24,127 INFO openai._base_client Retrying request to /chat/completions in 0.957016 seconds
+2026-04-22 15:49:25,372 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:25,520 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:25,521 INFO openai._base_client Retrying request to /chat/completions in 0.391238 seconds
+2026-04-22 15:49:26,061 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:26,061 INFO openai._base_client Retrying request to /chat/completions in 0.895281 seconds
+2026-04-22 15:49:27,237 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:27,386 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:27,386 INFO openai._base_client Retrying request to /chat/completions in 0.426155 seconds
+2026-04-22 15:49:27,959 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:27,960 INFO openai._base_client Retrying request to /chat/completions in 0.990161 seconds
+2026-04-22 15:49:29,228 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:29,378 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:29,378 INFO openai._base_client Retrying request to /chat/completions in 0.404757 seconds
+2026-04-22 15:49:29,932 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:29,933 INFO openai._base_client Retrying request to /chat/completions in 0.820597 seconds
+2026-04-22 15:49:31,034 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:31,183 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:31,183 INFO openai._base_client Retrying request to /chat/completions in 0.382911 seconds
+2026-04-22 15:49:31,713 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:31,714 INFO openai._base_client Retrying request to /chat/completions in 0.847229 seconds
+2026-04-22 15:49:32,841 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:32,990 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:32,990 INFO openai._base_client Retrying request to /chat/completions in 0.483887 seconds
+2026-04-22 15:49:33,620 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:33,621 INFO openai._base_client Retrying request to /chat/completions in 0.848846 seconds
+2026-04-22 15:49:34,751 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:34,901 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:34,902 INFO openai._base_client Retrying request to /chat/completions in 0.466704 seconds
+2026-04-22 15:49:35,516 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:35,516 INFO openai._base_client Retrying request to /chat/completions in 0.992437 seconds
+2026-04-22 15:49:36,792 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:36,943 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:36,943 INFO openai._base_client Retrying request to /chat/completions in 0.471327 seconds
+2026-04-22 15:49:37,561 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:37,562 INFO openai._base_client Retrying request to /chat/completions in 0.781933 seconds
+2026-04-22 15:49:38,623 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:38,772 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:38,772 INFO openai._base_client Retrying request to /chat/completions in 0.444179 seconds
+2026-04-22 15:49:39,363 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:39,363 INFO openai._base_client Retrying request to /chat/completions in 0.858824 seconds
+2026-04-22 15:49:40,505 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:40,655 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:40,656 INFO openai._base_client Retrying request to /chat/completions in 0.483234 seconds
+2026-04-22 15:49:41,287 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:49:41,287 INFO openai._base_client Retrying request to /chat/completions in 0.798924 seconds
+2026-04-22 15:50:18,306 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 408 Request Timeout"
+2026-04-22 15:50:18,594 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:18,595 INFO openai._base_client Retrying request to /chat/completions in 0.447533 seconds
+2026-04-22 15:50:19,324 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:19,324 INFO openai._base_client Retrying request to /chat/completions in 0.947255 seconds
+2026-04-22 15:50:20,552 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:20,703 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:20,703 INFO openai._base_client Retrying request to /chat/completions in 0.479608 seconds
+2026-04-22 15:50:21,330 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:21,330 INFO openai._base_client Retrying request to /chat/completions in 0.785597 seconds
+2026-04-22 15:50:22,396 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:22,545 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:22,546 INFO openai._base_client Retrying request to /chat/completions in 0.464504 seconds
+2026-04-22 15:50:23,159 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:23,160 INFO openai._base_client Retrying request to /chat/completions in 0.780941 seconds
+2026-04-22 15:50:24,226 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:24,375 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:24,375 INFO openai._base_client Retrying request to /chat/completions in 0.438891 seconds
+2026-04-22 15:50:24,960 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:24,961 INFO openai._base_client Retrying request to /chat/completions in 0.869918 seconds
+2026-04-22 15:50:26,117 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:26,266 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:26,266 INFO openai._base_client Retrying request to /chat/completions in 0.479494 seconds
+2026-04-22 15:50:26,891 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:26,892 INFO openai._base_client Retrying request to /chat/completions in 0.940361 seconds
+2026-04-22 15:50:28,112 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:28,263 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:28,264 INFO openai._base_client Retrying request to /chat/completions in 0.466968 seconds
+2026-04-22 15:50:28,879 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:28,880 INFO openai._base_client Retrying request to /chat/completions in 0.791408 seconds
+2026-04-22 15:50:29,950 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:30,099 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:30,099 INFO openai._base_client Retrying request to /chat/completions in 0.459951 seconds
+2026-04-22 15:50:30,707 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:30,707 INFO openai._base_client Retrying request to /chat/completions in 0.843526 seconds
+2026-04-22 15:50:31,833 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:31,983 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:31,983 INFO openai._base_client Retrying request to /chat/completions in 0.460297 seconds
+2026-04-22 15:50:32,589 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:32,590 INFO openai._base_client Retrying request to /chat/completions in 0.878380 seconds
+2026-04-22 15:50:33,749 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:33,898 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:33,898 INFO openai._base_client Retrying request to /chat/completions in 0.451701 seconds
+2026-04-22 15:50:34,497 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:34,498 INFO openai._base_client Retrying request to /chat/completions in 0.817921 seconds
+2026-04-22 15:50:35,599 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:35,749 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:35,750 INFO openai._base_client Retrying request to /chat/completions in 0.385941 seconds
+2026-04-22 15:50:36,283 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:36,283 INFO openai._base_client Retrying request to /chat/completions in 0.898175 seconds
+2026-04-22 15:50:37,461 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:37,609 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:37,610 INFO openai._base_client Retrying request to /chat/completions in 0.388724 seconds
+2026-04-22 15:50:38,151 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:38,152 INFO openai._base_client Retrying request to /chat/completions in 0.764731 seconds
+2026-04-22 15:50:39,197 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:50:39,485 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:50:39,488 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-22 15:50:39,488 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-22 15:50:41,360 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:50:41,362 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:50:41,363 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:50:42,291 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 15:50:42,304 INFO app.main POST /api/style_libraries/7da87bb7-d3b1-4419-b879-8f9a837567ad/documents/upload 129807.88ms
+2026-04-22 15:52:35,720 INFO app.main GET /api/style_libraries/7da87bb7-d3b1-4419-b879-8f9a837567ad/documents/upload 0.62ms
+2026-04-22 15:53:08,871 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:53:34,538 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:54:02,531 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:54:31,700 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:54:55,955 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:55:23,123 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 15:55:29,152 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 408 Request Timeout"
+2026-04-22 15:55:29,152 INFO openai._base_client Retrying request to /chat/completions in 0.459947 seconds
+2026-04-22 15:55:29,884 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:29,884 INFO openai._base_client Retrying request to /chat/completions in 0.792258 seconds
+2026-04-22 15:55:30,950 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:31,100 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:31,100 INFO openai._base_client Retrying request to /chat/completions in 0.498480 seconds
+2026-04-22 15:55:31,740 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:31,741 INFO openai._base_client Retrying request to /chat/completions in 0.784183 seconds
+2026-04-22 15:55:32,795 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:32,942 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:32,942 INFO openai._base_client Retrying request to /chat/completions in 0.499885 seconds
+2026-04-22 15:55:33,583 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:33,584 INFO openai._base_client Retrying request to /chat/completions in 0.880110 seconds
+2026-04-22 15:55:34,734 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:34,884 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:34,885 INFO openai._base_client Retrying request to /chat/completions in 0.479785 seconds
+2026-04-22 15:55:35,508 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:35,509 INFO openai._base_client Retrying request to /chat/completions in 0.994556 seconds
+2026-04-22 15:55:36,788 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:36,935 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:36,935 INFO openai._base_client Retrying request to /chat/completions in 0.472426 seconds
+2026-04-22 15:55:37,552 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:37,553 INFO openai._base_client Retrying request to /chat/completions in 0.944871 seconds
+2026-04-22 15:55:38,769 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:38,915 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:38,916 INFO openai._base_client Retrying request to /chat/completions in 0.441566 seconds
+2026-04-22 15:55:39,499 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:39,499 INFO openai._base_client Retrying request to /chat/completions in 0.956551 seconds
+2026-04-22 15:55:40,728 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:40,874 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:40,875 INFO openai._base_client Retrying request to /chat/completions in 0.448852 seconds
+2026-04-22 15:55:41,465 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:41,466 INFO openai._base_client Retrying request to /chat/completions in 0.838182 seconds
+2026-04-22 15:55:42,577 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:42,722 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:42,722 INFO openai._base_client Retrying request to /chat/completions in 0.495089 seconds
+2026-04-22 15:55:43,362 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:43,363 INFO openai._base_client Retrying request to /chat/completions in 0.890852 seconds
+2026-04-22 15:55:44,534 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:44,678 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:44,678 INFO openai._base_client Retrying request to /chat/completions in 0.489255 seconds
+2026-04-22 15:55:45,311 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:45,311 INFO openai._base_client Retrying request to /chat/completions in 0.755762 seconds
+2026-04-22 15:55:46,341 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:46,484 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:46,484 INFO openai._base_client Retrying request to /chat/completions in 0.408994 seconds
+2026-04-22 15:55:47,034 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:47,035 INFO openai._base_client Retrying request to /chat/completions in 0.859009 seconds
+2026-04-22 15:55:48,165 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:48,310 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:48,310 INFO openai._base_client Retrying request to /chat/completions in 0.427293 seconds
+2026-04-22 15:55:48,881 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:48,882 INFO openai._base_client Retrying request to /chat/completions in 0.898735 seconds
+2026-04-22 15:55:50,051 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:50,198 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:50,199 INFO openai._base_client Retrying request to /chat/completions in 0.419059 seconds
+2026-04-22 15:55:50,758 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:50,759 INFO openai._base_client Retrying request to /chat/completions in 0.995630 seconds
+2026-04-22 15:55:52,026 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 15:55:52,877 INFO app.main POST /api/style_libraries/7da87bb7-d3b1-4419-b879-8f9a837567ad/documents/upload 187947.43ms
+2026-04-22 16:02:44,534 INFO app.main GET /api/projects/project_lingmai_town_001 12.10ms
+2026-04-22 16:02:44,592 INFO app.main GET /api/style_libraries 15.45ms
+2026-04-22 16:03:33,878 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 16:04:09,387 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 16:04:43,676 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 16:05:06,051 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 16:05:45,066 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 16:06:07,765 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-22 16:06:08,863 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 408 Request Timeout"
+2026-04-22 16:06:08,864 INFO openai._base_client Retrying request to /chat/completions in 0.479017 seconds
+2026-04-22 16:06:09,622 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:09,623 INFO openai._base_client Retrying request to /chat/completions in 0.872262 seconds
+2026-04-22 16:06:10,783 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:10,933 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:10,934 INFO openai._base_client Retrying request to /chat/completions in 0.469188 seconds
+2026-04-22 16:06:11,549 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:11,550 INFO openai._base_client Retrying request to /chat/completions in 0.771772 seconds
+2026-04-22 16:06:12,600 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:12,786 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:12,787 INFO openai._base_client Retrying request to /chat/completions in 0.459501 seconds
+2026-04-22 16:06:13,403 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:13,404 INFO openai._base_client Retrying request to /chat/completions in 0.820861 seconds
+2026-04-22 16:06:14,503 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:14,656 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:14,656 INFO openai._base_client Retrying request to /chat/completions in 0.436459 seconds
+2026-04-22 16:06:15,239 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:15,240 INFO openai._base_client Retrying request to /chat/completions in 0.931431 seconds
+2026-04-22 16:06:16,451 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:16,600 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:16,601 INFO openai._base_client Retrying request to /chat/completions in 0.388342 seconds
+2026-04-22 16:06:17,142 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:17,143 INFO openai._base_client Retrying request to /chat/completions in 0.992385 seconds
+2026-04-22 16:06:18,413 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:18,564 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:18,564 INFO openai._base_client Retrying request to /chat/completions in 0.411266 seconds
+2026-04-22 16:06:19,121 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:19,121 INFO openai._base_client Retrying request to /chat/completions in 0.996058 seconds
+2026-04-22 16:06:20,397 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:20,545 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:20,545 INFO openai._base_client Retrying request to /chat/completions in 0.441739 seconds
+2026-04-22 16:06:21,134 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:21,135 INFO openai._base_client Retrying request to /chat/completions in 0.991392 seconds
+2026-04-22 16:06:22,405 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:22,554 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:22,555 INFO openai._base_client Retrying request to /chat/completions in 0.415481 seconds
+2026-04-22 16:06:23,117 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:23,117 INFO openai._base_client Retrying request to /chat/completions in 0.863565 seconds
+2026-04-22 16:06:24,259 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:24,421 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:24,422 INFO openai._base_client Retrying request to /chat/completions in 0.379382 seconds
+2026-04-22 16:06:24,947 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:24,947 INFO openai._base_client Retrying request to /chat/completions in 0.804312 seconds
+2026-04-22 16:06:26,030 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:26,181 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:26,182 INFO openai._base_client Retrying request to /chat/completions in 0.413260 seconds
+2026-04-22 16:06:26,742 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:26,742 INFO openai._base_client Retrying request to /chat/completions in 0.990604 seconds
+2026-04-22 16:06:28,016 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:28,165 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:28,166 INFO openai._base_client Retrying request to /chat/completions in 0.499495 seconds
+2026-04-22 16:06:28,810 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:28,811 INFO openai._base_client Retrying request to /chat/completions in 0.851247 seconds
+2026-04-22 16:06:29,944 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:30,099 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:30,099 INFO openai._base_client Retrying request to /chat/completions in 0.452192 seconds
+2026-04-22 16:06:30,698 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:30,699 INFO openai._base_client Retrying request to /chat/completions in 0.902470 seconds
+2026-04-22 16:06:31,879 INFO httpx HTTP Request: POST https://api.zimu001.com/v1/chat/completions "HTTP/1.1 503 Service Unavailable"
+2026-04-22 16:06:32,090 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 16:06:32,091 INFO sentence_transformers.SentenceTransformer Use pytorch device_name: cpu
+2026-04-22 16:06:32,091 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: /home/ubuntu/novel/backend/models/paraphrase-multilingual-MiniLM-L12-v2
+2026-04-22 16:06:33,445 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 16:06:33,447 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 16:06:33,448 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 16:06:34,770 ERROR chromadb.telemetry.product.posthog Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+2026-04-22 16:06:34,784 INFO app.main POST /api/style_libraries/7da87bb7-d3b1-4419-b879-8f9a837567ad/documents/upload 219308.82ms
