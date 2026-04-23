@@ -1,4 +1,4 @@
-import type { CharacterGraphResponse } from "@/src/types/character-graph"
+import type { CharacterGraphResponse } from "@/src/types/character-graph";
 import type {
   AsyncTask,
   AsyncTaskCreateResponse,
@@ -38,57 +38,60 @@ import type {
   StyleKnowledgeImportResponse,
   StyleLibrary,
   StyleLibraryBundle,
-} from "@/src/types/models"
-import type { CharacterGraphNode, CharacterGraphLink } from "@/src/types/character-graph"
-import { useProjectStore } from "@/src/stores/project-store"
+} from "@/src/types/models";
+import type {
+  CharacterGraphNode,
+  CharacterGraphLink,
+} from "@/src/types/character-graph";
+import { useProjectStore } from "@/src/stores/project-store";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-const AUTH_TOKEN_KEY = "novel_auth_token"
-export const AUTH_EXPIRED_EVENT = "novel-auth-expired"
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const AUTH_TOKEN_KEY = "novel_auth_token";
+export const AUTH_EXPIRED_EVENT = "novel-auth-expired";
 
 export function buildApiUrl(path: string): string {
-  return `${BASE_URL}${path}`
+  return `${BASE_URL}${path}`;
 }
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") {
-    return null
+    return null;
   }
-  return window.localStorage.getItem(AUTH_TOKEN_KEY)
+  return window.localStorage.getItem(AUTH_TOKEN_KEY);
 }
 
 export function setAuthToken(token: string) {
   if (typeof window === "undefined") {
-    return
+    return;
   }
-  window.localStorage.setItem(AUTH_TOKEN_KEY, token)
+  window.localStorage.setItem(AUTH_TOKEN_KEY, token);
 }
 
 export function clearAuthToken() {
   if (typeof window === "undefined") {
-    return
+    return;
   }
-  window.localStorage.removeItem(AUTH_TOKEN_KEY)
+  window.localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
 export function buildAuthHeaders(headers?: HeadersInit): Headers {
-  const nextHeaders = new Headers(headers)
-  const authToken = getAuthToken()
+  const nextHeaders = new Headers(headers);
+  const authToken = getAuthToken();
   if (authToken) {
-    nextHeaders.set("Authorization", `Bearer ${authToken}`)
+    nextHeaders.set("Authorization", `Bearer ${authToken}`);
   }
-  return nextHeaders
+  return nextHeaders;
 }
 
 export function handleUnauthorized() {
-  clearAuthToken()
+  clearAuthToken();
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
 }
 
 function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === "AbortError"
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 export function formatUserErrorMessage(
@@ -96,33 +99,34 @@ export function formatUserErrorMessage(
   fallback = "操作失败，请稍后重试。",
 ): string {
   if (error instanceof Error) {
-    const message = error.message.trim()
+    const message = error.message.trim();
     if (!message) {
-      return fallback
+      return fallback;
     }
     if (
       message.includes("Failed to fetch") ||
       message.includes("Load failed") ||
       message.includes("NetworkError")
     ) {
-      return "无法连接到后端服务，请确认后端已启动且网络可用。"
+      return "无法连接到后端服务，请确认后端已启动且网络可用。";
     }
     if (message === "Failed to fetch response") {
-      return "获取分析结果失败，请稍后重试。"
+      return "获取分析结果失败，请稍后重试。";
     }
     if (message === "Failed to call AI") {
-      return "写作助手暂时不可用，请检查模型配置后重试。"
+      return "写作助手暂时不可用，请检查模型配置后重试。";
     }
     if (
       message.includes("403") &&
       (message.includes("无权访问模型") ||
-        message.toLowerCase().includes("access") && message.toLowerCase().includes("model"))
+        (message.toLowerCase().includes("access") &&
+          message.toLowerCase().includes("model")))
     ) {
-      return "当前访问密钥无权使用所选模型，请在配置中更换可用模型或更换已开通权限的密钥。"
+      return "当前访问密钥无权使用所选模型，请在配置中更换可用模型或更换已开通权限的密钥。";
     }
-    return message
+    return message;
   }
-  return fallback
+  return fallback;
 }
 
 async function request<T>(
@@ -130,13 +134,13 @@ async function request<T>(
   options: RequestInit,
   config: { showLoading?: boolean; suppressGlobalError?: boolean } = {},
 ): Promise<T> {
-  const { setLoading, setError } = useProjectStore.getState()
-  const shouldSetLoading = config.showLoading !== false
+  const { setLoading, setError } = useProjectStore.getState();
+  const shouldSetLoading = config.showLoading !== false;
 
   if (shouldSetLoading) {
-    setLoading(true)
+    setLoading(true);
   }
-  setError(null)
+  setError(null);
 
   try {
     const response = await fetch(buildApiUrl(path), {
@@ -145,31 +149,32 @@ async function request<T>(
         ...(options.headers ?? {}),
       }),
       ...options,
-    })
+    });
 
     if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null)
-      const detail = errorPayload?.detail ?? `Request failed with ${response.status}`
+      const errorPayload = await response.json().catch(() => null);
+      const detail =
+        errorPayload?.detail ?? `Request failed with ${response.status}`;
       if (response.status === 401) {
-        handleUnauthorized()
+        handleUnauthorized();
       }
-      throw new Error(detail)
+      throw new Error(detail);
     }
 
-    return (await response.json()) as T
+    return (await response.json()) as T;
   } catch (error) {
     if (!isAbortError(error)) {
       if (!config.suppressGlobalError) {
-        const message = formatUserErrorMessage(error)
-        setError(message)
+        const message = formatUserErrorMessage(error);
+        setError(message);
       } else {
-        console.warn(`Suppressed global error for ${path}:`, error)
+        console.warn(`Suppressed global error for ${path}:`, error);
       }
     }
-    throw error
+    throw error;
   } finally {
     if (shouldSetLoading) {
-      setLoading(false)
+      setLoading(false);
     }
   }
 }
@@ -180,7 +185,7 @@ export async function createOutline(
   return request<StoryProject>("/api/create_outline", {
     method: "POST",
     body: JSON.stringify(payload),
-  })
+  });
 }
 
 export async function generateStoryDirections(
@@ -195,7 +200,7 @@ export async function generateStoryDirections(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function createStoryDirectionsTask(
@@ -210,7 +215,7 @@ export async function createStoryDirectionsTask(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function generateIdeaLabStage(
@@ -225,7 +230,7 @@ export async function generateIdeaLabStage(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function createIdeaLabStageTask(
@@ -240,7 +245,7 @@ export async function createIdeaLabStageTask(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function createOutlineTask(
@@ -255,7 +260,7 @@ export async function createOutlineTask(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function createImportOutlineTask(
@@ -271,7 +276,7 @@ export async function createImportOutlineTask(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function getAsyncTask<T = Record<string, unknown>>(
@@ -285,20 +290,20 @@ export async function getAsyncTask<T = Record<string, unknown>>(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function listAsyncTasks<T = Record<string, unknown>>(
   options: { kind?: AsyncTaskKind; limit?: number; signal?: AbortSignal } = {},
 ): Promise<AsyncTaskListResponse<T>> {
-  const searchParams = new URLSearchParams()
+  const searchParams = new URLSearchParams();
   if (options.kind) {
-    searchParams.set("kind", options.kind)
+    searchParams.set("kind", options.kind);
   }
   if (options.limit) {
-    searchParams.set("limit", String(options.limit))
+    searchParams.set("limit", String(options.limit));
   }
-  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
   return request<AsyncTaskListResponse<T>>(
     `/api/tasks${query}`,
     {
@@ -306,46 +311,46 @@ export async function listAsyncTasks<T = Record<string, unknown>>(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 function sleepWithSignal(delayMs: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(() => {
-      cleanup()
-      resolve()
-    }, delayMs)
+      cleanup();
+      resolve();
+    }, delayMs);
     const onAbort = () => {
-      cleanup()
-      reject(new DOMException("Aborted", "AbortError"))
-    }
+      cleanup();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
     const cleanup = () => {
-      window.clearTimeout(timer)
-      signal?.removeEventListener("abort", onAbort)
-    }
-    signal?.addEventListener("abort", onAbort, { once: true })
-  })
+      window.clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export async function waitForAsyncTask<T = Record<string, unknown>>(
   taskId: string,
   options: {
-    signal?: AbortSignal
-    intervalMs?: number
-    onUpdate?: (task: AsyncTask<T>) => void
+    signal?: AbortSignal;
+    intervalMs?: number;
+    onUpdate?: (task: AsyncTask<T>) => void;
   } = {},
 ): Promise<AsyncTask<T>> {
-  const intervalMs = options.intervalMs ?? 1200
+  const intervalMs = options.intervalMs ?? 1200;
 
   while (true) {
-    const task = await getAsyncTask<T>(taskId, { signal: options.signal })
-    options.onUpdate?.(task)
+    const task = await getAsyncTask<T>(taskId, { signal: options.signal });
+    options.onUpdate?.(task);
 
     if (task.status === "succeeded" || task.status === "failed") {
-      return task
+      return task;
     }
 
-    await sleepWithSignal(intervalMs, options.signal)
+    await sleepWithSignal(intervalMs, options.signal);
   }
 }
 
@@ -355,7 +360,7 @@ export async function createEmptyProject(
   return request<StoryProject>("/api/projects/empty", {
     method: "POST",
     body: JSON.stringify(payload),
-  })
+  });
 }
 
 export async function syncNode(
@@ -368,11 +373,15 @@ export async function syncNode(
     "/api/sync_node",
     {
       method: "POST",
-      body: JSON.stringify({ project_id: projectId, node, request_id: requestId }),
+      body: JSON.stringify({
+        project_id: projectId,
+        node,
+        request_id: requestId,
+      }),
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function insertNode(
@@ -387,7 +396,7 @@ export async function insertNode(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getAnalysisHistory(
@@ -398,7 +407,7 @@ export async function getAnalysisHistory(
     `/api/analysis_history/${encodeURIComponent(projectId)}`,
     { method: "GET", signal: options.signal },
     { showLoading: false },
-  )
+  );
 }
 
 export async function saveAnalysisHistory(
@@ -413,14 +422,14 @@ export async function saveAnalysisHistory(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getCharacterGraph(
   projectId?: string,
   options: { signal?: AbortSignal } = {},
 ): Promise<CharacterGraphResponse> {
-  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
   return request<CharacterGraphResponse>(
     `/api/character_graph${query}`,
     {
@@ -428,7 +437,7 @@ export async function getCharacterGraph(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getProjects(
@@ -441,7 +450,7 @@ export async function getProjects(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function getProject(
@@ -455,7 +464,7 @@ export async function getProject(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function updateProjectTitle(
@@ -471,15 +480,15 @@ export async function updateProjectTitle(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function updateProjectSettings(
   projectId: string,
   payload: {
-    analysis_profile?: "auto" | "short" | "medium" | "long"
-    prompt_overrides?: PromptOverrides
-    writer_config?: WriterConfig
+    analysis_profile?: "auto" | "short" | "medium" | "long";
+    prompt_overrides?: PromptOverrides;
+    writer_config?: WriterConfig;
   },
   options: { signal?: AbortSignal } = {},
 ): Promise<StoryProject> {
@@ -491,7 +500,7 @@ export async function updateProjectSettings(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function createChapter(
@@ -507,13 +516,17 @@ export async function createChapter(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function updateChapter(
   projectId: string,
   chapterId: string,
-  payload: { title?: string | null; content?: string | null; order?: number | null },
+  payload: {
+    title?: string | null;
+    content?: string | null;
+    order?: number | null;
+  },
   options: { signal?: AbortSignal } = {},
 ): Promise<StoryProject> {
   return request<StoryProject>(
@@ -524,7 +537,7 @@ export async function updateChapter(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function importOutline(
@@ -540,7 +553,7 @@ export async function importOutline(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteChapter(
@@ -555,7 +568,7 @@ export async function deleteChapter(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function exportProject(
@@ -569,7 +582,7 @@ export async function exportProject(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function importProject(
@@ -584,7 +597,7 @@ export async function importProject(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteProject(
@@ -598,7 +611,7 @@ export async function deleteProject(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getStyleKnowledgeBase(
@@ -612,7 +625,7 @@ export async function getStyleKnowledgeBase(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function uploadStyleKnowledgeFile(
@@ -620,42 +633,45 @@ export async function uploadStyleKnowledgeFile(
   file: File,
   options: { signal?: AbortSignal } = {},
 ): Promise<StyleKnowledgeUploadResponse> {
-  const formData = new FormData()
-  formData.append("file", file)
+  const formData = new FormData();
+  formData.append("file", file);
 
-  const { setLoading, setError } = useProjectStore.getState()
-  setLoading(true)
-  setError(null)
+  const { setLoading, setError } = useProjectStore.getState();
+  setLoading(true);
+  setError(null);
   try {
     const response = await fetch(
-      buildApiUrl(`/api/projects/${encodeURIComponent(projectId)}/style_knowledge/upload`),
+      buildApiUrl(
+        `/api/projects/${encodeURIComponent(projectId)}/style_knowledge/upload`,
+      ),
       {
         method: "POST",
         body: formData,
         headers: buildAuthHeaders(),
         signal: options.signal,
-      }
-    )
+      },
+    );
     if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null)
+      const errorPayload = await response.json().catch(() => null);
       const detail =
         typeof errorPayload?.detail === "string"
           ? errorPayload.detail
-          : errorPayload?.detail?.message ?? `Request failed with ${response.status}`
+          : (errorPayload?.detail?.message ??
+            `Request failed with ${response.status}`);
       if (response.status === 401) {
-        handleUnauthorized()
+        handleUnauthorized();
       }
-      throw new Error(detail)
+      throw new Error(detail);
     }
-    return (await response.json()) as StyleKnowledgeUploadResponse
+    return (await response.json()) as StyleKnowledgeUploadResponse;
   } catch (error) {
     if (!isAbortError(error)) {
-      const message = formatUserErrorMessage(error)
-      setError(message)
+      const message = formatUserErrorMessage(error);
+      setError(message);
     }
-    throw error
+    throw error;
   } finally {
-    setLoading(false)
+    setLoading(false);
   }
 }
 
@@ -669,7 +685,7 @@ export async function listStyleLibraries(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function createStyleLibrary(
@@ -684,7 +700,7 @@ export async function createStyleLibrary(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function importCleanedStyleLibraryFile(
@@ -692,42 +708,45 @@ export async function importCleanedStyleLibraryFile(
   file: File,
   options: { signal?: AbortSignal } = {},
 ): Promise<StyleKnowledgeImportResponse> {
-  const formData = new FormData()
-  formData.append("file", file)
+  const formData = new FormData();
+  formData.append("file", file);
 
-  const { setLoading, setError } = useProjectStore.getState()
-  setLoading(true)
-  setError(null)
+  const { setLoading, setError } = useProjectStore.getState();
+  setLoading(true);
+  setError(null);
   try {
     const response = await fetch(
-      buildApiUrl(`/api/style_libraries/${encodeURIComponent(libraryId)}/documents/import`),
+      buildApiUrl(
+        `/api/style_libraries/${encodeURIComponent(libraryId)}/documents/import`,
+      ),
       {
         method: "POST",
         body: formData,
         headers: buildAuthHeaders(),
         signal: options.signal,
-      }
-    )
+      },
+    );
     if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null)
+      const errorPayload = await response.json().catch(() => null);
       const detail =
         typeof errorPayload?.detail === "string"
           ? errorPayload.detail
-          : errorPayload?.detail?.message ?? `Request failed with ${response.status}`
+          : (errorPayload?.detail?.message ??
+            `Request failed with ${response.status}`);
       if (response.status === 401) {
-        handleUnauthorized()
+        handleUnauthorized();
       }
-      throw new Error(detail)
+      throw new Error(detail);
     }
-    return (await response.json()) as StyleKnowledgeImportResponse
+    return (await response.json()) as StyleKnowledgeImportResponse;
   } catch (error) {
     if (!isAbortError(error)) {
-      const message = formatUserErrorMessage(error)
-      setError(message)
+      const message = formatUserErrorMessage(error);
+      setError(message);
     }
-    throw error
+    throw error;
   } finally {
-    setLoading(false)
+    setLoading(false);
   }
 }
 
@@ -736,52 +755,55 @@ export async function uploadStyleLibrarySourceFile(
   file: File,
   options: { signal?: AbortSignal } = {},
 ): Promise<StyleKnowledgeUploadResponse> {
-  const formData = new FormData()
-  formData.append("file", file)
+  const formData = new FormData();
+  formData.append("file", file);
 
-  const { setLoading, setError } = useProjectStore.getState()
-  setLoading(true)
-  setError(null)
+  const { setLoading, setError } = useProjectStore.getState();
+  setLoading(true);
+  setError(null);
   try {
     const response = await fetch(
-      buildApiUrl(`/api/style_libraries/${encodeURIComponent(libraryId)}/documents/upload`),
+      buildApiUrl(
+        `/api/style_libraries/${encodeURIComponent(libraryId)}/documents/upload`,
+      ),
       {
         method: "POST",
         body: formData,
         headers: buildAuthHeaders(),
         signal: options.signal,
-      }
-    )
+      },
+    );
     if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null)
+      const errorPayload = await response.json().catch(() => null);
       const detail =
         typeof errorPayload?.detail === "string"
           ? errorPayload.detail
-          : errorPayload?.detail?.message ?? `Request failed with ${response.status}`
+          : (errorPayload?.detail?.message ??
+            `Request failed with ${response.status}`);
       if (response.status === 401) {
-        handleUnauthorized()
+        handleUnauthorized();
       }
-      throw new Error(detail)
+      throw new Error(detail);
     }
-    return (await response.json()) as StyleKnowledgeUploadResponse
+    return (await response.json()) as StyleKnowledgeUploadResponse;
   } catch (error) {
     if (!isAbortError(error)) {
-      const message = formatUserErrorMessage(error)
-      setError(message)
+      const message = formatUserErrorMessage(error);
+      setError(message);
     }
-    throw error
+    throw error;
   } finally {
-    setLoading(false)
+    setLoading(false);
   }
 }
 
 export async function previewStyleReferences(
   projectId: string,
   payload: {
-    instruction: string
-    text: string
-    style_document_ids: string[]
-    top_k?: number
+    instruction: string;
+    text: string;
+    style_document_ids: string[];
+    top_k?: number;
   },
   options: { signal?: AbortSignal } = {},
 ): Promise<StyleRetrievalPreviewResponse> {
@@ -793,7 +815,7 @@ export async function previewStyleReferences(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function updateStyleKnowledgeTitle(
@@ -810,7 +832,7 @@ export async function updateStyleKnowledgeTitle(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteStyleKnowledgeDocument(
@@ -825,7 +847,7 @@ export async function deleteStyleKnowledgeDocument(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function updateStyleLibraryTitle(
@@ -841,7 +863,7 @@ export async function updateStyleLibraryTitle(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteStyleLibrary(
@@ -855,7 +877,7 @@ export async function deleteStyleLibrary(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function updateStyleLibraryDocumentTitle(
@@ -872,7 +894,7 @@ export async function updateStyleLibraryDocumentTitle(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteStyleLibraryDocument(
@@ -887,7 +909,7 @@ export async function deleteStyleLibraryDocument(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getProjectStats(
@@ -901,26 +923,28 @@ export async function getProjectStats(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function listVersions(
   projectId: string,
   options: { signal?: AbortSignal } = {},
-): Promise<Array<{
-  id: number
-  project_id: string
-  version: number
-  snapshot_type: string
-  name: string | null
-  description: string | null
-  node_count: number
-  words_added?: number
-  words_removed?: number
-  created_at: string
-  file_path: string
-  is_compressed: boolean
-}>> {
+): Promise<
+  Array<{
+    id: number;
+    project_id: string;
+    version: number;
+    snapshot_type: string;
+    name: string | null;
+    description: string | null;
+    node_count: number;
+    words_added?: number;
+    words_removed?: number;
+    created_at: string;
+    file_path: string;
+    is_compressed: boolean;
+  }>
+> {
   return request(
     `/api/projects/${encodeURIComponent(projectId)}/versions`,
     {
@@ -928,7 +952,7 @@ export async function listVersions(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getVersionSnapshot(
@@ -943,7 +967,7 @@ export async function getVersionSnapshot(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function compareVersions(
@@ -959,7 +983,7 @@ export async function compareVersions(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function createVersion(
@@ -975,7 +999,7 @@ export async function createVersion(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function restoreVersion(
@@ -990,7 +1014,7 @@ export async function restoreVersion(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteVersion(
@@ -1005,7 +1029,7 @@ export async function deleteVersion(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function updateGraphEntity(
@@ -1022,7 +1046,7 @@ export async function updateGraphEntity(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function createGraphEntity(
@@ -1038,7 +1062,7 @@ export async function createGraphEntity(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteGraphEntity(
@@ -1053,7 +1077,7 @@ export async function deleteGraphEntity(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function mergeGraphEntities(
@@ -1070,7 +1094,7 @@ export async function mergeGraphEntities(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function updateGraphRelation(
@@ -1087,7 +1111,7 @@ export async function updateGraphRelation(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function deleteGraphRelation(
@@ -1102,14 +1126,14 @@ export async function deleteGraphRelation(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function createGraphRelation(
   projectId: string,
   payload: Partial<CharacterGraphLink> & {
-    source_id: string
-    target_id: string
+    source_id: string;
+    target_id: string;
   },
   options: { signal?: AbortSignal } = {},
 ): Promise<CharacterGraphLink> {
@@ -1121,7 +1145,7 @@ export async function createGraphRelation(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function syncCharacterGraph(
@@ -1137,7 +1161,7 @@ export async function syncCharacterGraph(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getModelConfig(
@@ -1150,7 +1174,7 @@ export async function getModelConfig(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function updateModelConfig(
@@ -1165,7 +1189,7 @@ export async function updateModelConfig(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function reorderNodes(
@@ -1181,12 +1205,12 @@ export async function reorderNodes(
       signal: options.signal,
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function registerUser(payload: {
-  username: string
-  password: string
+  username: string;
+  password: string;
 }): Promise<AuthTokenResponse> {
   return request<AuthTokenResponse>(
     "/api/auth/register",
@@ -1195,12 +1219,12 @@ export async function registerUser(payload: {
       body: JSON.stringify(payload),
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function loginUser(payload: {
-  username: string
-  password: string
+  username: string;
+  password: string;
 }): Promise<AuthTokenResponse> {
   return request<AuthTokenResponse>(
     "/api/auth/login",
@@ -1209,7 +1233,7 @@ export async function loginUser(payload: {
       body: JSON.stringify(payload),
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function getCurrentUser(
@@ -1222,7 +1246,7 @@ export async function getCurrentUser(
       signal: options.signal,
     },
     { showLoading: false, suppressGlobalError: true },
-  )
+  );
 }
 
 export async function createOutlineChannel(): Promise<AuthOutlineChannelResponse> {
@@ -1232,7 +1256,7 @@ export async function createOutlineChannel(): Promise<AuthOutlineChannelResponse
       method: "POST",
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function updateCurrentUser(
@@ -1245,7 +1269,7 @@ export async function updateCurrentUser(
       body: JSON.stringify(payload),
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function changePassword(
@@ -1258,7 +1282,7 @@ export async function changePassword(
       body: JSON.stringify(payload),
     },
     { showLoading: false },
-  )
+  );
 }
 
 export async function logoutAllSessions(): Promise<{ logged_out: boolean }> {
@@ -1268,5 +1292,5 @@ export async function logoutAllSessions(): Promise<{ logged_out: boolean }> {
       method: "POST",
     },
     { showLoading: false },
-  )
+  );
 }

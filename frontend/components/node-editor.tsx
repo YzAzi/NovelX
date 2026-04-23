@@ -1,23 +1,30 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
-import { Maximize2, Minimize2 } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 
-import type { StoryNode } from "@/src/types/models"
-import { syncNode } from "@/src/lib/api"
-import { useProjectStore } from "@/src/stores/project-store"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import type { StoryNode } from "@/src/types/models";
+import { syncNode } from "@/src/lib/api";
+import { useProjectStore } from "@/src/stores/project-store";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogClose,
   DialogContent,
   DialogFooter,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 export function NodeEditor() {
   const {
@@ -35,61 +42,65 @@ export function NodeEditor() {
     setSyncStatus,
     setProject,
     syncStatus,
-  } = useProjectStore()
-  const [isZenMode, setIsZenMode] = useState(false)
+  } = useProjectStore();
+  const [isZenMode, setIsZenMode] = useState(false);
   const selectedNode = useMemo(() => {
     if (!currentProject || !selectedNodeId) {
-      return null
+      return null;
     }
-    return currentProject.nodes.find((node) => node.id === selectedNodeId) ?? null
-  }, [currentProject, selectedNodeId])
+    return (
+      currentProject.nodes.find((node) => node.id === selectedNodeId) ?? null
+    );
+  }, [currentProject, selectedNodeId]);
 
-  const [title, setTitle] = useState("")
-  const [content, setContent] = useState("")
-  const [narrativeOrder, setNarrativeOrder] = useState("")
-  const [timelineOrder, setTimelineOrder] = useState("")
-  const [locationTag, setLocationTag] = useState("")
-  const [characters, setCharacters] = useState<string[]>([])
-  const [newCharacterNotice, setNewCharacterNotice] = useState<string | null>(null)
-  const [expandedConflict, setExpandedConflict] = useState<number | null>(null)
-  const [validationError, setValidationError] = useState<string | null>(null)
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [narrativeOrder, setNarrativeOrder] = useState("");
+  const [timelineOrder, setTimelineOrder] = useState("");
+  const [locationTag, setLocationTag] = useState("");
+  const [characters, setCharacters] = useState<string[]>([]);
+  const [newCharacterNotice, setNewCharacterNotice] = useState<string | null>(
+    null,
+  );
+  const [expandedConflict, setExpandedConflict] = useState<number | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const lastSavedRef = useRef<string | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const saveCounterRef = useRef(0)
+  const lastSavedRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const saveCounterRef = useRef(0);
 
   useEffect(() => {
     if (!selectedNode) {
       Promise.resolve().then(() => {
-        setNodeEditorOpen(false)
-        setTitle("")
-        setContent("")
-        setNarrativeOrder("")
-        setTimelineOrder("")
-        setLocationTag("")
-        setCharacters([])
-        setSaveStatus("idle")
-        setNewCharacterNotice(null)
-        setValidationError(null)
-        clearConflicts()
-        setExpandedConflict(null)
-        lastSavedRef.current = null
-      })
-      return
+        setNodeEditorOpen(false);
+        setTitle("");
+        setContent("");
+        setNarrativeOrder("");
+        setTimelineOrder("");
+        setLocationTag("");
+        setCharacters([]);
+        setSaveStatus("idle");
+        setNewCharacterNotice(null);
+        setValidationError(null);
+        clearConflicts();
+        setExpandedConflict(null);
+        lastSavedRef.current = null;
+      });
+      return;
     }
 
     Promise.resolve().then(() => {
-      setTitle(selectedNode.title ?? "")
-      setContent(selectedNode.content ?? "")
-      setNarrativeOrder(String(selectedNode.narrative_order ?? 0))
-      setTimelineOrder(String(selectedNode.timeline_order ?? 0))
-      setLocationTag(selectedNode.location_tag ?? "")
-      setCharacters(selectedNode.characters ?? [])
-      setSaveStatus("idle")
-      setNewCharacterNotice(null)
-      setValidationError(null)
-      clearConflicts()
-      setExpandedConflict(null)
+      setTitle(selectedNode.title ?? "");
+      setContent(selectedNode.content ?? "");
+      setNarrativeOrder(String(selectedNode.narrative_order ?? 0));
+      setTimelineOrder(String(selectedNode.timeline_order ?? 0));
+      setLocationTag(selectedNode.location_tag ?? "");
+      setCharacters(selectedNode.characters ?? []);
+      setSaveStatus("idle");
+      setNewCharacterNotice(null);
+      setValidationError(null);
+      clearConflicts();
+      setExpandedConflict(null);
       lastSavedRef.current = JSON.stringify({
         title: selectedNode.title ?? "",
         content: selectedNode.content ?? "",
@@ -97,9 +108,9 @@ export function NodeEditor() {
         timelineOrder: String(selectedNode.timeline_order ?? 0),
         locationTag: selectedNode.location_tag ?? "",
         characters: selectedNode.characters ?? [],
-      })
-    })
-  }, [selectedNodeId, selectedNode, setNodeEditorOpen])
+      });
+    });
+  }, [selectedNodeId, selectedNode, setNodeEditorOpen]);
 
   const formSnapshot = useMemo(
     () => ({
@@ -110,42 +121,45 @@ export function NodeEditor() {
       locationTag,
       characters,
     }),
-    [title, content, narrativeOrder, timelineOrder, locationTag, characters]
-  )
+    [title, content, narrativeOrder, timelineOrder, locationTag, characters],
+  );
 
-  const snapshotKey = useMemo(() => JSON.stringify(formSnapshot), [formSnapshot])
-  const [isDirty, setIsDirty] = useState(false)
+  const snapshotKey = useMemo(
+    () => JSON.stringify(formSnapshot),
+    [formSnapshot],
+  );
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
-    setIsDirty(lastSavedRef.current !== snapshotKey)
-  }, [snapshotKey])
+    setIsDirty(lastSavedRef.current !== snapshotKey);
+  }, [snapshotKey]);
 
   useEffect(() => {
     if (saveStatus === "saving") {
-      abortControllerRef.current?.abort()
+      abortControllerRef.current?.abort();
     }
-  }, [snapshotKey, saveStatus])
+  }, [snapshotKey, saveStatus]);
 
   const validateSnapshot = useCallback((snapshot: typeof formSnapshot) => {
-    const narrativeValue = Number.parseInt(snapshot.narrativeOrder, 10)
+    const narrativeValue = Number.parseInt(snapshot.narrativeOrder, 10);
     if (!Number.isFinite(narrativeValue) || narrativeValue < 1) {
-      return "叙事顺序必须是大于等于 1 的整数"
+      return "叙事顺序必须是大于等于 1 的整数";
     }
-    const timelineValue = Number.parseFloat(snapshot.timelineOrder)
+    const timelineValue = Number.parseFloat(snapshot.timelineOrder);
     if (!Number.isFinite(timelineValue) || timelineValue <= 0) {
-      return "时间轴位置必须是大于 0 的数字"
+      return "时间轴位置必须是大于 0 的数字";
     }
-    return null
-  }, [])
+    return null;
+  }, []);
 
   const buildNodePayload = useCallback(
     (snapshot: typeof formSnapshot): StoryNode | null => {
       if (!selectedNode) {
-        return null
+        return null;
       }
 
-      const narrativeValue = Number.parseInt(snapshot.narrativeOrder, 10)
-      const timelineValue = Number.parseFloat(snapshot.timelineOrder)
+      const narrativeValue = Number.parseInt(snapshot.narrativeOrder, 10);
+      const timelineValue = Number.parseFloat(snapshot.timelineOrder);
 
       return {
         ...selectedNode,
@@ -155,90 +169,88 @@ export function NodeEditor() {
         timeline_order: timelineValue,
         location_tag: snapshot.locationTag.trim() || "未标记",
         characters: snapshot.characters,
-      }
+      };
     },
-    [selectedNode]
-  )
+    [selectedNode],
+  );
 
   const saveNode = useCallback(
     async (snapshot: typeof formSnapshot) => {
       if (!currentProject || !selectedNode) {
-        return
+        return;
       }
 
-      const error = validateSnapshot(snapshot)
+      const error = validateSnapshot(snapshot);
       if (error) {
-        setValidationError(error)
-        setSaveStatus("idle")
-        setSyncRequestId(null)
-        lastSavedRef.current = JSON.stringify(snapshot)
-        return
+        setValidationError(error);
+        setSaveStatus("idle");
+        setSyncRequestId(null);
+        lastSavedRef.current = JSON.stringify(snapshot);
+        return;
       }
 
-      const payload = buildNodePayload(snapshot)
+      const payload = buildNodePayload(snapshot);
       if (!payload) {
-        return
+        return;
       }
 
-      abortControllerRef.current?.abort()
-      const controller = new AbortController()
-      abortControllerRef.current = controller
-      saveCounterRef.current += 1
-      const saveId = saveCounterRef.current
-      const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-      setSyncRequestId(requestId)
-      setSyncNodeId(selectedNode.id)
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      saveCounterRef.current += 1;
+      const saveId = saveCounterRef.current;
+      const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      setSyncRequestId(requestId);
+      setSyncNodeId(selectedNode.id);
 
-      setSaveStatus("saving")
-      setSyncStatus("syncing")
+      setSaveStatus("saving");
+      setSyncStatus("syncing");
 
       try {
         const response = await syncNode(currentProject.id, payload, requestId, {
           signal: controller.signal,
-        })
+        });
         if (saveCounterRef.current !== saveId) {
-          return
+          return;
         }
 
-        const nextProject = response.project
+        const nextProject = response.project;
         const previousCharacterIds = new Set(
-          currentProject.characters.map((item) => item.id)
-        )
+          currentProject.characters.map((item) => item.id),
+        );
         const newCharacters = nextProject.characters.filter(
-          (item) => !previousCharacterIds.has(item.id)
-        )
+          (item) => !previousCharacterIds.has(item.id),
+        );
 
         if (newCharacters.length > 0) {
           setNewCharacterNotice(
-            `新增角色：${newCharacters.map((item) => item.name).join("、")}`
-          )
+            `新增角色：${newCharacters.map((item) => item.name).join("、")}`,
+          );
         } else {
-          setNewCharacterNotice(null)
+          setNewCharacterNotice(null);
         }
 
-        setProject(nextProject)
-        clearConflicts()
-        ;(response.conflicts ?? []).forEach((conflict) =>
-          addConflict(conflict)
-        )
+        setProject(nextProject);
+        clearConflicts();
+        (response.conflicts ?? []).forEach((conflict) => addConflict(conflict));
         if (response.sync_status === "completed") {
-          setSyncStatus("completed")
-          setSyncRequestId(null)
+          setSyncStatus("completed");
+          setSyncRequestId(null);
         } else if (response.sync_status === "failed") {
-          setSyncStatus("failed")
-          setSyncRequestId(null)
+          setSyncStatus("failed");
+          setSyncRequestId(null);
         }
-        setExpandedConflict(null)
-        setValidationError(null)
-        lastSavedRef.current = JSON.stringify(snapshot)
-        setSaveStatus("saved")
+        setExpandedConflict(null);
+        setValidationError(null);
+        lastSavedRef.current = JSON.stringify(snapshot);
+        setSaveStatus("saved");
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
-          return
+          return;
         }
-        setSaveStatus("idle")
-        setSyncStatus("failed")
-        setSyncRequestId(null)
+        setSaveStatus("idle");
+        setSyncStatus("failed");
+        setSyncRequestId(null);
       }
     },
     [
@@ -253,56 +265,57 @@ export function NodeEditor() {
       setSyncStatus,
       validateSnapshot,
       setSyncNodeId,
-    ]
-  )
+    ],
+  );
 
   const handleManualSave = useCallback(() => {
     if (!selectedNode) {
-      return
+      return;
     }
-    const confirmed = window.confirm("确认保存并更新当前节点吗？")
+    const confirmed = window.confirm("确认保存并更新当前节点吗？");
     if (!confirmed) {
-      return
+      return;
     }
-    saveNode(formSnapshot)
-  }, [formSnapshot, saveNode, selectedNode])
+    saveNode(formSnapshot);
+  }, [formSnapshot, saveNode, selectedNode]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault()
-        handleManualSave()
+        event.preventDefault();
+        handleManualSave();
       }
-    }
+    };
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [handleManualSave])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleManualSave]);
 
   const handleCharacterToggle = (characterId: string) => {
-    abortControllerRef.current?.abort()
+    abortControllerRef.current?.abort();
     setCharacters((prev) =>
       prev.includes(characterId)
         ? prev.filter((id) => id !== characterId)
-        : [...prev, characterId]
-    )
-    setSaveStatus("idle")
-    setValidationError(null)
-  }
+        : [...prev, characterId],
+    );
+    setSaveStatus("idle");
+    setValidationError(null);
+  };
 
   const handleChange =
-    (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      abortControllerRef.current?.abort()
-      setter(event.target.value)
-      setSaveStatus("idle")
-      setValidationError(null)
-    }
+    (setter: (value: string) => void) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      abortControllerRef.current?.abort();
+      setter(event.target.value);
+      setSaveStatus("idle");
+      setValidationError(null);
+    };
 
   if (!selectedNode) {
-    return null
+    return null;
   }
 
-  const characterOptions = currentProject?.characters ?? []
+  const characterOptions = currentProject?.characters ?? [];
 
   return (
     <Dialog open={nodeEditorOpen} onOpenChange={setNodeEditorOpen}>
@@ -311,7 +324,7 @@ export function NodeEditor() {
           "overflow-hidden p-0 transition-all duration-300 ease-in-out",
           isZenMode
             ? "h-screen w-screen max-w-none rounded-none border-0"
-            : "max-h-[80vh] max-w-2xl"
+            : "max-h-[80vh] max-w-2xl",
         )}
       >
         <Card
@@ -319,17 +332,25 @@ export function NodeEditor() {
           tabIndex={-1}
           className={cn(
             "flex h-full flex-col border-0 shadow-none outline-none",
-            isZenMode && "bg-background/95 backdrop-blur-xl"
+            isZenMode && "bg-background/95 backdrop-blur-xl",
           )}
         >
           <CardHeader
             className={cn(
               "flex flex-row items-center justify-between space-y-0 pb-2",
-              isZenMode && "absolute right-0 top-0 z-10 w-full bg-transparent px-6 py-4"
+              isZenMode &&
+                "absolute right-0 top-0 z-10 w-full bg-transparent px-6 py-4",
             )}
           >
-            <div className={cn("flex flex-wrap items-center gap-2", isZenMode && "hidden")}>
-              <DialogTitle className="text-lg font-semibold">节点编辑</DialogTitle>
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-2",
+                isZenMode && "hidden",
+              )}
+            >
+              <DialogTitle className="text-lg font-semibold">
+                节点编辑
+              </DialogTitle>
               <div className="text-xs text-muted-foreground">
                 {saveStatus === "saving"
                   ? "保存中..."
@@ -346,10 +367,16 @@ export function NodeEditor() {
                             : null}
               </div>
             </div>
-            <div className={cn("flex items-center gap-2", isZenMode && "ml-auto")}>
+            <div
+              className={cn("flex items-center gap-2", isZenMode && "ml-auto")}
+            >
               {isZenMode && (
                 <div className="mr-4 text-xs text-muted-foreground/60">
-                  {saveStatus === "saving" ? "保存中..." : isDirty ? "未保存" : "已保存"}
+                  {saveStatus === "saving"
+                    ? "保存中..."
+                    : isDirty
+                      ? "未保存"
+                      : "已保存"}
                 </div>
               )}
               <Button
@@ -392,7 +419,9 @@ export function NodeEditor() {
           <CardContent
             className={cn(
               "flex-1 min-h-0 overflow-y-auto",
-              isZenMode ? "mx-auto w-full max-w-3xl pt-16 pb-12 px-8" : "space-y-4 px-6 pb-2"
+              isZenMode
+                ? "mx-auto w-full max-w-3xl pt-16 pb-12 px-8"
+                : "space-y-4 px-6 pb-2",
             )}
           >
             {isZenMode ? (
@@ -423,7 +452,7 @@ export function NodeEditor() {
                           ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                           : isDirty
                             ? "bg-muted text-muted-foreground"
-                            : "bg-muted text-muted-foreground/60"
+                            : "bg-muted text-muted-foreground/60",
                     )}
                   >
                     {saveStatus === "saving"
@@ -443,7 +472,7 @@ export function NodeEditor() {
                           ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                           : syncStatus === "failed"
                             ? "bg-destructive/15 text-destructive"
-                            : "bg-muted text-muted-foreground/60"
+                            : "bg-muted text-muted-foreground/60",
                     )}
                   >
                     {syncStatus === "syncing"
@@ -473,13 +502,13 @@ export function NodeEditor() {
                 {conflicts.length > 0 ? (
                   <div className="space-y-2">
                     {conflicts.map((conflict, index) => {
-                      const isExpanded = expandedConflict === index
+                      const isExpanded = expandedConflict === index;
                       const severityClass =
                         conflict.severity === "error"
                           ? "border-destructive/30 bg-destructive/10 text-destructive"
                           : conflict.severity === "warning"
                             ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                            : "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                            : "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400";
 
                       return (
                         <button
@@ -490,20 +519,29 @@ export function NodeEditor() {
                             setExpandedConflict(isExpanded ? null : index)
                           }
                         >
-                          <div className="font-semibold">{conflict.description}</div>
+                          <div className="font-semibold">
+                            {conflict.description}
+                          </div>
                           {isExpanded ? (
                             <div className="mt-2 space-y-1 text-[11px]">
-                              <div>涉及节点：{conflict.node_ids.join("、") || "无"}</div>
-                              <div>涉及实体：{conflict.entity_ids.join("、") || "无"}</div>
+                              <div>
+                                涉及节点：{conflict.node_ids.join("、") || "无"}
+                              </div>
+                              <div>
+                                涉及实体：
+                                {conflict.entity_ids.join("、") || "无"}
+                              </div>
                               {conflict.suggestion ? (
                                 <div>建议：{conflict.suggestion}</div>
                               ) : null}
                             </div>
                           ) : (
-                            <div className="mt-1 text-[11px] text-muted-foreground">点击查看详情</div>
+                            <div className="mt-1 text-[11px] text-muted-foreground">
+                              点击查看详情
+                            </div>
                           )}
                         </button>
-                      )
+                      );
                     })}
                   </div>
                 ) : null}
@@ -511,7 +549,11 @@ export function NodeEditor() {
                   <label className="text-sm font-medium" htmlFor="node-title">
                     标题
                   </label>
-                  <Input id="node-title" value={title} onChange={handleChange(setTitle)} />
+                  <Input
+                    id="node-title"
+                    value={title}
+                    onChange={handleChange(setTitle)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium" htmlFor="node-content">
@@ -526,7 +568,10 @@ export function NodeEditor() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="narrative-order">
+                    <label
+                      className="text-sm font-medium"
+                      htmlFor="narrative-order"
+                    >
                       叙事顺序
                     </label>
                     <Input
@@ -537,7 +582,10 @@ export function NodeEditor() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="timeline-order">
+                    <label
+                      className="text-sm font-medium"
+                      htmlFor="timeline-order"
+                    >
                       时间轴位置
                     </label>
                     <Input
@@ -563,11 +611,13 @@ export function NodeEditor() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium">涉及角色</p>
                   {characterOptions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">暂无角色可选</p>
+                    <p className="text-xs text-muted-foreground">
+                      暂无角色可选
+                    </p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {characterOptions.map((character) => {
-                        const isSelected = characters.includes(character.id)
+                        const isSelected = characters.includes(character.id);
                         return (
                           <button
                             type="button"
@@ -584,7 +634,7 @@ export function NodeEditor() {
                           >
                             {character.name}
                           </button>
-                        )
+                        );
                       })}
                     </div>
                   )}
@@ -599,7 +649,11 @@ export function NodeEditor() {
                   取消
                 </Button>
               </DialogClose>
-              <Button type="button" onClick={handleManualSave} disabled={!isDirty}>
+              <Button
+                type="button"
+                onClick={handleManualSave}
+                disabled={!isDirty}
+              >
                 保存并更新 (Ctrl+S)
               </Button>
             </DialogFooter>
@@ -607,5 +661,5 @@ export function NodeEditor() {
         </Card>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,16 +1,19 @@
-"use client"
+"use client";
 
-import { useParams } from "next/navigation"
+import { useParams } from "next/navigation";
 
-import { StoryVisualizer } from "@/components/story-visualizer"
-import { ProjectRouteGuard } from "@/components/project-route-guard"
-import { ProjectHeader, ProjectWorkspaceHeader } from "@/components/project-header"
+import { StoryVisualizer } from "@/components/story-visualizer";
+import { ProjectRouteGuard } from "@/components/project-route-guard";
+import {
+  ProjectHeader,
+  ProjectWorkspaceHeader,
+} from "@/components/project-header";
 
 export default function ProjectOutlinePage() {
-  const params = useParams<{ projectId: string }>()
+  const params = useParams<{ projectId: string }>();
   const projectId = Array.isArray(params?.projectId)
     ? params.projectId[0]
-    : params?.projectId ?? ""
+    : (params?.projectId ?? "");
 
   return (
     <ProjectRouteGuard projectId={projectId}>
@@ -26,5 +29,5 @@ export default function ProjectOutlinePage() {
         </div>
       </div>
     </ProjectRouteGuard>
-  )
+  );
 }

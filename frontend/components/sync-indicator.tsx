@@ -1,29 +1,34 @@
-"use client"
+"use client";
 
-import { useProjectStore } from "@/src/stores/project-store"
-import { cn } from "@/lib/utils"
+import { useProjectStore } from "@/src/stores/project-store";
+import { cn } from "@/lib/utils";
 
-function StatusDot({ status }: { status: "connected" | "disconnected" | "reconnecting" }) {
+function StatusDot({
+  status,
+}: {
+  status: "connected" | "disconnected" | "reconnecting";
+}) {
   const color =
     status === "connected"
       ? "bg-emerald-500/80"
       : status === "reconnecting"
         ? "bg-amber-500/80"
-        : "bg-destructive/80"
-  return <span className={cn("h-2 w-2 rounded-full", color)} />
+        : "bg-destructive/80";
+  return <span className={cn("h-2 w-2 rounded-full", color)} />;
 }
 
 export function SyncIndicator() {
-  const { currentProject, syncNodeId, syncStatus, wsStatus } = useProjectStore()
+  const { currentProject, syncNodeId, syncStatus, wsStatus } =
+    useProjectStore();
 
   const syncNode = syncNodeId
-    ? currentProject?.nodes.find((node) => node.id === syncNodeId) ?? null
-    : null
+    ? (currentProject?.nodes.find((node) => node.id === syncNodeId) ?? null)
+    : null;
   const syncLabel = syncNode
     ? `${syncNode.title || "未命名节点"}`
     : syncNodeId
       ? syncNodeId.slice(0, 8)
-      : null
+      : null;
 
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -54,5 +59,5 @@ export function SyncIndicator() {
         ) : null}
       </div>
     </div>
-  )
+  );
 }

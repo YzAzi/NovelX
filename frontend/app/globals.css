@@ -50,9 +50,13 @@
 
 :root {
   --radius: 0.5rem;
-  --font-app-sans: "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-app-serif: "Iowan Old Style", "Source Han Serif SC", "Songti SC", "STSong", serif;
-  --font-app-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "Menlo", monospace;
+  --font-app-sans:
+    "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+  --font-app-serif:
+    "Iowan Old Style", "Source Han Serif SC", "Songti SC", "STSong", serif;
+  --font-app-mono:
+    "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "Menlo", monospace;
   --background: oklch(0.982 0.006 84);
   --foreground: oklch(0.24 0.024 58);
   --card: oklch(1 0 0);
@@ -91,7 +95,11 @@
   --bg-main-start: rgb(255 255 255 / 0.82);
   --bg-main-end: rgb(248 243 235 / 0.96);
   --grid-color: rgb(101 87 62 / 0.05);
-  --editor-bg: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(247, 241, 232, 0.96));
+  --editor-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 1),
+    rgba(247, 241, 232, 0.96)
+  );
   --panel-glass: rgba(255, 255, 255, 0.78);
 }
 
@@ -134,7 +142,11 @@
   --bg-main-start: rgb(20 20 25 / 0.9);
   --bg-main-end: rgb(15 15 20 / 0.98);
   --grid-color: rgb(255 255 255 / 0.03);
-  --editor-bg: linear-gradient(180deg, oklch(0.22 0.015 255), oklch(0.18 0.015 255));
+  --editor-bg: linear-gradient(
+    180deg,
+    oklch(0.22 0.015 255),
+    oklch(0.18 0.015 255)
+  );
   --panel-glass: rgba(30, 30, 40, 0.7);
 }
 
@@ -147,14 +159,26 @@
     height: 100%;
   }
   html {
-    overflow-y: scroll; 
+    overflow-y: scroll;
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "ss01" 1, "ss02" 1, "liga" 1, "kern" 1;
+    font-feature-settings:
+      "ss01" 1,
+      "ss02" 1,
+      "liga" 1,
+      "kern" 1;
     background-image:
-      radial-gradient(circle at top left, var(--bg-gradient-1), transparent 30%),
-      radial-gradient(circle at top right, var(--bg-gradient-2), transparent 26%),
+      radial-gradient(
+        circle at top left,
+        var(--bg-gradient-1),
+        transparent 30%
+      ),
+      radial-gradient(
+        circle at top right,
+        var(--bg-gradient-2),
+        transparent 26%
+      ),
       linear-gradient(180deg, var(--bg-main-start), var(--bg-main-end));
     background-attachment: fixed;
   }
@@ -275,15 +299,15 @@
     font-style: italic !important;
   }
 
-  .markdown-preview-reset h1, 
-  .markdown-preview-reset h2, 
+  .markdown-preview-reset h1,
+  .markdown-preview-reset h2,
   .markdown-preview-reset h3 {
     font-weight: 600 !important;
     margin-top: 0.5em;
     margin-bottom: 0.25em;
   }
 
-  .markdown-preview-reset ul, 
+  .markdown-preview-reset ul,
   .markdown-preview-reset ol {
     list-style: revert !important;
     padding-left: 1.2em !important;

@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   BookPlus,
@@ -13,36 +13,36 @@ import {
   MoreVertical,
   Trash2,
   Upload,
-} from "lucide-react"
-import { AnimatePresence, motion } from "framer-motion"
+} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
-import { exportProject, importProject } from "@/src/lib/api"
-import { useProjectStore } from "@/src/stores/project-store"
-import { Button } from "@/components/ui/button"
+import { exportProject, importProject } from "@/src/lib/api";
+import { useProjectStore } from "@/src/stores/project-store";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 type ProjectListProps = {
-  variant?: "grid" | "rail"
-  showHeader?: boolean
-}
+  variant?: "grid" | "rail";
+  showHeader?: boolean;
+};
 
 function formatDate(value: string) {
-  const date = new Date(value)
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value
+    return value;
   }
   return date.toLocaleDateString("zh-CN", {
     year: "numeric",
     month: "long",
     day: "numeric",
-  })
+  });
 }
 
 export function ProjectList({
@@ -57,78 +57,79 @@ export function ProjectList({
     removeProject,
     setError,
     setProject,
-  } = useProjectStore()
-  const [confirmingId, setConfirmingId] = useState<string | null>(null)
-  const [loadingId, setLoadingId] = useState<string | null>(null)
-  const [exportingId, setExportingId] = useState<string | null>(null)
-  const [isImporting, setIsImporting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const isRail = variant === "rail"
+  } = useProjectStore();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isRail = variant === "rail";
 
   useEffect(() => {
-    loadProjects()
-  }, [loadProjects])
+    loadProjects();
+  }, [loadProjects]);
 
   const sortedProjects = useMemo(() => {
     return [...projects].sort(
-      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-    )
-  }, [projects])
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    );
+  }, [projects]);
 
   const handleLoad = async (projectId: string) => {
-    setLoadingId(projectId)
-    await loadProject(projectId)
-    setLoadingId(null)
-  }
+    setLoadingId(projectId);
+    await loadProject(projectId);
+    setLoadingId(null);
+  };
 
   const handleDelete = async (projectId: string) => {
-    await removeProject(projectId)
-    setConfirmingId(null)
-  }
+    await removeProject(projectId);
+    setConfirmingId(null);
+  };
 
   const handleExport = async (projectId: string, title: string) => {
-    setExportingId(projectId)
+    setExportingId(projectId);
     try {
-      const data = await exportProject(projectId)
+      const data = await exportProject(projectId);
       const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: "application/json",
-      })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `${title || "项目"}-${projectId}.json`
-      link.click()
-      URL.revokeObjectURL(url)
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${title || "项目"}-${projectId}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "导出失败"
-      setError(message)
+      const message = error instanceof Error ? error.message : "导出失败";
+      setError(message);
     } finally {
-      setExportingId(null)
+      setExportingId(null);
     }
-  }
+  };
 
   const handleImportClick = () => {
-    fileInputRef.current?.click()
-  }
+    fileInputRef.current?.click();
+  };
 
   const handleImport = async (file: File) => {
-    setIsImporting(true)
+    setIsImporting(true);
     try {
-      const text = await file.text()
-      const payload = JSON.parse(text)
-      const project = await importProject(payload)
-      setProject(project)
-      await loadProjects()
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const project = await importProject(payload);
+      setProject(project);
+      await loadProjects();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "导入失败"
-      setError(message)
+      const message = error instanceof Error ? error.message : "导入失败";
+      setError(message);
     } finally {
-      setIsImporting(false)
+      setIsImporting(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ""
+        fileInputRef.current.value = "";
       }
     }
-  }
+  };
 
   const container = {
     hidden: { opacity: 0 },
@@ -138,17 +139,29 @@ export function ProjectList({
         staggerChildren: isRail ? 0.06 : 0.1,
       },
     },
-  }
+  };
 
   const item = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0 },
-  }
+  };
 
   return (
-    <div className={cn("w-full", isRail ? "space-y-4" : "mx-auto max-w-7xl space-y-8 py-8")}>
+    <div
+      className={cn(
+        "w-full",
+        isRail ? "space-y-4" : "mx-auto max-w-7xl space-y-8 py-8",
+      )}
+    >
       {showHeader && (
-        <div className={cn("flex gap-4", isRail ? "flex-col px-0" : "flex-col px-2 md:flex-row md:items-end md:justify-between")}>
+        <div
+          className={cn(
+            "flex gap-4",
+            isRail
+              ? "flex-col px-0"
+              : "flex-col px-2 md:flex-row md:items-end md:justify-between",
+          )}
+        >
           <div className="space-y-2">
             <h2 className="flex items-center gap-3 text-2xl font-serif font-bold tracking-tight text-foreground/90">
               <div className="rounded-xl bg-primary/10 p-2">
@@ -170,9 +183,9 @@ export function ProjectList({
               accept="application/json"
               className="hidden"
               onChange={(event) => {
-                const file = event.target.files?.[0]
+                const file = event.target.files?.[0];
                 if (file) {
-                  handleImport(file)
+                  handleImport(file);
                 }
               }}
             />
@@ -200,9 +213,9 @@ export function ProjectList({
           accept="application/json"
           className="hidden"
           onChange={(event) => {
-            const file = event.target.files?.[0]
+            const file = event.target.files?.[0];
             if (file) {
-              handleImport(file)
+              handleImport(file);
             }
           }}
         />
@@ -216,13 +229,15 @@ export function ProjectList({
             "flex flex-col items-center justify-center text-center backdrop-blur-sm",
             isRail
               ? "rounded-[14px] border border-dashed border-border/50 bg-background/45 px-5 py-14"
-              : "rounded-[16px] border-2 border-dashed border-border/40 bg-card/30 py-24"
+              : "rounded-[16px] border-2 border-dashed border-border/40 bg-card/30 py-24",
           )}
         >
           <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/5 text-primary/40">
             <FileText size={40} strokeWidth={1} />
           </div>
-          <h3 className="text-xl font-semibold text-foreground/80">还没有项目</h3>
+          <h3 className="text-xl font-semibold text-foreground/80">
+            还没有项目
+          </h3>
           <p className="mt-3 max-w-[24rem] text-sm leading-relaxed text-muted-foreground">
             点击“新建大纲”创建项目，或导入已有备份继续创作。
           </p>
@@ -243,16 +258,18 @@ export function ProjectList({
           initial="hidden"
           animate="show"
           className={cn(
-            isRail ? "space-y-3" : "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
+            isRail
+              ? "space-y-3"
+              : "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3",
           )}
         >
           <AnimatePresence mode="popLayout">
             {sortedProjects.map((project, index) => {
-              const isActive = project.id === currentProject?.id
-              const isConfirming = confirmingId === project.id
-              const isLoading = loadingId === project.id
-              const isExporting = exportingId === project.id
-              const isFeatured = !isRail && (isActive || index === 0)
+              const isActive = project.id === currentProject?.id;
+              const isConfirming = confirmingId === project.id;
+              const isLoading = loadingId === project.id;
+              const isExporting = exportingId === project.id;
+              const isFeatured = !isRail && (isActive || index === 0);
 
               return (
                 <motion.div
@@ -264,12 +281,19 @@ export function ProjectList({
                     isRail
                       ? "rounded-[12px] bg-background/66 px-4 py-4 hover:border-primary/40 hover:bg-background/78"
                       : "flex min-h-[360px] flex-col rounded-[15px] bg-background/74 p-7 shadow-[0_18px_55px_rgba(0,0,0,0.05)] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_28px_75px_rgba(0,0,0,0.08)]",
-                    isFeatured && !isRail && "bg-gradient-to-br from-primary/[0.18] via-primary/[0.12] to-secondary/[0.18] text-primary-foreground shadow-[0_24px_80px_rgba(77,102,177,0.16)]",
-                    isActive && "border-primary/50 ring-2 ring-primary/5"
+                    isFeatured &&
+                      !isRail &&
+                      "bg-gradient-to-br from-primary/[0.18] via-primary/[0.12] to-secondary/[0.18] text-primary-foreground shadow-[0_24px_80px_rgba(77,102,177,0.16)]",
+                    isActive && "border-primary/50 ring-2 ring-primary/5",
                   )}
                   onClick={() => !isLoading && handleLoad(project.id)}
                 >
-                  <div className={cn("flex", isRail ? "items-start gap-3" : "flex-col")}>
+                  <div
+                    className={cn(
+                      "flex",
+                      isRail ? "items-start gap-3" : "flex-col",
+                    )}
+                  >
                     {!isRail && (
                       <div className="mb-4 flex items-start justify-between">
                         <div
@@ -278,14 +302,17 @@ export function ProjectList({
                             isFeatured
                               ? "bg-background/85 text-foreground"
                               : isActive
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted/50 text-muted-foreground group-hover:bg-primary/5 group-hover:text-primary/70"
+                                ? "bg-primary/10 text-primary"
+                                : "bg-muted/50 text-muted-foreground group-hover:bg-primary/5 group-hover:text-primary/70",
                           )}
                         >
                           <BookOpen size={24} strokeWidth={1.5} />
                         </div>
 
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {isActive && (
                             <div className="mr-2 flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
                               <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
@@ -297,11 +324,11 @@ export function ProjectList({
                             isExporting={isExporting}
                             onCancel={() => setConfirmingId(null)}
                             onConfirmDelete={() => {
-                              void handleDelete(project.id)
+                              void handleDelete(project.id);
                             }}
                             onDelete={() => setConfirmingId(project.id)}
                             onExport={() => {
-                              void handleExport(project.id, project.title)
+                              void handleExport(project.id, project.title);
                             }}
                           />
                         </div>
@@ -315,7 +342,7 @@ export function ProjectList({
                             "mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-colors",
                             isActive
                               ? "bg-primary/12 text-primary"
-                              : "bg-muted/60 text-muted-foreground group-hover:bg-primary/6 group-hover:text-primary/70"
+                              : "bg-muted/60 text-muted-foreground group-hover:bg-primary/6 group-hover:text-primary/70",
                           )}
                         >
                           <BookOpen size={20} strokeWidth={1.6} />
@@ -351,11 +378,11 @@ export function ProjectList({
                                 isExporting={isExporting}
                                 onCancel={() => setConfirmingId(null)}
                                 onConfirmDelete={() => {
-                                  void handleDelete(project.id)
+                                  void handleDelete(project.id);
                                 }}
                                 onDelete={() => setConfirmingId(project.id)}
                                 onExport={() => {
-                                  void handleExport(project.id, project.title)
+                                  void handleExport(project.id, project.title);
                                 }}
                               />
                             </div>
@@ -372,11 +399,17 @@ export function ProjectList({
                                 "flex shrink-0 items-center gap-1.5 text-xs font-semibold transition-all",
                                 isActive
                                   ? "text-primary"
-                                  : "text-muted-foreground group-hover:translate-x-1 group-hover:text-primary"
+                                  : "text-muted-foreground group-hover:translate-x-1 group-hover:text-primary",
                               )}
                             >
-                              {isLoading ? "正在载入..." : isActive ? "继续创作" : "载入项目"}
-                              {!isLoading && <ChevronRight className="h-3.5 w-3.5" />}
+                              {isLoading
+                                ? "正在载入..."
+                                : isActive
+                                  ? "继续创作"
+                                  : "载入项目"}
+                              {!isLoading && (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
                             </div>
                           </div>
                         </div>
@@ -386,24 +419,36 @@ export function ProjectList({
                     {!isRail && (
                       <>
                         <div className="flex-1 space-y-2">
-                          <h3 className={cn(
-                            "line-clamp-2 text-[2rem] font-semibold leading-tight tracking-tight transition-colors sm:text-[2.2rem]",
-                            isFeatured ? "text-foreground" : "text-foreground group-hover:text-primary"
-                          )}>
+                          <h3
+                            className={cn(
+                              "line-clamp-2 text-[2rem] font-semibold leading-tight tracking-tight transition-colors sm:text-[2.2rem]",
+                              isFeatured
+                                ? "text-foreground"
+                                : "text-foreground group-hover:text-primary",
+                            )}
+                          >
                             {project.title || "未命名项目"}
                           </h3>
-                          <p className={cn(
-                            "max-w-md pt-2 text-base leading-8",
-                            isFeatured ? "text-foreground/82" : "text-muted-foreground"
-                          )}>
+                          <p
+                            className={cn(
+                              "max-w-md pt-2 text-base leading-8",
+                              isFeatured
+                                ? "text-foreground/82"
+                                : "text-muted-foreground",
+                            )}
+                          >
                             {isFeatured
                               ? "继续推进故事结构、章节写作与人物关系。"
                               : "打开项目后，可直接回到上次停留的位置。"}
                           </p>
-                          <div className={cn(
-                            "flex items-center gap-4 pt-3 text-xs font-medium",
-                            isFeatured ? "text-foreground/75" : "text-muted-foreground/80"
-                          )}>
+                          <div
+                            className={cn(
+                              "flex items-center gap-4 pt-3 text-xs font-medium",
+                              isFeatured
+                                ? "text-foreground/75"
+                                : "text-muted-foreground/80",
+                            )}
+                          >
                             <div className="flex items-center gap-1.5">
                               <Calendar className="h-3.5 w-3.5" />
                               {formatDate(project.updated_at)}
@@ -415,14 +460,22 @@ export function ProjectList({
                           </div>
                         </div>
 
-                        <div className={cn(
-                          "mt-8 flex items-center justify-between border-t pt-5",
-                          isFeatured ? "border-foreground/10" : "border-border/40"
-                        )}>
-                          <div className={cn(
-                            "text-xs",
-                            isFeatured ? "text-foreground/72" : "text-muted-foreground"
-                          )}>
+                        <div
+                          className={cn(
+                            "mt-8 flex items-center justify-between border-t pt-5",
+                            isFeatured
+                              ? "border-foreground/10"
+                              : "border-border/40",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "text-xs",
+                              isFeatured
+                                ? "text-foreground/72"
+                                : "text-muted-foreground",
+                            )}
+                          >
                             {isActive ? "当前已连接" : "点击打开项目"}
                           </div>
 
@@ -432,12 +485,18 @@ export function ProjectList({
                               isActive
                                 ? "text-primary"
                                 : isFeatured
-                                ? "text-foreground group-hover:translate-x-1"
-                                : "text-muted-foreground group-hover:translate-x-1 group-hover:text-primary"
+                                  ? "text-foreground group-hover:translate-x-1"
+                                  : "text-muted-foreground group-hover:translate-x-1 group-hover:text-primary",
                             )}
                           >
-                            {isLoading ? "正在载入..." : isActive ? "继续创作" : "打开项目"}
-                            {!isLoading && <ChevronRight className="h-3.5 w-3.5" />}
+                            {isLoading
+                              ? "正在载入..."
+                              : isActive
+                                ? "继续创作"
+                                : "打开项目"}
+                            {!isLoading && (
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            )}
                           </div>
                         </div>
                       </>
@@ -448,20 +507,20 @@ export function ProjectList({
                     <div
                       className={cn(
                         "absolute inset-0 z-10 flex items-center justify-center bg-background/40 backdrop-blur-[2px]",
-                        isRail ? "rounded-[12px]" : "rounded-[12px]"
+                        isRail ? "rounded-[12px]" : "rounded-[12px]",
                       )}
                     >
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                   )}
                 </motion.div>
-              )
+              );
             })}
           </AnimatePresence>
         </motion.div>
       )}
     </div>
-  )
+  );
 }
 
 function ProjectActions({
@@ -472,12 +531,12 @@ function ProjectActions({
   onConfirmDelete,
   onCancel,
 }: {
-  isConfirming: boolean
-  isExporting: boolean
-  onExport: () => void
-  onDelete: () => void
-  onConfirmDelete: () => void
-  onCancel: () => void
+  isConfirming: boolean;
+  isExporting: boolean;
+  onExport: () => void;
+  onDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancel: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -524,5 +583,5 @@ function ProjectActions({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

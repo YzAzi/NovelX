@@ -1,146 +1,148 @@
-"use client"
+"use client";
 
-type MessageHandler = (payload: unknown) => void
-type StatusHandler = (status: "connected" | "disconnected" | "reconnecting") => void
+type MessageHandler = (payload: unknown) => void;
+type StatusHandler = (
+  status: "connected" | "disconnected" | "reconnecting",
+) => void;
 
-type HandlerMap = Map<string, Set<MessageHandler>>
+type HandlerMap = Map<string, Set<MessageHandler>>;
 
 export class WebSocketClient {
-  private socket: WebSocket | null = null
-  private handlers: HandlerMap = new Map()
-  private heartbeatTimer: number | null = null
-  private reconnectTimer: number | null = null
-  private reconnectAttempts = 0
-  private shouldReconnect = true
-  private statusHandlers: Set<StatusHandler> = new Set()
+  private socket: WebSocket | null = null;
+  private handlers: HandlerMap = new Map();
+  private heartbeatTimer: number | null = null;
+  private reconnectTimer: number | null = null;
+  private reconnectAttempts = 0;
+  private shouldReconnect = true;
+  private statusHandlers: Set<StatusHandler> = new Set();
 
   connect(
     channelId: string,
     token?: string | null,
     options: {
-      route?: "project" | "outline"
-      queryParams?: Record<string, string | null | undefined>
+      route?: "project" | "outline";
+      queryParams?: Record<string, string | null | undefined>;
     } = {},
   ) {
     if (this.socket) {
-      this.disconnect()
+      this.disconnect();
     }
 
-    const baseUrl = this.getWsBaseUrl()
+    const baseUrl = this.getWsBaseUrl();
     if (!baseUrl) {
-      return
+      return;
     }
 
-    const searchParams = new URLSearchParams()
+    const searchParams = new URLSearchParams();
     if (token) {
-      searchParams.set("token", token)
+      searchParams.set("token", token);
     }
     for (const [key, value] of Object.entries(options.queryParams ?? {})) {
       if (value) {
-        searchParams.set(key, value)
+        searchParams.set(key, value);
       }
     }
-    const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
-    const routePrefix = options.route === "outline" ? "/ws/outline" : "/ws"
-    const url = `${baseUrl}${routePrefix}/${encodeURIComponent(channelId)}${query}`
-    this.shouldReconnect = true
-    this.socket = new WebSocket(url)
+    const query = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
+    const routePrefix = options.route === "outline" ? "/ws/outline" : "/ws";
+    const url = `${baseUrl}${routePrefix}/${encodeURIComponent(channelId)}${query}`;
+    this.shouldReconnect = true;
+    this.socket = new WebSocket(url);
 
     this.socket.onopen = () => {
-      this.reconnectAttempts = 0
-      this.emitStatus("connected")
-      this.startHeartbeat()
-    }
+      this.reconnectAttempts = 0;
+      this.emitStatus("connected");
+      this.startHeartbeat();
+    };
 
     this.socket.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data) as {
-          type?: string
-          payload?: unknown
-        }
+          type?: string;
+          payload?: unknown;
+        };
         if (!message.type) {
-          return
+          return;
         }
         if (message.type === "ping") {
-          this.send({ type: "pong", payload: {} })
-          return
+          this.send({ type: "pong", payload: {} });
+          return;
         }
-        this.emit(message.type, message.payload)
+        this.emit(message.type, message.payload);
       } catch {
         // ignore malformed messages
       }
-    }
+    };
 
     this.socket.onclose = () => {
-      this.stopHeartbeat()
-      this.emitStatus("disconnected")
-      this.scheduleReconnect(channelId, token ?? null, options)
-    }
+      this.stopHeartbeat();
+      this.emitStatus("disconnected");
+      this.scheduleReconnect(channelId, token ?? null, options);
+    };
 
     this.socket.onerror = () => {
-      this.stopHeartbeat()
-      this.emitStatus("disconnected")
-      this.scheduleReconnect(channelId, token ?? null, options)
-    }
+      this.stopHeartbeat();
+      this.emitStatus("disconnected");
+      this.scheduleReconnect(channelId, token ?? null, options);
+    };
   }
 
   disconnect() {
-    this.shouldReconnect = false
-    this.stopHeartbeat()
+    this.shouldReconnect = false;
+    this.stopHeartbeat();
     if (this.reconnectTimer) {
-      window.clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
     if (this.socket) {
-      this.socket.close()
-      this.socket = null
+      this.socket.close();
+      this.socket = null;
     }
   }
 
   on(messageType: string, handler: MessageHandler) {
-    const set = this.handlers.get(messageType) ?? new Set<MessageHandler>()
-    set.add(handler)
-    this.handlers.set(messageType, set)
+    const set = this.handlers.get(messageType) ?? new Set<MessageHandler>();
+    set.add(handler);
+    this.handlers.set(messageType, set);
     return () => {
-      set.delete(handler)
+      set.delete(handler);
       if (set.size === 0) {
-        this.handlers.delete(messageType)
+        this.handlers.delete(messageType);
       }
-    }
+    };
   }
 
   onStatus(handler: StatusHandler) {
-    this.statusHandlers.add(handler)
+    this.statusHandlers.add(handler);
     return () => {
-      this.statusHandlers.delete(handler)
-    }
+      this.statusHandlers.delete(handler);
+    };
   }
 
   private emit(messageType: string, payload: unknown) {
-    const handlers = this.handlers.get(messageType)
+    const handlers = this.handlers.get(messageType);
     if (!handlers) {
-      return
+      return;
     }
-    handlers.forEach((handler) => handler(payload))
+    handlers.forEach((handler) => handler(payload));
   }
 
   private send(payload: { type: string; payload: unknown }) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(payload))
+      this.socket.send(JSON.stringify(payload));
     }
   }
 
   private startHeartbeat() {
-    this.stopHeartbeat()
+    this.stopHeartbeat();
     this.heartbeatTimer = window.setInterval(() => {
-      this.send({ type: "ping", payload: {} })
-    }, 30000)
+      this.send({ type: "ping", payload: {} });
+    }, 30000);
   }
 
   private stopHeartbeat() {
     if (this.heartbeatTimer) {
-      window.clearInterval(this.heartbeatTimer)
-      this.heartbeatTimer = null
+      window.clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
   }
 
@@ -148,47 +150,49 @@ export class WebSocketClient {
     channelId: string,
     token: string | null,
     options: {
-      route?: "project" | "outline"
-      queryParams?: Record<string, string | null | undefined>
+      route?: "project" | "outline";
+      queryParams?: Record<string, string | null | undefined>;
     },
   ) {
     if (!this.shouldReconnect) {
-      return
+      return;
     }
     if (this.reconnectAttempts >= 5) {
-      this.emitStatus("reconnecting")
+      this.emitStatus("reconnecting");
       if (this.reconnectTimer) {
-        window.clearTimeout(this.reconnectTimer)
+        window.clearTimeout(this.reconnectTimer);
       }
       this.reconnectTimer = window.setTimeout(() => {
-        this.reconnectAttempts = 0
-        this.connect(channelId, token, options)
-      }, 60000)
-      return
+        this.reconnectAttempts = 0;
+        this.connect(channelId, token, options);
+      }, 60000);
+      return;
     }
-    this.emitStatus("reconnecting")
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000)
-    this.reconnectAttempts += 1
+    this.emitStatus("reconnecting");
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
+    this.reconnectAttempts += 1;
     if (this.reconnectTimer) {
-      window.clearTimeout(this.reconnectTimer)
+      window.clearTimeout(this.reconnectTimer);
     }
     this.reconnectTimer = window.setTimeout(() => {
-      this.connect(channelId, token, options)
-    }, delay)
+      this.connect(channelId, token, options);
+    }, delay);
   }
 
   private getWsBaseUrl() {
     if (typeof window === "undefined") {
-      return ""
+      return "";
     }
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     if (apiUrl && apiUrl.startsWith("http")) {
-      return apiUrl.replace("http://", "ws://").replace("https://", "wss://")
+      return apiUrl.replace("http://", "ws://").replace("https://", "wss://");
     }
-    return window.location.origin.replace("http://", "ws://").replace("https://", "wss://")
+    return window.location.origin
+      .replace("http://", "ws://")
+      .replace("https://", "wss://");
   }
 
   private emitStatus(status: "connected" | "disconnected" | "reconnecting") {
-    this.statusHandlers.forEach((handler) => handler(status))
+    this.statusHandlers.forEach((handler) => handler(status));
   }
 }

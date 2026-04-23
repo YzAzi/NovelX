@@ -1,8 +1,12 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { IndexSnapshot, SnapshotType, VersionDiff as VersionDiffModel } from "@/src/types/models"
+import type {
+  IndexSnapshot,
+  SnapshotType,
+  VersionDiff as VersionDiffModel,
+} from "@/src/types/models";
 import {
   compareVersions,
   createVersion,
@@ -10,57 +14,63 @@ import {
   getVersionSnapshot,
   listVersions,
   restoreVersion,
-} from "@/src/lib/api"
-import { useProjectStore } from "@/src/stores/project-store"
-import { Button } from "@/components/ui/button"
-import { VersionDiff } from "@/components/version-diff"
+} from "@/src/lib/api";
+import { useProjectStore } from "@/src/stores/project-store";
+import { Button } from "@/components/ui/button";
+import { VersionDiff } from "@/components/version-diff";
 
 type VersionHistoryProps = {
-  open: boolean
-  onClose: () => void
-}
+  open: boolean;
+  onClose: () => void;
+};
 
 const TYPE_STYLES: Record<SnapshotType, string> = {
   auto: "bg-muted text-muted-foreground",
   manual: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   milestone: "bg-muted text-muted-foreground",
   pre_sync: "bg-muted text-muted-foreground",
-}
+};
 
 const TYPE_LABELS: Record<SnapshotType, string> = {
   auto: "历史快照",
   manual: "手动快照",
   milestone: "历史快照",
   pre_sync: "历史快照",
-}
+};
 
 export function VersionHistory({ open, onClose }: VersionHistoryProps) {
-  const { currentProject, setError, replaceProject } = useProjectStore()
-  const [versions, setVersions] = useState<Array<{
-    version: number
-    snapshot_type: SnapshotType
-    name: string | null
-    description: string | null
-    node_count: number
-    words_added?: number
-    words_removed?: number
-    created_at: string
-  }>>([])
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
-  const [baseVersion, setBaseVersion] = useState<number | null>(null)
-  const [selectedVersions, setSelectedVersions] = useState<Set<number>>(new Set())
-  const selectAllRef = useRef<HTMLInputElement | null>(null)
-  const [snapshotCache, setSnapshotCache] = useState<Record<number, IndexSnapshot>>({})
-  const [diff, setDiff] = useState<VersionDiffModel | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const { currentProject, setError, replaceProject } = useProjectStore();
+  const [versions, setVersions] = useState<
+    Array<{
+      version: number;
+      snapshot_type: SnapshotType;
+      name: string | null;
+      description: string | null;
+      node_count: number;
+      words_added?: number;
+      words_removed?: number;
+      created_at: string;
+    }>
+  >([]);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [baseVersion, setBaseVersion] = useState<number | null>(null);
+  const [selectedVersions, setSelectedVersions] = useState<Set<number>>(
+    new Set(),
+  );
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
+  const [snapshotCache, setSnapshotCache] = useState<
+    Record<number, IndexSnapshot>
+  >({});
+  const [diff, setDiff] = useState<VersionDiffModel | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const loadVersions = useCallback(async () => {
     if (!currentProject) {
-      return
+      return;
     }
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const list = await listVersions(currentProject.id)
+      const list = await listVersions(currentProject.id);
       setVersions(
         list.map((item) => ({
           version: item.version,
@@ -69,179 +79,196 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
           description: item.description ?? null,
           node_count: item.node_count,
           created_at: item.created_at,
-        }))
-      )
+        })),
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "加载版本失败"
-      setError(message)
+      const message = error instanceof Error ? error.message : "加载版本失败";
+      setError(message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [currentProject, setError])
+  }, [currentProject, setError]);
 
   useEffect(() => {
     if (open) {
-      loadVersions()
+      loadVersions();
     }
-  }, [loadVersions, open])
+  }, [loadVersions, open]);
 
   useEffect(() => {
     if (!open) {
-      setDiff(null)
-      setSelectedVersion(null)
-      setBaseVersion(null)
-      setSelectedVersions(new Set())
+      setDiff(null);
+      setSelectedVersion(null);
+      setBaseVersion(null);
+      setSelectedVersions(new Set());
     }
-  }, [open])
+  }, [open]);
 
   const handleSelect = useCallback(
     async (version: number) => {
       if (!currentProject) {
-        return
+        return;
       }
       try {
-        setSelectedVersion(version)
-        const list = versions
-          .map((item) => item.version)
-          .sort((a, b) => a - b)
-        const base = list.find((item) => item < version) ?? list[0] ?? version
-        setBaseVersion(base)
+        setSelectedVersion(version);
+        const list = versions.map((item) => item.version).sort((a, b) => a - b);
+        const base = list.find((item) => item < version) ?? list[0] ?? version;
+        setBaseVersion(base);
 
-        const snapshot = snapshotCache[version]
-        const baseSnapshot = snapshotCache[base]
+        const snapshot = snapshotCache[version];
+        const baseSnapshot = snapshotCache[base];
         if (!snapshot) {
-          const loaded = await getVersionSnapshot(currentProject.id, version)
-          setSnapshotCache((prev) => ({ ...prev, [version]: loaded }))
+          const loaded = await getVersionSnapshot(currentProject.id, version);
+          setSnapshotCache((prev) => ({ ...prev, [version]: loaded }));
         }
         if (!baseSnapshot) {
-          const loaded = await getVersionSnapshot(currentProject.id, base)
-          setSnapshotCache((prev) => ({ ...prev, [base]: loaded }))
+          const loaded = await getVersionSnapshot(currentProject.id, base);
+          setSnapshotCache((prev) => ({ ...prev, [base]: loaded }));
         }
-        const computed = await compareVersions(currentProject.id, base, version)
-        setDiff(computed)
+        const computed = await compareVersions(
+          currentProject.id,
+          base,
+          version,
+        );
+        setDiff(computed);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "加载版本差异失败"
-        setError(message)
+        const message =
+          error instanceof Error ? error.message : "加载版本差异失败";
+        setError(message);
       }
     },
-    [currentProject, setError, snapshotCache, versions]
-  )
+    [currentProject, setError, snapshotCache, versions],
+  );
 
-  const selectedSnapshot = selectedVersion ? snapshotCache[selectedVersion] ?? null : null
-  const baseSnapshot = baseVersion ? snapshotCache[baseVersion] ?? null : null
+  const selectedSnapshot = selectedVersion
+    ? (snapshotCache[selectedVersion] ?? null)
+    : null;
+  const baseSnapshot = baseVersion
+    ? (snapshotCache[baseVersion] ?? null)
+    : null;
 
-  const visibleVersions = useMemo(() => versions.map((item) => item.version), [versions])
-  const allSelected = visibleVersions.length > 0 && visibleVersions.every((v) => selectedVersions.has(v))
-  const someSelected = visibleVersions.some((v) => selectedVersions.has(v)) && !allSelected
+  const visibleVersions = useMemo(
+    () => versions.map((item) => item.version),
+    [versions],
+  );
+  const allSelected =
+    visibleVersions.length > 0 &&
+    visibleVersions.every((v) => selectedVersions.has(v));
+  const someSelected =
+    visibleVersions.some((v) => selectedVersions.has(v)) && !allSelected;
 
   useEffect(() => {
     if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = someSelected
+      selectAllRef.current.indeterminate = someSelected;
     }
-  }, [someSelected])
+  }, [someSelected]);
 
   const handleCreateSnapshot = async () => {
     if (!currentProject) {
-      return
+      return;
     }
-    const name = window.prompt("快照名称", "手动快照")
+    const name = window.prompt("快照名称", "手动快照");
     if (name === null) {
-      return
+      return;
     }
     try {
-      await createVersion(currentProject.id, { name })
-      loadVersions()
+      await createVersion(currentProject.id, { name });
+      loadVersions();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "创建快照失败"
-      setError(message)
+      const message = error instanceof Error ? error.message : "创建快照失败";
+      setError(message);
     }
-  }
+  };
 
   const handleRestore = async () => {
     if (!currentProject || selectedVersion === null) {
-      return
+      return;
     }
-    const confirmed = window.confirm(`确认恢复到版本 v${selectedVersion} 吗？`)
+    const confirmed = window.confirm(`确认恢复到版本 v${selectedVersion} 吗？`);
     if (!confirmed) {
-      return
+      return;
     }
     try {
-      const restored = await restoreVersion(currentProject.id, selectedVersion)
-      replaceProject(restored)
-      onClose()
+      const restored = await restoreVersion(currentProject.id, selectedVersion);
+      replaceProject(restored);
+      onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "恢复版本失败"
-      setError(message)
+      const message = error instanceof Error ? error.message : "恢复版本失败";
+      setError(message);
     }
-  }
+  };
 
   const handleDelete = async () => {
     if (!currentProject || selectedVersion === null) {
-      return
+      return;
     }
-    const confirmed = window.confirm(`确认删除版本 v${selectedVersion} 吗？`)
+    const confirmed = window.confirm(`确认删除版本 v${selectedVersion} 吗？`);
     if (!confirmed) {
-      return
+      return;
     }
     try {
-      await deleteVersion(currentProject.id, selectedVersion)
-      setSelectedVersion(null)
-      setDiff(null)
-      loadVersions()
+      await deleteVersion(currentProject.id, selectedVersion);
+      setSelectedVersion(null);
+      setDiff(null);
+      loadVersions();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "删除版本失败"
-      setError(message)
+      const message = error instanceof Error ? error.message : "删除版本失败";
+      setError(message);
     }
-  }
+  };
 
   const toggleBatchSelection = (version: number) => {
     setSelectedVersions((prev) => {
-      const next = new Set(prev)
+      const next = new Set(prev);
       if (next.has(version)) {
-        next.delete(version)
+        next.delete(version);
       } else {
-        next.add(version)
+        next.add(version);
       }
-      return next
-    })
-  }
+      return next;
+    });
+  };
 
   const handleSelectAll = () => {
     setSelectedVersions((prev) => {
       if (allSelected) {
-        return new Set()
+        return new Set();
       }
-      return new Set(visibleVersions)
-    })
-  }
+      return new Set(visibleVersions);
+    });
+  };
 
   const handleBulkDelete = async () => {
     if (!currentProject || selectedVersions.size === 0) {
-      return
+      return;
     }
-    const confirmed = window.confirm(`确认删除选中的 ${selectedVersions.size} 个版本吗？`)
+    const confirmed = window.confirm(
+      `确认删除选中的 ${selectedVersions.size} 个版本吗？`,
+    );
     if (!confirmed) {
-      return
+      return;
     }
     try {
       await Promise.all(
-        Array.from(selectedVersions).map((version) => deleteVersion(currentProject.id, version))
-      )
+        Array.from(selectedVersions).map((version) =>
+          deleteVersion(currentProject.id, version),
+        ),
+      );
       if (selectedVersion && selectedVersions.has(selectedVersion)) {
-        setSelectedVersion(null)
-        setBaseVersion(null)
-        setDiff(null)
+        setSelectedVersion(null);
+        setBaseVersion(null);
+        setDiff(null);
       }
-      setSelectedVersions(new Set())
-      loadVersions()
+      setSelectedVersions(new Set());
+      loadVersions();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "删除版本失败"
-      setError(message)
+      const message = error instanceof Error ? error.message : "删除版本失败";
+      setError(message);
     }
-  }
+  };
 
   if (!open) {
-    return null
+    return null;
   }
 
   return (
@@ -314,7 +341,9 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
                             v{item.version} {item.name ?? ""}
                           </div>
                         </div>
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] ${TYPE_STYLES[item.snapshot_type]}`}>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] ${TYPE_STYLES[item.snapshot_type]}`}
+                        >
                           {TYPE_LABELS[item.snapshot_type]}
                         </span>
                       </div>
@@ -338,18 +367,28 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
               <div>
                 {selectedVersion ? (
                   <>
-                    <span className="font-semibold">选中版本：</span>
-                    v{selectedVersion}
+                    <span className="font-semibold">选中版本：</span>v
+                    {selectedVersion}
                   </>
                 ) : (
                   <span className="text-muted-foreground">请选择一个版本</span>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={handleRestore} disabled={!selectedVersion}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRestore}
+                  disabled={!selectedVersion}
+                >
                   恢复到此版本
                 </Button>
-                <Button size="sm" variant="ghost" onClick={handleDelete} disabled={!selectedVersion}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleDelete}
+                  disabled={!selectedVersion}
+                >
                   删除
                 </Button>
               </div>
@@ -358,11 +397,15 @@ export function VersionHistory({ open, onClose }: VersionHistoryProps) {
               当前版本系统只保留手动快照。旧项目中的自动、预同步和里程碑快照都会作为历史快照兼容显示。
             </div>
             <div className="flex-1 overflow-y-auto">
-              <VersionDiff base={baseSnapshot} target={selectedSnapshot} diff={diff} />
+              <VersionDiff
+                base={baseSnapshot}
+                target={selectedSnapshot}
+                diff={diff}
+              />
             </div>
           </div>
         </div>
       </aside>
     </div>
-  )
+  );
 }
