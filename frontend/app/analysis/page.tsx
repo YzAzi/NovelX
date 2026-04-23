@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   History,
   Network,
-  PanelLeftClose,
   PanelLeftOpen,
   PenTool,
   Search,
@@ -15,6 +14,10 @@ import {
   Sparkles,
   Square,
   Trash2,
+  MessageSquare,
+  Bot,
+  User,
+  Zap,
 } from "lucide-react"
 import "@uiw/react-markdown-preview/markdown.css"
 
@@ -36,9 +39,14 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 const MarkdownPreview = dynamic(
@@ -282,16 +290,16 @@ export default function OutlineAnalysisPage() {
 
   if (!currentProject) {
     return (
-      <div className="app-backdrop flex h-screen w-full items-center justify-center px-4">
-        <div className="panel-shell-strong w-full max-w-lg p-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
-            <Search className="h-6 w-6" />
+      <div className="flex h-screen w-full items-center justify-center bg-background px-4 text-foreground">
+        <div className="w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Search className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-semibold text-foreground">请先选择一个项目</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          <h2 className="text-2xl font-semibold tracking-tight">请先选择一个项目</h2>
+          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
             选择项目后，这里会展示历史分析记录、快捷提问入口以及适合当前篇幅的分析配置。
           </p>
-          <Button asChild variant="outline" className="mt-5 rounded-xl">
+          <Button asChild className="mt-8 rounded-full px-8">
             <Link href="/">返回主页</Link>
           </Button>
         </div>
@@ -300,153 +308,137 @@ export default function OutlineAnalysisPage() {
   }
 
   const historySidebarContent = (
-    <>
-      <div className="border-b border-border/60 px-4 py-4">
-        <div className="flex items-center justify-between gap-3">
+    <div className="flex h-full flex-col bg-muted/10">
+      <div className="flex flex-col gap-4 p-5 border-b border-border/40 shrink-0">
+        <Link href="/" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-fit">
+          <ChevronLeft size={16} />
+          返回主页
+        </Link>
+        <div className="flex flex-col gap-2">
+          <h2 className="font-semibold text-lg truncate tracking-tight text-foreground" title={currentProject.title}>
+            {currentProject.title || "未命名项目"}
+          </h2>
+          <div className="flex items-center gap-2 mt-1">
+            <Button asChild variant="secondary" size="sm" className="h-8 flex-1 justify-center rounded-lg text-xs bg-background hover:bg-muted shadow-sm border border-border/40">
+              <Link href={`/projects/${currentProject.id}/writing`}>
+                <PenTool className="h-3.5 w-3.5 mr-2" />
+                写作
+              </Link>
+            </Button>
+            <Button asChild variant="secondary" size="sm" className="h-8 flex-1 justify-center rounded-lg text-xs bg-background hover:bg-muted shadow-sm border border-border/40">
+              <Link href={`/projects/${currentProject.id}/relations`}>
+                <Network className="h-3.5 w-3.5 mr-2" />
+                关系图
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1 px-3 py-5">
+        <div className="space-y-8">
           <div>
-            <div className="text-sm font-semibold text-foreground">会话历史</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              快速跳到此前的提问位置，继续追问同一问题。
+            <div className="px-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <Zap size={13} className="text-amber-500/80" /> 快捷提问
+            </div>
+            <div className="space-y-1">
+              {QUICK_ACTIONS.map((action) => (
+                <button
+                  key={action}
+                  onClick={() => {
+                    sendMessage(action)
+                    setMobileHistoryOpen(false)
+                  }}
+                  disabled={isStreaming}
+                  className="w-full text-left p-2.5 rounded-xl text-[13px] text-muted-foreground hover:text-foreground hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed group border border-transparent hover:border-border/50"
+                >
+                  <div className="line-clamp-2 leading-relaxed group-hover:line-clamp-none transition-all">{action}</div>
+                </button>
+              ))}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="hidden rounded-xl lg:inline-flex"
-            onClick={() => setHistorySidebarOpen(false)}
-          >
-            <PanelLeftClose className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
 
-      <div className="border-b border-border/60 p-4">
-        <div className="space-y-3">
-          {QUICK_ACTIONS.map((action) => (
-            <button
-              key={action}
-              onClick={() => {
-                sendMessage(action)
-                setMobileHistoryOpen(false)
-              }}
-              disabled={isStreaming}
-              className="w-full rounded-[11px] border border-border/70 bg-background/70 px-4 py-4 text-left transition hover:border-primary/30 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 rounded-xl bg-primary/10 p-2 text-primary">
-                  <Sparkles className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-foreground">{action}</div>
-                  <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                    直接发给分析助手，生成针对当前项目的结构建议。
-                  </div>
-                </div>
+          <div>
+            <div className="px-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <History size={13} className="text-blue-500/80" /> 历史记录
+            </div>
+            {historyItems.length === 0 ? (
+              <div className="px-2 py-6 text-[13px] text-muted-foreground/50 text-center">
+                暂无历史对话
               </div>
-            </button>
-          ))}
+            ) : (
+              <div className="space-y-1">
+                {historyItems.map((item, itemIndex) => (
+                  <button
+                    key={item.index}
+                    onClick={() => scrollToMessage(item.index)}
+                    className="w-full text-left p-2.5 rounded-xl text-[13px] text-muted-foreground hover:text-foreground hover:bg-primary/5 transition-all group flex flex-col gap-1.5 border border-transparent hover:border-border/50"
+                  >
+                    <div className="font-medium text-foreground/70 flex justify-between text-[11px] uppercase tracking-wider">
+                      <span>问题 {itemIndex + 1}</span>
+                    </div>
+                    <div className="line-clamp-2 leading-relaxed">{item.content}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-
-      <ScrollArea className="min-h-0 flex-1 px-4 py-4">
-        {historyItems.length === 0 ? (
-          <div className="empty-state-panel px-4 py-6">
-            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <History className="h-4 w-4" />
-            </div>
-            <div className="text-sm font-medium text-foreground">还没有历史问题</div>
-            <div className="mt-1 text-xs leading-5 text-muted-foreground">
-              发送第一条分析请求后，这里会按顺序记录你的提问。
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {historyItems.map((item, itemIndex) => (
-              <button
-                key={item.index}
-                onClick={() => scrollToMessage(item.index)}
-                className="w-full rounded-2xl border border-border/70 bg-background/75 px-3 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-xs font-medium text-muted-foreground">
-                    问题 {itemIndex + 1}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    第 {item.index + 1} 条
-                  </div>
-                </div>
-                <div className="mt-2 line-clamp-3 text-sm leading-6 text-foreground">
-                  {item.content}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
       </ScrollArea>
-
-      <div className="border-t border-border/60 px-4 py-4">
-        <div className="rounded-[11px] border border-border/70 bg-[linear-gradient(135deg,rgba(77,102,177,0.08),rgba(223,191,144,0.12))] p-4">
-          <div className="text-sm font-semibold text-foreground">使用建议</div>
-          <div className="mt-2 text-sm leading-6 text-muted-foreground">
-            先做一次全局一致性检查，再点历史问题回跳，继续追问局部修改方案。
-          </div>
-        </div>
-      </div>
-    </>
+    </div>
   )
 
   return (
-    <div className="app-backdrop flex h-screen w-full flex-col overflow-hidden text-foreground">
-      <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
-        <header className="panel-shell px-4 py-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Button asChild variant="ghost" size="icon-sm" className="rounded-xl">
-                    <Link href="/" title="返回主页">
-                      <ChevronLeft size={16} />
-                    </Link>
-                  </Button>
-                  <div className="status-pill">
-                    <Sparkles className="h-3.5 w-3.5 text-primary/80" />
-                    大纲深度分析
-                  </div>
-                </div>
-                <div>
-                  <h1 className="font-serif text-2xl font-semibold tracking-tight sm:text-3xl">
-                    {currentProject.title || "未命名项目"}
-                  </h1>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    用对话式分析快速检查剧情逻辑、设定冲突、人物动机与扩写方向，并根据篇幅切换更合适的分析模式。
-                  </p>
-                </div>
-              </div>
+    <TooltipProvider delayDuration={300}>
+      <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans">
+        {/* Sidebar - Desktop */}
+        <aside className={cn(
+          "hidden lg:flex flex-col border-r border-border/40 transition-all duration-300 ease-in-out shrink-0 bg-muted/10 relative z-20",
+          historySidebarOpen ? "w-[280px] xl:w-[320px]" : "w-0 opacity-0 overflow-hidden border-r-0"
+        )}>
+          {historySidebarContent}
+        </aside>
 
-              <div className="flex flex-wrap items-center gap-2">
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col min-w-0 bg-background relative z-10">
+          {/* Header */}
+          <header className="h-14 flex items-center justify-between px-3 sm:px-5 border-b border-border/40 bg-background/95 backdrop-blur absolute top-0 left-0 right-0 z-10 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="lg:hidden h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={() => setMobileHistoryOpen(true)}
+              >
+                <PanelLeftOpen size={16} />
+              </Button>
+              {!historySidebarOpen && (
                 <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl lg:hidden"
-                  onClick={() => setMobileHistoryOpen(true)}
+                  variant="ghost"
+                  size="icon-sm"
+                  className="hidden lg:flex h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                  onClick={() => setHistorySidebarOpen(true)}
                 >
-                  <History className="h-4 w-4" />
-                  历史
+                  <PanelLeftOpen size={16} />
                 </Button>
-                <Button asChild variant="outline" size="sm" className="rounded-xl">
-                  <Link href={`/projects/${currentProject.id}/writing`}>
-                    <PenTool className="h-4 w-4" />
-                    写作
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="sm" className="rounded-xl">
-                  <Link href={`/projects/${currentProject.id}/relations`}>
-                    <Network className="h-4 w-4" />
-                    关系图
-                  </Link>
-                </Button>
+              )}
+              <div className="flex items-center gap-2 px-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm tracking-wide">大纲分析</span>
+                {isStreaming && (
+                  <span className="relative flex h-2 w-2 ml-1">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <div className="hidden sm:flex items-center gap-2 pr-2 border-r border-border/40">
+                <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">模式</div>
                 <select
-                  className="form-select h-9"
+                  className="h-7 rounded-md border border-border/50 bg-muted/30 px-2 py-0 text-xs outline-none focus:ring-1 focus:ring-primary/30 transition-all hover:bg-muted/50 disabled:opacity-50 cursor-pointer"
                   value={selectedProfile}
                   onChange={(event) =>
                     handleProfileChange(
@@ -460,152 +452,120 @@ export default function OutlineAnalysisPage() {
                   <option value="medium">检索分析</option>
                   <option value="long">深度检索分析</option>
                 </select>
-                <Button
-                  size="sm"
-                  onClick={handleQuickAnalyze}
-                  disabled={isStreaming}
-                  className="rounded-xl"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  一键分析
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setMessages([])}
-                  disabled={isStreaming || messages.length === 0}
-                  className="rounded-xl text-muted-foreground hover:text-destructive"
-                  title="清空对话"
-                >
-                  <Trash2 size={16} />
-                </Button>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={handleQuickAnalyze}
+                      disabled={isStreaming}
+                      className="h-8 w-8 rounded-lg text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                    >
+                      <Zap size={15} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>一键分析</TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => setMessages([])}
+                      disabled={isStreaming || messages.length === 0}
+                      className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 size={15} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>清空对话</TooltipContent>
+                </Tooltip>
               </div>
             </div>
+          </header>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-[12px] border border-border/70 bg-background/70 px-4 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                  分析模式
-                </div>
-                <div className="mt-2 text-xl font-semibold text-foreground">
-                  {selectedProfile === "auto"
-                    ? "自动"
-                    : selectedProfile === "short"
-                      ? "全量"
-                      : selectedProfile === "medium"
-                        ? "检索"
-                        : "深度检索"}
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  自动模式下按大纲文本字数判断：少于 10 万字走全量分析，10 万字及以上走检索分析
-                </div>
-              </div>
-              <div className="rounded-[12px] border border-border/70 bg-background/70 px-4 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                  历史记录
-                </div>
-                <div className="mt-2 text-xl font-semibold text-foreground">{messages.length}</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  已保存的对话轮次会在这里继续衔接
-                </div>
-              </div>
-              <div className="rounded-[12px] border border-border/70 bg-background/70 px-4 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                  当前状态
-                </div>
-                <div className="mt-2 text-xl font-semibold text-foreground">
-                  {isStreaming ? "分析中" : "待命"}
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {isStreaming ? "正在持续生成建议，请稍候" : "可以继续追问细节或索要改写方案"}
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="flex min-h-0 flex-1 gap-3">
-          {historySidebarOpen ? (
-            <aside className="panel-shell hidden min-h-0 w-[340px] shrink-0 flex-col overflow-hidden lg:flex">
-              {historySidebarContent}
-            </aside>
-          ) : (
-            <aside className="panel-shell hidden min-h-0 w-[92px] shrink-0 items-center justify-center lg:flex">
-              <Button
-                variant="ghost"
-                size="icon-lg"
-                className="rounded-2xl"
-                onClick={() => setHistorySidebarOpen(true)}
-              >
-                <PanelLeftOpen className="h-5 w-5" />
-              </Button>
-            </aside>
-          )}
-
-          <section className="panel-shell-strong flex min-h-0 flex-col overflow-hidden">
-            <div className="border-b border-border/60 px-4 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-foreground">分析对话区</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    支持连续追问，适合逐步拆解剧情漏洞、角色动机和扩写策略。
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="hidden rounded-xl lg:inline-flex"
-                  onClick={() => setHistorySidebarOpen((prev) => !prev)}
-                >
-                  {historySidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.5),rgba(248,243,235,0.7))]">
-              <ScrollArea ref={scrollRef} className="h-full w-full">
-                <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6 sm:py-8">
-                  {orderedMessages.length === 0 ? (
-                    <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
-                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
-                        <Sparkles size={24} />
-                      </div>
-                      <h3 className="text-lg font-semibold text-foreground">AI 大纲分析助手</h3>
-                      <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                        我可以帮你检查剧情逻辑、寻找设定冲突、评估节奏断点，或者给出更具体的扩写与调整建议。
-                      </p>
+          {/* Chat Area */}
+          <div className="flex-1 overflow-hidden pt-14">
+            <ScrollArea ref={scrollRef} className="h-full w-full">
+              <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12 min-h-full flex flex-col">
+                {orderedMessages.length === 0 ? (
+                  <div className="flex flex-1 flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700 pb-20">
+                    <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-sm ring-1 ring-primary/20">
+                      <Sparkles size={28} />
                     </div>
-                  ) : (
-                    <div className="space-y-5">
-                      {orderedMessages.map((message, index) => (
+                    <h3 className="text-xl font-semibold text-foreground tracking-tight">AI 剧情分析助手</h3>
+                    <p className="mt-3 max-w-md text-[15px] text-muted-foreground leading-relaxed">
+                      我可以帮你检查剧情逻辑、寻找设定冲突、评估节奏断点，或者给出更具体的扩写与调整建议。
+                    </p>
+                    <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
+                      {QUICK_ACTIONS.slice(0, 2).map((action) => (
+                        <button
+                          key={action}
+                          onClick={() => sendMessage(action)}
+                          className="p-4 text-left rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm hover:bg-primary/5 hover:border-primary/30 transition-all text-sm text-muted-foreground hover:text-foreground shadow-sm group"
+                        >
+                          <MessageSquare className="h-4 w-4 mb-2.5 text-primary/60 group-hover:text-primary transition-colors" />
+                          <span className="leading-relaxed">{action}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-8 pb-4">
+                    {orderedMessages.map((message, index) => (
+                      <div
+                        key={index}
+                        ref={(node) => {
+                          if (node) {
+                            messageItemRefs.current.set(index, node)
+                          } else {
+                            messageItemRefs.current.delete(index)
+                          }
+                        }}
+                        className={cn(
+                          "flex w-full gap-4 sm:gap-5 animate-in slide-in-from-bottom-2 fade-in duration-300",
+                          message.role === "user" ? "flex-row-reverse" : "flex-row"
+                        )}
+                      >
+                        <div className="flex-shrink-0 mt-1">
+                          {message.role === "user" ? (
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary ring-1 ring-primary/20 shadow-sm">
+                              <User size={15} />
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 ring-1 ring-blue-500/20 shadow-sm">
+                              <Bot size={15} />
+                            </div>
+                          )}
+                        </div>
+                        
                         <div
-                          key={index}
-                          ref={(node) => {
-                            if (node) {
-                              messageItemRefs.current.set(index, node)
-                            } else {
-                              messageItemRefs.current.delete(index)
-                            }
-                          }}
                           className={cn(
-                            "flex w-full",
-                            message.role === "user" ? "justify-end" : "justify-start"
+                            "flex flex-col gap-1.5 min-w-0 max-w-[85%] sm:max-w-[75%]",
+                            message.role === "user" ? "items-end" : "items-start"
                           )}
                         >
+                          <div className="text-[11px] font-medium text-muted-foreground px-1 uppercase tracking-wider">
+                            {message.role === "user" ? "你" : "分析助手"}
+                          </div>
                           <div
                             className={cn(
-                              "max-w-[92%] rounded-[12px] px-5 py-4 text-sm leading-7 shadow-sm sm:max-w-[80%]",
+                              "rounded-2xl px-5 py-4 text-[15px] leading-relaxed shadow-sm",
                               message.role === "user"
-                                ? "rounded-br-md bg-primary text-primary-foreground"
-                                : "rounded-bl-md border border-border/70 bg-background/85 text-card-foreground"
+                                ? "bg-primary text-primary-foreground rounded-tr-sm"
+                                : "bg-card border border-border/50 text-card-foreground rounded-tl-sm"
                             )}
                           >
                             {message.role === "assistant" ? (
-                              <div className="markdown-preview-reset text-sm">
+                              <div className="markdown-preview-reset">
                                 <MarkdownPreview
                                   source={normalizeMarkdown(
                                     stripFencedCodeBlocks(
-                                      message.content || (isStreaming ? "Thinking..." : "")
+                                      message.content || (isStreaming ? "正在思考..." : "")
                                     )
                                   )}
                                   style={{
@@ -621,76 +581,80 @@ export default function OutlineAnalysisPage() {
                             )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="h-4" />
-                </div>
-              </ScrollArea>
-            </div>
-
-            <div className="border-t border-border/60 bg-background/88 px-4 py-4 backdrop-blur">
-              <div className="mx-auto w-full max-w-4xl">
-                <div className="relative rounded-[14px] border border-border bg-background/80 p-3 shadow-sm transition-all focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20">
-                  <Textarea
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault()
-                        if (canSend) sendMessage(input.trim())
-                      }
-                    }}
-                    placeholder="输入你的问题，Shift + Enter 换行..."
-                    rows={1}
-                    className="min-h-[88px] max-h-[220px] w-full resize-none border-0 bg-transparent px-2 py-2 pr-14 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
-                    style={{ height: "auto", overflow: "hidden" }}
-                  />
-                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                    {isStreaming ? (
-                      <Button
-                        size="icon-sm"
-                        variant="destructive"
-                        className="rounded-xl"
-                        onClick={() => abortRef.current?.abort()}
-                      >
-                        <Square size={14} fill="currentColor" />
-                      </Button>
-                    ) : (
-                      <Button
-                        size="icon-sm"
-                        className="rounded-xl"
-                        disabled={!canSend}
-                        onClick={() => sendMessage(input.trim())}
-                      >
-                        <Send size={16} />
-                      </Button>
-                    )}
+                      </div>
+                    ))}
                   </div>
-                </div>
-                {error ? (
-                  <div className="mt-3 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-xs text-destructive">
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Input Area */}
+          <div className="p-3 sm:p-5 bg-background/95 backdrop-blur border-t border-border/40 shrink-0 relative z-20">
+            <div className="mx-auto w-full max-w-3xl relative">
+              {error ? (
+                <div className="absolute -top-12 left-0 right-0 flex justify-center animate-in slide-in-from-bottom-2 fade-in">
+                  <div className="rounded-full border border-destructive/20 bg-destructive/10 px-4 py-1.5 text-[13px] text-destructive shadow-sm backdrop-blur">
                     {error}
                   </div>
-                ) : null}
-                <div className="mt-2 text-center text-[11px] text-muted-foreground/70">
-                  AI 内容仅供参考，请核对重要信息。
+                </div>
+              ) : null}
+              
+              <div className="relative rounded-2xl border border-border/60 bg-muted/20 shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 focus-within:bg-background">
+                <Textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault()
+                      if (canSend) sendMessage(input.trim())
+                    }
+                  }}
+                  placeholder="输入关于剧情的问题，例如：这段剧情的反派动机是否合理？ (Shift + Enter 换行)"
+                  rows={1}
+                  className="min-h-[64px] max-h-[240px] w-full resize-none border-0 bg-transparent px-4 py-4 pr-16 text-[15px] focus-visible:ring-0 placeholder:text-muted-foreground/50 leading-relaxed"
+                  style={{ height: "auto", overflow: "hidden" }}
+                />
+                <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                  {isStreaming ? (
+                    <Button
+                      size="icon-sm"
+                      variant="destructive"
+                      className="h-8 w-8 rounded-xl shadow-sm"
+                      onClick={() => abortRef.current?.abort()}
+                    >
+                      <Square size={14} fill="currentColor" />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="icon-sm"
+                      className="h-8 w-8 rounded-xl shadow-sm transition-all"
+                      disabled={!canSend}
+                      onClick={() => sendMessage(input.trim())}
+                    >
+                      <Send size={14} className={cn("transition-transform", canSend && "translate-x-0.5 -translate-y-0.5")} />
+                    </Button>
+                  )}
                 </div>
               </div>
+              <div className="mt-3 text-center text-[11px] text-muted-foreground/50 flex items-center justify-center gap-1.5">
+                <Sparkles size={11} className="text-muted-foreground/40" /> AI 生成内容仅供参考，请结合实际创作调整
+              </div>
             </div>
-          </section>
-        </div>
-      </div>
+          </div>
+        </main>
 
-      <Sheet open={mobileHistoryOpen} onOpenChange={setMobileHistoryOpen}>
-        <SheetContent side="left" className="w-[88vw] max-w-none p-0 sm:max-w-md lg:hidden">
-          <SheetHeader className="border-b border-border/60">
-            <SheetTitle>历史侧栏</SheetTitle>
-            <SheetDescription>查看过往提问，并一键跳回对应位置继续分析。</SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-hidden">{historySidebarContent}</div>
-        </SheetContent>
-      </Sheet>
-    </div>
+        {/* Mobile Drawer */}
+        <Sheet open={mobileHistoryOpen} onOpenChange={setMobileHistoryOpen}>
+          <SheetContent side="left" className="w-[85vw] max-w-sm p-0 flex flex-col border-r-border/40">
+            <div className="p-4 border-b border-border/40 shrink-0">
+              <SheetTitle className="text-lg">历史侧栏</SheetTitle>
+              <SheetDescription className="mt-1 text-xs">查看过往提问，并一键跳回对应位置继续分析。</SheetDescription>
+            </div>
+            <div className="flex-1 overflow-hidden">{historySidebarContent}</div>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </TooltipProvider>
   )
 }
