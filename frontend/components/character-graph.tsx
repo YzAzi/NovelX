@@ -747,7 +747,7 @@ export function CharacterGraph() {
   } as CSSProperties;
 
   const filterPanelContent = (
-    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -768,7 +768,7 @@ export function CharacterGraph() {
             按章节聚焦
           </label>
           <select
-            className="w-full rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-bg)] px-3 py-2.5 text-sm text-[var(--cg-ink)]"
+            className="w-full rounded-xl border border-[var(--cg-border)] bg-[var(--cg-bg)] px-3 py-2.5 text-sm text-[var(--cg-ink)]"
             value={selectedChapterId}
             onChange={(event) =>
               setSelectedChapterId(event.target.value as string | "all")
@@ -793,7 +793,7 @@ export function CharacterGraph() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="例如：陆沉、阿沉、宿敌"
-              className="h-11 rounded-2xl border-[var(--cg-border)] bg-white pl-10"
+              className="h-11 rounded-xl border-[var(--cg-border)] bg-white pl-10"
             />
           </div>
         </div>
@@ -864,7 +864,7 @@ export function CharacterGraph() {
   );
 
   const rosterPanelContent = (
-    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -882,7 +882,7 @@ export function CharacterGraph() {
       <ScrollArea className="mt-4 h-[420px] pr-3">
         <div className="space-y-2.5">
           {visibleCharacters.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
+            <div className="rounded-xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
               当前筛选下没有可展示角色
             </div>
           ) : (
@@ -905,9 +905,9 @@ export function CharacterGraph() {
                     )
                   }
                   className={cn(
-                    "w-full rounded-2xl border px-3 py-3 text-left transition-all",
+                    "w-full rounded-xl border px-3 py-3 text-left transition-all",
                     isActive
-                      ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-[0_12px_28px_var(--cg-accent-glow)]"
+                      ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-md"
                       : isHovered
                         ? "border-[var(--cg-accent)]/50 bg-white"
                         : "border-[var(--cg-border)] bg-white/70 hover:border-[var(--cg-accent)]/35 hover:bg-white",
@@ -955,7 +955,7 @@ export function CharacterGraph() {
   );
 
   const focusPanelContent = (
-    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -965,18 +965,18 @@ export function CharacterGraph() {
             当前焦点
           </h3>
         </div>
-        <div className="rounded-2xl bg-[var(--cg-accent-soft)] p-2 text-[var(--cg-accent)]">
+        <div className="rounded-xl bg-[var(--cg-accent-soft)] p-2 text-[var(--cg-accent)]">
           <Users className="h-4 w-4" />
         </div>
       </div>
 
       {!selectedCharacter ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-sm leading-6 text-[var(--cg-muted)]">
+        <div className="mt-4 rounded-xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-sm leading-6 text-[var(--cg-muted)]">
           选中角色或图中节点后，这里会展示角色摘要、出场次数和关联关系。
         </div>
       ) : (
         <div className="mt-4 space-y-4">
-          <div className="rounded-3xl border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,220,201,0.45))] p-4">
+          <div className="rounded-xl border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,220,201,0.45))] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-serif text-2xl text-[var(--cg-ink)]">
@@ -1015,7 +1015,7 @@ export function CharacterGraph() {
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-2xl border border-[var(--cg-border)] bg-white/80 px-3 py-3 text-center"
+                  className="rounded-xl border border-[var(--cg-border)] bg-white/80 px-3 py-3 text-center"
                 >
                   <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--cg-muted)]">
                     {item.label}
@@ -1028,7 +1028,7 @@ export function CharacterGraph() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
+          <div className="rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
             <p className="text-xs font-medium text-[var(--cg-muted)]">别名</p>
             <p className="mt-2 text-sm leading-6 text-[var(--cg-ink)]">
               {(selectedCharacter.aliases ?? []).join("、") || "无"}
@@ -1040,7 +1040,7 @@ export function CharacterGraph() {
   );
 
   const relationPanelContent = (
-    <div className="rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_48px_rgba(32,25,18,0.08)]">
+    <div className="rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
@@ -1067,7 +1067,7 @@ export function CharacterGraph() {
       <ScrollArea className="mt-4 h-[420px] pr-3">
         <div className="space-y-2.5">
           {relationSummaries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
+            <div className="rounded-xl border border-dashed border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-4 py-8 text-center text-sm text-[var(--cg-muted)]">
               当前视图暂无关系连线
             </div>
           ) : (
@@ -1075,9 +1075,9 @@ export function CharacterGraph() {
               <div
                 key={item.id}
                 className={cn(
-                  "rounded-2xl border px-3 py-3 transition",
+                  "rounded-xl border px-3 py-3 transition",
                   item.focus
-                    ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-[0_10px_26px_var(--cg-accent-glow)]"
+                    ? "border-[var(--cg-accent)] bg-[var(--cg-accent-soft)] shadow-md"
                     : "border-[var(--cg-border)] bg-white/75 hover:border-[var(--cg-accent)]/35",
                 )}
               >
@@ -1135,7 +1135,7 @@ export function CharacterGraph() {
 
   return (
     <section
-      className="relative overflow-hidden rounded-[16px] border border-black/5 bg-[var(--cg-bg)] text-[var(--cg-ink)] shadow-[0_32px_120px_rgba(38,24,14,0.12)]"
+      className="relative overflow-hidden rounded-2xl border border-black/5 bg-[var(--cg-bg)] text-[var(--cg-ink)] shadow-xl"
       style={cssVars}
     >
       <div className="pointer-events-none absolute inset-0">
@@ -1222,7 +1222,7 @@ export function CharacterGraph() {
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-2xl border border-[var(--cg-border)] bg-white/70 px-4 py-4 shadow-[0_16px_40px_rgba(32,25,18,0.05)] backdrop-blur-sm"
+              className="rounded-xl border border-[var(--cg-border)] bg-white/70 px-4 py-4 shadow-sm backdrop-blur-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1233,7 +1233,7 @@ export function CharacterGraph() {
                     {item.value}
                   </p>
                 </div>
-                <div className="rounded-2xl bg-[var(--cg-accent-soft)] p-2.5 text-[var(--cg-accent)]">
+                <div className="rounded-xl bg-[var(--cg-accent-soft)] p-2.5 text-[var(--cg-accent)]">
                   <item.icon className="h-4 w-4" />
                 </div>
               </div>
@@ -1252,7 +1252,7 @@ export function CharacterGraph() {
         </aside>
 
         <section className="space-y-5">
-          <div className="rounded-[15px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-[0_20px_56px_rgba(32,25,18,0.09)]">
+          <div className="rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-4 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--cg-muted)]">
@@ -1289,7 +1289,7 @@ export function CharacterGraph() {
             <div className="mb-4 grid grid-cols-3 gap-2 xl:hidden">
               <Button
                 variant="secondary"
-                className="rounded-2xl border border-[var(--cg-border)] bg-transparent"
+                className="rounded-xl border border-[var(--cg-border)] bg-transparent"
                 onClick={() => openMobilePanel("filters")}
               >
                 <Tags className="h-4 w-4" />
@@ -1297,7 +1297,7 @@ export function CharacterGraph() {
               </Button>
               <Button
                 variant="secondary"
-                className="rounded-2xl border border-[var(--cg-border)] bg-transparent"
+                className="rounded-xl border border-[var(--cg-border)] bg-transparent"
                 onClick={() => openMobilePanel("roster")}
               >
                 <Users className="h-4 w-4" />
@@ -1305,7 +1305,7 @@ export function CharacterGraph() {
               </Button>
               <Button
                 variant="secondary"
-                className="rounded-2xl border border-[var(--cg-border)] bg-transparent"
+                className="rounded-xl border border-[var(--cg-border)] bg-transparent"
                 onClick={() => openMobilePanel("relations")}
               >
                 <Link2 className="h-4 w-4" />
@@ -1315,7 +1315,7 @@ export function CharacterGraph() {
 
             <div
               ref={containerRef}
-              className="relative min-h-[420px] overflow-hidden rounded-[14px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,239,228,0.92))] sm:min-h-[520px] xl:min-h-[620px]"
+              className="relative min-h-[420px] overflow-hidden rounded-xl border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,239,228,0.92))] sm:min-h-[520px] xl:min-h-[620px]"
               onMouseMove={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
                 setPointerPosition({
@@ -1364,7 +1364,7 @@ export function CharacterGraph() {
 
               {hoveredRelation ? (
                 <div
-                  className="pointer-events-none absolute z-20 max-w-[260px] rounded-2xl border border-[var(--cg-border)] bg-white/95 px-3 py-3 shadow-[0_18px_40px_rgba(32,25,18,0.16)] backdrop-blur-sm"
+                  className="pointer-events-none absolute z-20 max-w-[260px] rounded-xl border border-[var(--cg-border)] bg-white/95 px-3 py-3 shadow-[0_18px_40px_rgba(32,25,18,0.16)] backdrop-blur-sm"
                   style={{
                     left: Math.min(
                       pointerPosition.x + 16,
@@ -1700,7 +1700,7 @@ export function CharacterGraph() {
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
             <div className="border-b border-[var(--cg-border)] px-4 py-3">
-              <TabsList className="grid w-full grid-cols-3 rounded-2xl bg-[var(--cg-surface-strong)]">
+              <TabsList className="grid w-full grid-cols-3 rounded-xl bg-[var(--cg-surface-strong)]">
                 <TabsTrigger value="filters">筛选</TabsTrigger>
                 <TabsTrigger value="roster">角色</TabsTrigger>
                 <TabsTrigger value="relations">关系</TabsTrigger>
@@ -1741,7 +1741,7 @@ export function CharacterGraph() {
         }}
       >
         <DialogContent
-          className="flex h-[88vh] w-[94vw] max-w-5xl flex-col gap-6 rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 sm:h-[84vh] sm:w-[92vw] sm:rounded-[16px]"
+          className="flex h-[88vh] w-[94vw] max-w-5xl flex-col gap-6 rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] p-0 sm:h-[84vh] sm:w-[92vw] sm:rounded-2xl"
           style={cssVars}
         >
           <DialogHeader className="border-b border-[var(--cg-border)] px-4 py-4 sm:px-6 sm:py-5">
@@ -1757,7 +1757,7 @@ export function CharacterGraph() {
           ) : (
             <div className="grid flex-1 gap-4 overflow-hidden px-4 pb-4 sm:gap-6 sm:px-6 sm:pb-6 lg:grid-cols-[260px_minmax(0,1fr)]">
               <aside className="space-y-4">
-                <div className="rounded-[14px] border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,220,201,0.4))] p-4">
+                <div className="rounded-xl border border-[var(--cg-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,220,201,0.4))] p-4">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cg-muted)]">
                     Character Card
                   </p>
@@ -1790,7 +1790,7 @@ export function CharacterGraph() {
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="rounded-2xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-3 py-3"
+                      className="rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] px-3 py-3"
                     >
                       <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--cg-muted)]">
                         {item.label}
@@ -1818,7 +1818,7 @@ export function CharacterGraph() {
                             name: event.target.value,
                           }))
                         }
-                        className="mt-2 rounded-2xl border-[var(--cg-border)]"
+                        className="mt-2 rounded-xl border-[var(--cg-border)]"
                       />
                     ) : (
                       <p className="mt-2 font-serif text-4xl text-[var(--cg-ink)]">
@@ -1840,10 +1840,10 @@ export function CharacterGraph() {
                             description: event.target.value,
                           }))
                         }
-                        className="mt-2 min-h-[200px] rounded-3xl border-[var(--cg-border)] bg-white text-base leading-7"
+                        className="mt-2 min-h-[200px] rounded-xl border-[var(--cg-border)] bg-white text-base leading-7"
                       />
                     ) : (
-                      <div className="mt-2 rounded-[14px] border border-[var(--cg-border)] bg-white px-5 py-4 text-base leading-8 text-[var(--cg-ink)]">
+                      <div className="mt-2 rounded-xl border border-[var(--cg-border)] bg-white px-5 py-4 text-base leading-8 text-[var(--cg-ink)]">
                         {selectedCharacter.description || "暂无描述"}
                       </div>
                     )}
@@ -1862,7 +1862,7 @@ export function CharacterGraph() {
                             aliases: event.target.value,
                           }))
                         }
-                        className="mt-2 rounded-2xl border-[var(--cg-border)]"
+                        className="mt-2 rounded-xl border-[var(--cg-border)]"
                         placeholder="使用逗号分隔"
                       />
                     ) : (
@@ -1890,11 +1890,11 @@ export function CharacterGraph() {
                       登场章节
                     </p>
                     {editMode ? (
-                      <div className="mt-3 max-h-[320px] space-y-2 overflow-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
+                      <div className="mt-3 max-h-[320px] space-y-2 overflow-auto rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-4">
                         {chapters.map((node) => (
                           <label
                             key={node.id}
-                            className="flex items-center gap-3 rounded-2xl bg-white/70 px-3 py-2 text-sm text-[var(--cg-ink)]"
+                            className="flex items-center gap-3 rounded-xl bg-white/70 px-3 py-2 text-sm text-[var(--cg-ink)]"
                           >
                             <input
                               type="checkbox"
@@ -1981,7 +1981,7 @@ export function CharacterGraph() {
 
       <Dialog open={showAddCharacter} onOpenChange={setShowAddCharacter}>
         <DialogContent
-          className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[15px]"
+          className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-2xl"
           style={cssVars}
         >
           <DialogHeader>
@@ -2000,7 +2000,7 @@ export function CharacterGraph() {
                     name: event.target.value,
                   }))
                 }
-                className="mt-2 rounded-2xl border-[var(--cg-border)]"
+                className="mt-2 rounded-xl border-[var(--cg-border)]"
               />
             </div>
             <div>
@@ -2013,7 +2013,7 @@ export function CharacterGraph() {
                     description: event.target.value,
                   }))
                 }
-                className="mt-2 min-h-[140px] rounded-3xl border-[var(--cg-border)]"
+                className="mt-2 min-h-[140px] rounded-xl border-[var(--cg-border)]"
               />
             </div>
             <div>
@@ -2026,17 +2026,17 @@ export function CharacterGraph() {
                     aliases: event.target.value,
                   }))
                 }
-                className="mt-2 rounded-2xl border-[var(--cg-border)]"
+                className="mt-2 rounded-xl border-[var(--cg-border)]"
                 placeholder="使用逗号分隔"
               />
             </div>
             <div>
               <p className="text-xs text-[var(--cg-muted)]">登场章节</p>
-              <div className="mt-2 max-h-[220px] space-y-2 overflow-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-3">
+              <div className="mt-2 max-h-[220px] space-y-2 overflow-auto rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface-strong)] p-3">
                 {chapters.map((node) => (
                   <label
                     key={node.id}
-                    className="flex items-center gap-2 rounded-2xl bg-white/70 px-3 py-2 text-sm text-[var(--cg-ink)]"
+                    className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 text-sm text-[var(--cg-ink)]"
                   >
                     <input
                       type="checkbox"
@@ -2082,7 +2082,7 @@ export function CharacterGraph() {
 
       <Dialog open={showAddRelation} onOpenChange={setShowAddRelation}>
         <DialogContent
-          className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[15px]"
+          className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-2xl"
           style={cssVars}
         >
           <DialogHeader>
@@ -2094,7 +2094,7 @@ export function CharacterGraph() {
             <div>
               <p className="text-xs text-[var(--cg-muted)]">角色 A</p>
               <select
-                className="mt-2 w-full rounded-2xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
+                className="mt-2 w-full rounded-xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
                 value={relationDraft.sourceId}
                 onChange={(event) =>
                   setRelationDraft((draft) => ({
@@ -2114,7 +2114,7 @@ export function CharacterGraph() {
             <div>
               <p className="text-xs text-[var(--cg-muted)]">角色 B</p>
               <select
-                className="mt-2 w-full rounded-2xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
+                className="mt-2 w-full rounded-xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
                 value={relationDraft.targetId}
                 onChange={(event) =>
                   setRelationDraft((draft) => ({
@@ -2134,7 +2134,7 @@ export function CharacterGraph() {
             <div>
               <p className="text-xs text-[var(--cg-muted)]">关系类型</p>
               <select
-                className="mt-2 w-full rounded-2xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
+                className="mt-2 w-full rounded-xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
                 value={relationDraft.relationType}
                 onChange={(event) =>
                   setRelationDraft((draft) => ({
@@ -2160,7 +2160,7 @@ export function CharacterGraph() {
                     relationName: event.target.value,
                   }))
                 }
-                className="mt-2 rounded-2xl border-[var(--cg-border)]"
+                className="mt-2 rounded-xl border-[var(--cg-border)]"
                 placeholder="如：师徒、宿敌、互相利用"
               />
             </div>
@@ -2174,7 +2174,7 @@ export function CharacterGraph() {
                     description: event.target.value,
                   }))
                 }
-                className="mt-2 min-h-[120px] rounded-3xl border-[var(--cg-border)]"
+                className="mt-2 min-h-[120px] rounded-xl border-[var(--cg-border)]"
               />
             </div>
           </div>
@@ -2208,7 +2208,7 @@ export function CharacterGraph() {
         }}
       >
         <DialogContent
-          className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-[14px] border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-[15px]"
+          className="max-h-[88vh] w-[95vw] overflow-y-auto rounded-xl border border-[var(--cg-border)] bg-[var(--cg-surface)] sm:max-w-xl sm:rounded-2xl"
           style={cssVars}
         >
           <DialogHeader>
@@ -2228,7 +2228,7 @@ export function CharacterGraph() {
             <div>
               <p className="text-xs text-[var(--cg-muted)]">关系类型</p>
               <select
-                className="mt-2 w-full rounded-2xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
+                className="mt-2 w-full rounded-xl border border-[var(--cg-border)] bg-white px-3 py-2.5 text-sm"
                 value={relationDraft.relationType}
                 onChange={(event) =>
                   setRelationDraft((draft) => ({
@@ -2254,7 +2254,7 @@ export function CharacterGraph() {
                     relationName: event.target.value,
                   }))
                 }
-                className="mt-2 rounded-2xl border-[var(--cg-border)]"
+                className="mt-2 rounded-xl border-[var(--cg-border)]"
                 placeholder="如：盟友、师徒、互相利用"
               />
             </div>
@@ -2268,7 +2268,7 @@ export function CharacterGraph() {
                     description: event.target.value,
                   }))
                 }
-                className="mt-2 min-h-[120px] rounded-3xl border-[var(--cg-border)]"
+                className="mt-2 min-h-[120px] rounded-xl border-[var(--cg-border)]"
               />
             </div>
           </div>
