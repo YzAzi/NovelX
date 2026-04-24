@@ -18,14 +18,22 @@ class Settings(BaseSettings):
     )
     openai_api_key: str | None = None
     openai_api_key_drafting: str | None = None
+    openai_api_key_writing: str | None = None
     openai_api_key_sync: str | None = None
     openai_api_key_extraction: str | None = None
     openai_base_url: str | None = None
+    openai_base_url_drafting: str | None = None
+    openai_base_url_writing: str | None = None
     model_name: str | None = None
     model_name_drafting: str | None = None
+    model_name_writing: str | None = None
     model_name_sync: str | None = None
     model_name_extraction: str | None = None
     model_name_summary: str | None = None
+    reasoning_effort_drafting: str | None = "high"
+    reasoning_effort_writing: str | None = "high"
+    reasoning_effort_sync: str | None = "high"
+    reasoning_effort_extraction: str | None = "high"
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     chroma_persist_path: str = str(
         Path(__file__).resolve().parent.parent / "data" / "chroma_db"
@@ -61,8 +69,9 @@ settings = Settings()
 
 _override_lock = Lock()
 _model_overrides_by_user: dict[str, dict[str, str | None]] = {}
+_reasoning_overrides_by_user: dict[str, dict[str, str | None]] = {}
 _api_key_overrides_by_user: dict[str, dict[str, str | None]] = {}
-_base_url_overrides_by_user: dict[str, str | None] = {}
+_base_url_overrides_by_user: dict[str, dict[str, str | None]] = {}
 
 
 def _resolve_user_id(user_id: str | None = None) -> str | None:
@@ -72,14 +81,49 @@ def _resolve_user_id(user_id: str | None = None) -> str | None:
 def _get_model_overrides(user_id: str) -> dict[str, str | None]:
     return _model_overrides_by_user.setdefault(
         user_id,
-        {"drafting": None, "sync": None, "extraction": None, "summary": None},
+        {
+            "drafting": None,
+            "writing": None,
+            "sync": None,
+            "extraction": None,
+            "summary": None,
+        },
+    )
+
+
+def _get_reasoning_overrides(user_id: str) -> dict[str, str | None]:
+    return _reasoning_overrides_by_user.setdefault(
+        user_id,
+        {
+            "drafting": None,
+            "writing": None,
+            "sync": None,
+            "extraction": None,
+        },
     )
 
 
 def _get_api_key_overrides(user_id: str) -> dict[str, str | None]:
     return _api_key_overrides_by_user.setdefault(
         user_id,
-        {"default": None, "drafting": None, "sync": None, "extraction": None},
+        {
+            "default": None,
+            "drafting": None,
+            "writing": None,
+            "sync": None,
+            "extraction": None,
+        },
+    )
+
+
+def _get_base_url_overrides(user_id: str) -> dict[str, str | None]:
+    return _base_url_overrides_by_user.setdefault(
+        user_id,
+        {
+            "default": None,
+            "drafting": None,
+            "writing": None,
+        },
     )
 
 
@@ -93,6 +137,13 @@ def get_model_name(role: str, user_id: str | None = None) -> str:
         return override
     if role == "drafting":
         return settings.model_name_drafting or settings.model_name or "gpt-4o"
+    if role == "writing":
+        return (
+            settings.model_name_writing
+            or settings.model_name_drafting
+            or settings.model_name
+            or "gpt-4o"
+        )
     if role == "sync":
         return settings.model_name_sync or settings.model_name or "gpt-4o"
     if role == "extraction":
@@ -116,6 +167,40 @@ def set_model_override(role: str, model_name: str | None, user_id: str | None = 
         _get_model_overrides(resolved_user_id)[role] = cleaned or None
 
 
+def get_reasoning_effort(role: str, user_id: str | None = None) -> str:
+    resolved_user_id = _resolve_user_id(user_id)
+    override: str | None = None
+    if resolved_user_id:
+        with _override_lock:
+            override = _get_reasoning_overrides(resolved_user_id).get(role)
+    if override:
+        return override
+    if role == "drafting":
+        return settings.reasoning_effort_drafting or "high"
+    if role == "writing":
+        return settings.reasoning_effort_writing or "high"
+    if role == "sync":
+        return settings.reasoning_effort_sync or "high"
+    if role == "extraction":
+        return settings.reasoning_effort_extraction or "high"
+    if role == "summary":
+        return settings.reasoning_effort_drafting or "high"
+    return "high"
+
+
+def set_reasoning_effort_override(
+    role: str,
+    effort: str | None,
+    user_id: str | None = None,
+) -> None:
+    resolved_user_id = _resolve_user_id(user_id)
+    if not resolved_user_id:
+        return
+    cleaned = effort.strip() if effort else ""
+    with _override_lock:
+        _get_reasoning_overrides(resolved_user_id)[role] = cleaned or None
+
+
 def get_api_key(role: str, user_id: str | None = None) -> str | None:
     resolved_user_id = _resolve_user_id(user_id)
     override: str | None = None
@@ -126,6 +211,12 @@ def get_api_key(role: str, user_id: str | None = None) -> str | None:
         return override
     if role == "drafting":
         return settings.openai_api_key_drafting or settings.openai_api_key
+    if role == "writing":
+        return (
+            settings.openai_api_key_writing
+            or settings.openai_api_key_drafting
+            or settings.openai_api_key
+        )
     if role == "sync":
         return settings.openai_api_key_sync or settings.openai_api_key
     if role == "extraction":
@@ -142,19 +233,29 @@ def set_api_key_override(role: str, api_key: str | None, user_id: str | None = N
         _get_api_key_overrides(resolved_user_id)[role] = cleaned or None
 
 
-def get_base_url(user_id: str | None = None) -> str | None:
+def get_base_url(role: str = "default", user_id: str | None = None) -> str | None:
     resolved_user_id = _resolve_user_id(user_id)
     override: str | None = None
     if resolved_user_id:
         with _override_lock:
-            override = _base_url_overrides_by_user.get(resolved_user_id)
-    return override or settings.openai_base_url
+            override = _get_base_url_overrides(resolved_user_id).get(role)
+    if override:
+        return override
+    if role == "drafting":
+        return settings.openai_base_url_drafting or settings.openai_base_url
+    if role == "writing":
+        return settings.openai_base_url_writing or settings.openai_base_url
+    return settings.openai_base_url
 
 
-def set_base_url_override(base_url: str | None, user_id: str | None = None) -> None:
+def set_base_url_override(
+    role: str,
+    base_url: str | None,
+    user_id: str | None = None,
+) -> None:
     resolved_user_id = _resolve_user_id(user_id)
     if not resolved_user_id:
         return
     cleaned = base_url.strip() if base_url else ""
     with _override_lock:
-        _base_url_overrides_by_user[resolved_user_id] = cleaned or None
+        _get_base_url_overrides(resolved_user_id)[role] = cleaned or None

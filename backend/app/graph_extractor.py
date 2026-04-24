@@ -11,10 +11,16 @@ from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field, field_validator
 
-from .config import get_api_key, get_base_url, get_model_name
+from .config import get_api_key, get_base_url, get_model_name, get_reasoning_effort
 from .knowledge_graph import Entity, KnowledgeGraph, Relation
 from .models import StoryNode, StoryProject, normalize_maybe_json_list
-from .schema_utils import pydantic_json_schema_inline, pydantic_to_openai_function_inline
+from .schema_utils import (
+    build_json_only_prompt,
+    parse_pydantic_response,
+    provider_supports_native_structured_output,
+    pydantic_json_schema_inline,
+    pydantic_to_openai_function_inline,
+)
 
 
 class ExtractionResult(BaseModel):
@@ -109,13 +115,20 @@ class GraphExtractor:
             return ExtractionResult()
 
         model_name = get_model_name("extraction")
+        base_url = get_base_url()
         schema = pydantic_to_openai_function_inline(ExtractionResult)
         prompt_schema = pydantic_json_schema_inline(ExtractionResult)
         llm = ChatOpenAI(
             api_key=api_key,
-            base_url=get_base_url(),
+            base_url=base_url,
             model=model_name,
-        ).with_structured_output(schema)
+            model_kwargs={"reasoning_effort": get_reasoning_effort("extraction")},
+        )
+        structured_llm = (
+            llm.with_structured_output(schema)
+            if provider_supports_native_structured_output(base_url, model_name)
+            else llm
+        )
 
         try:
             prompt = self.prompt_template.format(
@@ -130,17 +143,12 @@ class GraphExtractor:
                 "自定义 Prompt 缺少必要变量：text、existing_entities、output_schema"
             ) from exc
 
-        raw_result = await asyncio.to_thread(llm.invoke, prompt)
+        if not provider_supports_native_structured_output(base_url, model_name):
+            prompt = build_json_only_prompt(prompt, ExtractionResult)
+        raw_result = await asyncio.to_thread(structured_llm.invoke, prompt)
         if raw_result is None:
             return ExtractionResult()
-        if isinstance(raw_result, ExtractionResult):
-            result = raw_result
-        elif isinstance(raw_result, dict):
-            result = ExtractionResult.model_validate(raw_result)
-        elif hasattr(raw_result, "model_dump"):
-            result = ExtractionResult.model_validate(raw_result.model_dump())
-        else:
-            result = ExtractionResult.model_validate(raw_result)
+        result = parse_pydantic_response(ExtractionResult, raw_result)
         result.new_entities = _ensure_entity_ids(result.new_entities)
         result.new_relations = _ensure_relation_ids(result.new_relations)
         return result

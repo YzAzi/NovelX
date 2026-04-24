@@ -343,24 +343,40 @@ export interface ProjectExportData {
 
 export interface ModelConfigResponse {
   base_url?: string | null;
+  drafting_base_url?: string | null;
+  writing_base_url?: string | null;
   drafting_model: string;
+  writing_model: string;
   sync_model: string;
   extraction_model: string;
+  drafting_reasoning_effort: string;
+  writing_reasoning_effort: string;
+  sync_reasoning_effort: string;
+  extraction_reasoning_effort: string;
   has_default_key?: boolean;
   has_drafting_key?: boolean;
+  has_writing_key?: boolean;
   has_sync_key?: boolean;
   has_extraction_key?: boolean;
 }
 
 export interface ModelConfigUpdateRequest {
   base_url?: string | null;
+  drafting_base_url?: string | null;
+  writing_base_url?: string | null;
   default_api_key?: string | null;
   drafting_api_key?: string | null;
+  writing_api_key?: string | null;
   sync_api_key?: string | null;
   extraction_api_key?: string | null;
   drafting_model?: string | null;
+  writing_model?: string | null;
   sync_model?: string | null;
   extraction_model?: string | null;
+  drafting_reasoning_effort?: string | null;
+  writing_reasoning_effort?: string | null;
+  sync_reasoning_effort?: string | null;
+  extraction_reasoning_effort?: string | null;
 }
 
 export interface AuthUser {

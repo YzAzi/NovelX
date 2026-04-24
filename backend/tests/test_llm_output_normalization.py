@@ -1,6 +1,7 @@
 from app.graph_extractor import ExtractionResult
 from app.knowledge_graph import RelationType
 from app.models import OutlineImportResult, StoryProject, SyncAnalysisResult
+from app.schema_utils import parse_pydantic_response
 
 
 def test_story_project_accepts_stringified_list_fields():
@@ -74,3 +75,25 @@ def test_other_llm_models_accept_stringified_lists():
     assert len(sync.conflicts) == 1
     assert len(imported.nodes) == 1
     assert len(imported.characters) == 1
+
+
+def test_parse_pydantic_response_accepts_fenced_json():
+    raw = """```json
+    {
+      "directions": [
+        {
+          "title": "方向一",
+          "logline": "一句话",
+          "world_view": "世界观",
+          "style_tags": ["悬疑"],
+          "initial_prompt": "开头"
+        }
+      ]
+    }
+    ```"""
+
+    from app.models import StoryDirectionResponse
+
+    parsed = parse_pydantic_response(StoryDirectionResponse, raw)
+
+    assert parsed.directions[0].title == "方向一"

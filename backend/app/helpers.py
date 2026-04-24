@@ -429,16 +429,24 @@ def build_character_graph_response(
 
 
 def build_model_config_response():
-    from .config import get_api_key, get_base_url, get_model_name
+    from .config import get_api_key, get_base_url, get_model_name, get_reasoning_effort
     from .models import ModelConfigResponse
 
     return ModelConfigResponse(
         base_url=get_base_url(),
+        drafting_base_url=get_base_url("drafting"),
+        writing_base_url=get_base_url("writing"),
         drafting_model=get_model_name("drafting"),
+        writing_model=get_model_name("writing"),
         sync_model=get_model_name("sync"),
         extraction_model=get_model_name("extraction"),
+        drafting_reasoning_effort=get_reasoning_effort("drafting"),
+        writing_reasoning_effort=get_reasoning_effort("writing"),
+        sync_reasoning_effort=get_reasoning_effort("sync"),
+        extraction_reasoning_effort=get_reasoning_effort("extraction"),
         has_default_key=bool(get_api_key("default")),
         has_drafting_key=bool(get_api_key("drafting")),
+        has_writing_key=bool(get_api_key("writing")),
         has_sync_key=bool(get_api_key("sync")),
         has_extraction_key=bool(get_api_key("extraction")),
     )

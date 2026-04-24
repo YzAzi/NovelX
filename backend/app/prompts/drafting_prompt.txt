@@ -14,6 +14,14 @@
 
 请生成：
 - 根据小说篇幅大小生成多个故事节点 (StoryNode)，包含不同的 location_tag 来体现多线叙事
+- 每个 StoryNode.content 只能写结构化大纲摘要，概括该节点发生了什么、推进了什么、暴露了什么信息
+- StoryNode.content 禁止写成小说正文、对白、场景细描、心理描写或可直接用于章节的连续 prose
+- 每个节点内容尽量控制在 1-3 句摘要内，强调事件、冲突和转折，不要铺陈文笔
 - 根据小说篇幅大小生成多个主要角色 (CharacterProfile)
 - 每个角色的 bio 必须是精炼背景简介，长度不超过 300 字，避免过长抒情或整段剧情复述
 - 确保 timeline_order 体现真实时间顺序，narrative_order 体现叙述顺序（可以不同）
+- 输出必须严格符合 JSON Schema
+- 不要输出 markdown、标题、表格、说明文字或代码块，只能输出 JSON
+
+【输出 Schema】
+{output_schema}

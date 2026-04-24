@@ -11,7 +11,10 @@
 2. 时间线是否需要调整？如果是，给出新的 timeline_order 建议
 3. 是否与已有设定产生冲突？如果是，指出冲突点
 
-输出格式：
-- new_characters: list[CharacterProfile]
-- timeline_updates: list[{{node_id, new_timeline_order}}]
-- conflicts: list[{{description, affected_nodes}}]
+输出要求：
+1. 输出必须严格符合 JSON Schema
+2. 不要输出 markdown、标题、解释或代码块
+3. 只输出 JSON
+
+【输出 Schema】
+{output_schema}

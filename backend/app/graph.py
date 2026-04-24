@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 import logging
 from pathlib import Path
 from typing import Awaitable, Callable, TypedDict
@@ -10,7 +11,7 @@ from langchain_openai import ChatOpenAI
 
 from langgraph.graph import END, START, StateGraph
 
-from .config import get_api_key, get_base_url, get_model_name, settings
+from .config import get_api_key, get_base_url, get_model_name, get_reasoning_effort, settings
 from .graph_extractor import GraphExtractor
 from .graph_retriever import RetrievalContext, GraphRetriever
 from .knowledge_graph import KnowledgeGraph, load_graph, save_graph
@@ -23,7 +24,12 @@ from .models import (
     SyncAnalysisResult,
 )
 from .node_indexer import NodeIndexer
-from .schema_utils import pydantic_to_openai_function_inline
+from .schema_utils import (
+    build_json_only_prompt,
+    parse_pydantic_response,
+    provider_supports_native_structured_output,
+    pydantic_to_openai_function_inline,
+)
 from .sync_strategy import DEFAULT_SYNC_CONFIG, SyncMode
 
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
@@ -40,6 +46,8 @@ logger = logging.getLogger(__name__)
 DRAFTING_GUARDRAILS = (
     f"额外硬性约束：所有 CharacterProfile.bio 必须控制在 {CHARACTER_BIO_MAX_LENGTH} 字以内，"
     "只保留身份、动机、关系和关键背景，不要展开完整剧情。"
+    "所有 StoryNode.content 只能写节点摘要、冲突推进和信息变化，"
+    "不要写小说正文，不要写成完整场景描写、对白、心理独白或可直接贴进章节的 prose。"
 )
 
 DRAFT_PROMPT_PATH = Path(__file__).parent / "prompts" / "drafting_prompt.txt"
@@ -186,12 +194,19 @@ async def drafting_node(state: AgentState) -> AgentState:
             raise ValidationError("OPENAI_API_KEY is not configured")
 
         model_name = get_model_name("drafting")
+        base_url = get_base_url("drafting")
         schema = pydantic_to_openai_function_inline(StoryProject)
         llm = ChatOpenAI(
             api_key=api_key,
-            base_url=get_base_url(),
+            base_url=base_url,
             model=model_name,
-        ).with_structured_output(schema)
+            model_kwargs={"reasoning_effort": get_reasoning_effort("drafting")},
+        )
+        structured_llm = (
+            llm.with_structured_output(schema)
+            if provider_supports_native_structured_output(base_url, model_name)
+            else llm
+        )
 
         retrieved_context = state.get("retrieved_context")
         retrieved_text = (
@@ -204,6 +219,9 @@ async def drafting_node(state: AgentState) -> AgentState:
             "style_tags": ", ".join(state["style_tags"]),
             "user_input": state["user_input"],
             "retrieved_context": retrieved_text,
+            "output_schema": json.dumps(
+                StoryProject.model_json_schema(), ensure_ascii=False, indent=2
+            ),
         }
         custom_prompt = state.get("drafting_prompt")
         prompt_template = (
@@ -220,15 +238,10 @@ async def drafting_node(state: AgentState) -> AgentState:
                 prompt_text = f"{prompt_text}\n\n{DRAFTING_GUARDRAILS}"
                 if attempt > 1:
                     prompt_text = f"{prompt_text}\n\n请严格按照要求的格式输出"
-                result = await llm.ainvoke(prompt_text)
-                if isinstance(result, StoryProject):
-                    project = result
-                elif isinstance(result, dict):
-                    project = StoryProject.model_validate(result)
-                elif hasattr(result, "model_dump"):
-                    project = StoryProject.model_validate(result.model_dump())
-                else:
-                    project = StoryProject.model_validate(result)
+                if not provider_supports_native_structured_output(base_url, model_name):
+                    prompt_text = build_json_only_prompt(prompt_text, StoryProject)
+                result = await structured_llm.ainvoke(prompt_text)
+                project = parse_pydantic_response(StoryProject, result)
                 state["current_project"] = project
                 state["error"] = None
                 print("[drafting_node] complete")
@@ -241,7 +254,7 @@ async def drafting_node(state: AgentState) -> AgentState:
     except Exception as exc:
         state["current_project"] = None
         if isinstance(exc, KeyError):
-            state["error"] = "自定义 Prompt 缺少必要变量：world_view、style_tags、user_input、retrieved_context"
+            state["error"] = "自定义 Prompt 缺少必要变量：world_view、style_tags、user_input、retrieved_context、output_schema"
         else:
             state["error"] = str(exc)
         return state
@@ -275,12 +288,19 @@ async def reverse_sync_node(state: AgentState) -> AgentState:
             raise ValidationError("Sync failed: missing project or modified node")
 
         model_name = get_model_name("sync")
+        base_url = get_base_url()
         schema = pydantic_to_openai_function_inline(SyncAnalysisResult)
         llm = ChatOpenAI(
             api_key=api_key,
-            base_url=get_base_url(),
+            base_url=base_url,
             model=model_name,
-        ).with_structured_output(schema)
+            model_kwargs={"reasoning_effort": get_reasoning_effort("sync")},
+        )
+        structured_llm = (
+            llm.with_structured_output(schema)
+            if provider_supports_native_structured_output(base_url, model_name)
+            else llm
+        )
 
         retrieved_context = state.get("retrieved_context")
         retrieved_text = (
@@ -291,6 +311,9 @@ async def reverse_sync_node(state: AgentState) -> AgentState:
         base_inputs = {
             "modified_node": modified_node.model_dump_json(indent=2),
             "retrieved_context": retrieved_text,
+            "output_schema": json.dumps(
+                SyncAnalysisResult.model_json_schema(), ensure_ascii=False, indent=2
+            ),
         }
         prompt_override = project.prompt_overrides.sync
         prompt_template = (
@@ -306,8 +329,11 @@ async def reverse_sync_node(state: AgentState) -> AgentState:
                 prompt_text = prompt_template.format(**base_inputs)
                 if attempt > 1:
                     prompt_text = f"{prompt_text}\n\n请严格按照要求的格式输出"
-                result = await llm.ainvoke(prompt_text)
-                state["sync_result"] = result.model_dump()
+                if not provider_supports_native_structured_output(base_url, model_name):
+                    prompt_text = build_json_only_prompt(prompt_text, SyncAnalysisResult)
+                result = await structured_llm.ainvoke(prompt_text)
+                analysis = parse_pydantic_response(SyncAnalysisResult, result)
+                state["sync_result"] = analysis.model_dump()
                 state["error"] = None
                 print("[reverse_sync_node] complete")
                 return apply_sync_node(state)
@@ -319,7 +345,7 @@ async def reverse_sync_node(state: AgentState) -> AgentState:
     except Exception as exc:
         state["sync_result"] = None
         if isinstance(exc, KeyError):
-            state["error"] = "自定义 Prompt 缺少必要变量：modified_node、retrieved_context"
+            state["error"] = "自定义 Prompt 缺少必要变量：modified_node、retrieved_context、output_schema"
         else:
             state["error"] = str(exc)
         return state

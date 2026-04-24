@@ -8,8 +8,13 @@ from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-from .config import get_api_key, get_base_url, get_model_name
-from .schema_utils import pydantic_json_schema_inline
+from .config import get_api_key, get_base_url, get_model_name, get_reasoning_effort
+from .schema_utils import (
+    build_json_only_prompt,
+    parse_pydantic_response,
+    provider_supports_native_structured_output,
+    pydantic_json_schema_inline,
+)
 
 CURATION_PROMPT_PATH = Path(__file__).parent / "prompts" / "style_curation_prompt.txt"
 CURATION_PROMPT = PromptTemplate.from_template(
@@ -202,11 +207,19 @@ class StyleCurationService:
         if not api_key:
             raise ValueError("未配置用于文笔清洗的 API Key，请先在模型设置中填写。")
 
+        base_url = get_base_url()
+        model_name = get_model_name("extraction")
         llm = ChatOpenAI(
             api_key=api_key,
-            base_url=get_base_url(),
-            model=get_model_name("extraction"),
-        ).with_structured_output(CuratedStyleBatch)
+            base_url=base_url,
+            model=model_name,
+            model_kwargs={"reasoning_effort": get_reasoning_effort("extraction")},
+        )
+        structured_llm = (
+            llm.with_structured_output(CuratedStyleBatch)
+            if provider_supports_native_structured_output(base_url, model_name)
+            else llm
+        )
 
         batches = _split_batches(source_text)
         output_schema = pydantic_json_schema_inline(CuratedStyleBatch)
@@ -228,18 +241,14 @@ class StyleCurationService:
             last_error: Exception | None = None
             for attempt in range(1, _BATCH_MAX_RETRIES + 2):
                 try:
+                    final_prompt = prompt
+                    if not provider_supports_native_structured_output(base_url, model_name):
+                        final_prompt = build_json_only_prompt(prompt, CuratedStyleBatch)
                     result = await asyncio.wait_for(
-                        llm.ainvoke(prompt),
+                        structured_llm.ainvoke(final_prompt),
                         timeout=_BATCH_TIMEOUT_SECONDS,
                     )
-                    if isinstance(result, CuratedStyleBatch):
-                        parsed = result
-                    elif isinstance(result, dict):
-                        parsed = CuratedStyleBatch.model_validate(result)
-                    elif hasattr(result, "model_dump"):
-                        parsed = CuratedStyleBatch.model_validate(result.model_dump())
-                    else:
-                        parsed = CuratedStyleBatch.model_validate(result)
+                    parsed = parse_pydantic_response(CuratedStyleBatch, result)
                     break
                 except Exception as exc:
                     last_error = exc

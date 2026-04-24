@@ -708,24 +708,40 @@ class ProjectExportData(BaseModel):
 
 class ModelConfigResponse(BaseModel):
     base_url: str | None = None
+    drafting_base_url: str | None = None
+    writing_base_url: str | None = None
     drafting_model: str
+    writing_model: str
     sync_model: str
     extraction_model: str
+    drafting_reasoning_effort: str = "high"
+    writing_reasoning_effort: str = "high"
+    sync_reasoning_effort: str = "high"
+    extraction_reasoning_effort: str = "high"
     has_default_key: bool = False
     has_drafting_key: bool = False
+    has_writing_key: bool = False
     has_sync_key: bool = False
     has_extraction_key: bool = False
 
 
 class ModelConfigUpdateRequest(BaseModel):
     base_url: str | None = None
+    drafting_base_url: str | None = None
+    writing_base_url: str | None = None
     default_api_key: str | None = None
     drafting_api_key: str | None = None
+    writing_api_key: str | None = None
     sync_api_key: str | None = None
     extraction_api_key: str | None = None
     drafting_model: str | None = None
+    writing_model: str | None = None
     sync_model: str | None = None
     extraction_model: str | None = None
+    drafting_reasoning_effort: str | None = None
+    writing_reasoning_effort: str | None = None
+    sync_reasoning_effort: str | None = None
+    extraction_reasoning_effort: str | None = None
 
 
 class AuthRegisterRequest(BaseModel):

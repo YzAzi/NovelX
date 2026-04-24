@@ -4,6 +4,7 @@ from ..config import (
     set_api_key_override,
     set_base_url_override,
     set_model_override,
+    set_reasoning_effort_override,
 )
 from ..helpers import build_model_config_response
 from ..models import HealthResponse, ModelConfigResponse, ModelConfigUpdateRequest
@@ -36,19 +37,35 @@ def get_model_config():
 )
 def update_model_config(payload: ModelConfigUpdateRequest):
     if payload.base_url is not None:
-        set_base_url_override(payload.base_url)
+        set_base_url_override("default", payload.base_url)
+    if payload.drafting_base_url is not None:
+        set_base_url_override("drafting", payload.drafting_base_url)
+    if payload.writing_base_url is not None:
+        set_base_url_override("writing", payload.writing_base_url)
     if payload.default_api_key is not None:
         set_api_key_override("default", payload.default_api_key)
     if payload.drafting_api_key is not None:
         set_api_key_override("drafting", payload.drafting_api_key)
+    if payload.writing_api_key is not None:
+        set_api_key_override("writing", payload.writing_api_key)
     if payload.sync_api_key is not None:
         set_api_key_override("sync", payload.sync_api_key)
     if payload.extraction_api_key is not None:
         set_api_key_override("extraction", payload.extraction_api_key)
     if payload.drafting_model is not None:
         set_model_override("drafting", payload.drafting_model)
+    if payload.writing_model is not None:
+        set_model_override("writing", payload.writing_model)
     if payload.sync_model is not None:
         set_model_override("sync", payload.sync_model)
     if payload.extraction_model is not None:
         set_model_override("extraction", payload.extraction_model)
+    if payload.drafting_reasoning_effort is not None:
+        set_reasoning_effort_override("drafting", payload.drafting_reasoning_effort)
+    if payload.writing_reasoning_effort is not None:
+        set_reasoning_effort_override("writing", payload.writing_reasoning_effort)
+    if payload.sync_reasoning_effort is not None:
+        set_reasoning_effort_override("sync", payload.sync_reasoning_effort)
+    if payload.extraction_reasoning_effort is not None:
+        set_reasoning_effort_override("extraction", payload.extraction_reasoning_effort)
     return build_model_config_response()

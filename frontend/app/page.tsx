@@ -97,12 +97,20 @@ export default function Home() {
   const [versionOpen, setVersionOpen] = useState(false);
 
   const [modelConfig, setModelConfig] = useState<{
+    draftingBaseUrl: string;
+    writing: string;
     drafting: string;
     sync: string;
     extraction: string;
+    draftingReasoningEffort: string;
+    writingReasoningEffort: string;
+    syncReasoningEffort: string;
+    extractionReasoningEffort: string;
     baseUrl: string;
+    writingBaseUrl: string;
     hasDefaultKey: boolean;
     hasDraftingKey: boolean;
+    hasWritingKey: boolean;
     hasSyncKey: boolean;
     hasExtractionKey: boolean;
   } | null>(null);
@@ -117,11 +125,19 @@ export default function Home() {
   const [modelForm, setModelForm] = useState({
     baseUrl: "",
     defaultKey: "",
+    draftingBaseUrl: "",
+    draftingReasoningEffort: "high",
+    writingBaseUrl: "",
+    writing: "",
+    writingReasoningEffort: "high",
+    writingKey: "",
     drafting: "",
     draftingKey: "",
     sync: "",
+    syncReasoningEffort: "high",
     syncKey: "",
     extraction: "",
+    extractionReasoningEffort: "high",
     extractionKey: "",
   });
   const [promptForm, setPromptForm] = useState({
@@ -152,11 +168,19 @@ export default function Home() {
   const applyModelConfig = useCallback((config: ModelConfigResponse) => {
     const nextConfig = {
       baseUrl: config.base_url ?? "",
+      draftingBaseUrl: config.drafting_base_url ?? "",
+      writingBaseUrl: config.writing_base_url ?? "",
+      writing: config.writing_model,
       drafting: config.drafting_model,
       sync: config.sync_model,
       extraction: config.extraction_model,
+      draftingReasoningEffort: config.drafting_reasoning_effort ?? "high",
+      writingReasoningEffort: config.writing_reasoning_effort ?? "high",
+      syncReasoningEffort: config.sync_reasoning_effort ?? "high",
+      extractionReasoningEffort: config.extraction_reasoning_effort ?? "high",
       hasDefaultKey: Boolean(config.has_default_key),
       hasDraftingKey: Boolean(config.has_drafting_key),
+      hasWritingKey: Boolean(config.has_writing_key),
       hasSyncKey: Boolean(config.has_sync_key),
       hasExtractionKey: Boolean(config.has_extraction_key),
     };
@@ -164,9 +188,16 @@ export default function Home() {
     setModelForm((prev) => ({
       ...prev,
       baseUrl: nextConfig.baseUrl,
+      draftingBaseUrl: nextConfig.draftingBaseUrl,
+      writingBaseUrl: nextConfig.writingBaseUrl,
+      writing: nextConfig.writing,
       drafting: nextConfig.drafting,
       sync: nextConfig.sync,
       extraction: nextConfig.extraction,
+      draftingReasoningEffort: nextConfig.draftingReasoningEffort,
+      writingReasoningEffort: nextConfig.writingReasoningEffort,
+      syncReasoningEffort: nextConfig.syncReasoningEffort,
+      extractionReasoningEffort: nextConfig.extractionReasoningEffort,
     }));
   }, []);
 
@@ -313,11 +344,19 @@ export default function Home() {
     key:
       | "baseUrl"
       | "defaultKey"
+      | "draftingBaseUrl"
+      | "draftingReasoningEffort"
+      | "writingBaseUrl"
+      | "writing"
+      | "writingReasoningEffort"
+      | "writingKey"
       | "drafting"
       | "draftingKey"
       | "sync"
+      | "syncReasoningEffort"
       | "syncKey"
       | "extraction"
+      | "extractionReasoningEffort"
       | "extractionKey",
     value: string,
   ) => {
@@ -477,20 +516,41 @@ export default function Home() {
       const updated = await updateModelConfig({
         base_url: modelForm.baseUrl.trim() || null,
         default_api_key: modelForm.defaultKey.trim() || null,
+        drafting_base_url: modelForm.draftingBaseUrl.trim() || null,
+        writing_base_url: modelForm.writingBaseUrl.trim() || null,
+        writing_api_key: modelForm.writingKey.trim() || null,
+        writing_model: modelForm.writing.trim() || null,
         drafting_api_key: modelForm.draftingKey.trim() || null,
         sync_api_key: modelForm.syncKey.trim() || null,
         extraction_api_key: modelForm.extractionKey.trim() || null,
         drafting_model: modelForm.drafting.trim() || null,
         sync_model: modelForm.sync.trim() || null,
         extraction_model: modelForm.extraction.trim() || null,
+        drafting_reasoning_effort:
+          modelForm.draftingReasoningEffort.trim() || null,
+        writing_reasoning_effort:
+          modelForm.writingReasoningEffort.trim() || null,
+        sync_reasoning_effort: modelForm.syncReasoningEffort.trim() || null,
+        extraction_reasoning_effort:
+          modelForm.extractionReasoningEffort.trim() || null,
       });
       const nextConfig = {
         baseUrl: updated.base_url ?? "",
+        draftingBaseUrl: updated.drafting_base_url ?? "",
+        writingBaseUrl: updated.writing_base_url ?? "",
+        writing: updated.writing_model,
         drafting: updated.drafting_model,
         sync: updated.sync_model,
         extraction: updated.extraction_model,
+        draftingReasoningEffort:
+          updated.drafting_reasoning_effort ?? "high",
+        writingReasoningEffort: updated.writing_reasoning_effort ?? "high",
+        syncReasoningEffort: updated.sync_reasoning_effort ?? "high",
+        extractionReasoningEffort:
+          updated.extraction_reasoning_effort ?? "high",
         hasDefaultKey: Boolean(updated.has_default_key),
         hasDraftingKey: Boolean(updated.has_drafting_key),
+        hasWritingKey: Boolean(updated.has_writing_key),
         hasSyncKey: Boolean(updated.has_sync_key),
         hasExtractionKey: Boolean(updated.has_extraction_key),
       };
@@ -498,13 +558,21 @@ export default function Home() {
       setModelForm((prev) => ({
         ...prev,
         baseUrl: nextConfig.baseUrl,
+        draftingBaseUrl: nextConfig.draftingBaseUrl,
         defaultKey: "",
+        writingBaseUrl: nextConfig.writingBaseUrl,
+        writing: nextConfig.writing,
+        writingKey: "",
         drafting: nextConfig.drafting,
         draftingKey: "",
         sync: nextConfig.sync,
         syncKey: "",
         extraction: nextConfig.extraction,
         extractionKey: "",
+        draftingReasoningEffort: nextConfig.draftingReasoningEffort,
+        writingReasoningEffort: nextConfig.writingReasoningEffort,
+        syncReasoningEffort: nextConfig.syncReasoningEffort,
+        extractionReasoningEffort: nextConfig.extractionReasoningEffort,
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : "更新模型失败";
@@ -1056,22 +1124,161 @@ export default function Home() {
                             }
                           />
                         </div>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                          <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground">
-                              大纲生成模型
-                            </label>
-                            <Input
-                              value={modelForm.drafting}
-                              onChange={(e) =>
-                                handleModelFieldChange(
-                                  "drafting",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder="gpt-4o"
-                            />
+                        <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-medium text-foreground">
+                              大纲配置
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              大纲生成和相关结构化起草共用这组模型、服务地址和访问密钥。
+                            </p>
                           </div>
+                          <div className="mt-4 grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2 md:col-span-3">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                大纲服务地址
+                              </label>
+                              <Input
+                                value={modelForm.draftingBaseUrl}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "draftingBaseUrl",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="https://api.openai.com/v1"
+                              />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                大纲生成模型
+                              </label>
+                              <Input
+                                value={modelForm.drafting}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "drafting",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="gpt-4o"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                推理强度
+                              </label>
+                              <Input
+                                value={modelForm.draftingReasoningEffort}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "draftingReasoningEffort",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="high"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                大纲密钥
+                              </label>
+                              <Input
+                                type="password"
+                                value={modelForm.draftingKey}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "draftingKey",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder={
+                                  modelConfig?.hasDraftingKey
+                                    ? "已配置 (隐藏)"
+                                    : "sk-..."
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-medium text-foreground">
+                              写作助手配置
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              润色和续写共用这组模型、服务地址和访问密钥。
+                            </p>
+                          </div>
+                          <div className="mt-4 grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2 md:col-span-3">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                写作服务地址
+                              </label>
+                              <Input
+                                value={modelForm.writingBaseUrl}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "writingBaseUrl",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="https://api.openai.com/v1"
+                              />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                写作模型
+                              </label>
+                              <Input
+                                value={modelForm.writing}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "writing",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="gpt-4o"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                推理强度
+                              </label>
+                              <Input
+                                value={modelForm.writingReasoningEffort}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "writingReasoningEffort",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="high"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                写作密钥
+                              </label>
+                              <Input
+                                type="password"
+                                value={modelForm.writingKey}
+                                onChange={(e) =>
+                                  handleModelFieldChange(
+                                    "writingKey",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder={
+                                  modelConfig?.hasWritingKey
+                                    ? "已配置 (隐藏)"
+                                    : "sk-..."
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                           <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
                               同步分析模型
@@ -1082,6 +1289,21 @@ export default function Home() {
                                 handleModelFieldChange("sync", e.target.value)
                               }
                               placeholder="gpt-4o-mini"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">
+                              同步推理强度
+                            </label>
+                            <Input
+                              value={modelForm.syncReasoningEffort}
+                              onChange={(e) =>
+                                handleModelFieldChange(
+                                  "syncReasoningEffort",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="high"
                             />
                           </div>
                           <div className="space-y-2">
@@ -1097,6 +1319,21 @@ export default function Home() {
                                 )
                               }
                               placeholder="gpt-4o-mini"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">
+                              抽取推理强度
+                            </label>
+                            <Input
+                              value={modelForm.extractionReasoningEffort}
+                              onChange={(e) =>
+                                handleModelFieldChange(
+                                  "extractionReasoningEffort",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="high"
                             />
                           </div>
                         </div>

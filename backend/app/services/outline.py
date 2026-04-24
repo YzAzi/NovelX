@@ -9,7 +9,7 @@ from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import get_api_key, get_base_url, get_model_name
+from ..config import get_api_key, get_base_url, get_model_name, get_reasoning_effort
 from ..crud import create_project, update_project
 from ..graph import WorkflowError, run_drafting_workflow
 from ..graph_extractor import GraphExtractor
@@ -30,7 +30,13 @@ from ..models import (
     StoryProject,
 )
 from ..node_indexer import NodeIndexer
-from ..schema_utils import pydantic_json_schema_inline, pydantic_to_openai_function_inline
+from ..schema_utils import (
+    build_json_only_prompt,
+    parse_pydantic_response,
+    provider_supports_native_structured_output,
+    pydantic_json_schema_inline,
+    pydantic_to_openai_function_inline,
+)
 
 
 def _get_notifier():
@@ -82,6 +88,12 @@ async def create_outline_project(
             )
         raise
 
+    # Outline generation may include drafted chapter bodies, but the writing workspace
+    # should start blank and let the user draft chapters intentionally.
+    for chapter in project.chapters:
+        chapter.content = ""
+        chapter.summary = ""
+
     await create_project(session, project)
     return project
 
@@ -118,11 +130,19 @@ async def generate_story_directions(
         )
 
     schema = pydantic_to_openai_function_inline(StoryDirectionResponse)
+    base_url = get_base_url("drafting")
+    model_name = get_model_name("drafting")
     llm = ChatOpenAI(
         api_key=api_key,
-        base_url=get_base_url(),
-        model=get_model_name("drafting"),
-    ).with_structured_output(schema)
+        base_url=base_url,
+        model=model_name,
+        model_kwargs={"reasoning_effort": get_reasoning_effort("drafting")},
+    )
+    structured_llm = (
+        llm.with_structured_output(schema)
+        if provider_supports_native_structured_output(base_url, model_name)
+        else llm
+    )
 
     prompt_schema = pydantic_json_schema_inline(StoryDirectionResponse)
     prompt_text = prompt_template.format(
@@ -131,15 +151,10 @@ async def generate_story_directions(
         style_tags="、".join(style_tags) if style_tags else "未指定",
         output_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
     )
-    result = await llm.ainvoke(prompt_text)
-    if isinstance(result, StoryDirectionResponse):
-        parsed = result
-    elif isinstance(result, dict):
-        parsed = StoryDirectionResponse.model_validate(result)
-    elif hasattr(result, "model_dump"):
-        parsed = StoryDirectionResponse.model_validate(result.model_dump())
-    else:
-        parsed = StoryDirectionResponse.model_validate(result)
+    if not provider_supports_native_structured_output(base_url, model_name):
+        prompt_text = build_json_only_prompt(prompt_text, StoryDirectionResponse)
+    result = await structured_llm.ainvoke(prompt_text)
+    parsed = parse_pydantic_response(StoryDirectionResponse, result)
 
     normalized = []
     for index, item in enumerate(parsed.directions[:3], start=1):
@@ -227,11 +242,19 @@ async def generate_idea_lab_stage(
         )
 
     schema = pydantic_to_openai_function_inline(IdeaLabStageResponse)
+    base_url = get_base_url("drafting")
+    model_name = get_model_name("drafting")
     llm = ChatOpenAI(
         api_key=api_key,
-        base_url=get_base_url(),
-        model=get_model_name("drafting"),
-    ).with_structured_output(schema)
+        base_url=base_url,
+        model=model_name,
+        model_kwargs={"reasoning_effort": get_reasoning_effort("drafting")},
+    )
+    structured_llm = (
+        llm.with_structured_output(schema)
+        if provider_supports_native_structured_output(base_url, model_name)
+        else llm
+    )
 
     meta = IDEA_LAB_STAGE_META[payload.stage]
     prompt_schema = pydantic_json_schema_inline(IdeaLabStageResponse)
@@ -250,15 +273,10 @@ async def generate_idea_lab_stage(
         feedback=(payload.feedback or "").strip() or "无额外要求",
         output_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
     )
-    result = await llm.ainvoke(prompt_text)
-    if isinstance(result, IdeaLabStageResponse):
-        parsed = result
-    elif isinstance(result, dict):
-        parsed = IdeaLabStageResponse.model_validate(result)
-    elif hasattr(result, "model_dump"):
-        parsed = IdeaLabStageResponse.model_validate(result.model_dump())
-    else:
-        parsed = IdeaLabStageResponse.model_validate(result)
+    if not provider_supports_native_structured_output(base_url, model_name):
+        prompt_text = build_json_only_prompt(prompt_text, IdeaLabStageResponse)
+    result = await structured_llm.ainvoke(prompt_text)
+    parsed = parse_pydantic_response(IdeaLabStageResponse, result)
 
     options: list[IdeaLabStageOption] = []
     for index, item in enumerate(parsed.options[:3], start=1):
@@ -314,11 +332,19 @@ async def import_outline_into_project(
         )
 
     schema = pydantic_to_openai_function_inline(OutlineImportResult)
+    base_url = get_base_url("drafting")
+    model_name = get_model_name("drafting")
     llm = ChatOpenAI(
         api_key=api_key,
-        base_url=get_base_url(),
-        model=get_model_name("drafting"),
-    ).with_structured_output(schema)
+        base_url=base_url,
+        model=model_name,
+        model_kwargs={"reasoning_effort": get_reasoning_effort("drafting")},
+    )
+    structured_llm = (
+        llm.with_structured_output(schema)
+        if provider_supports_native_structured_output(base_url, model_name)
+        else llm
+    )
 
     prompt_schema = pydantic_json_schema_inline(OutlineImportResult)
     prompt_override = project.prompt_overrides.outline_import
@@ -337,15 +363,10 @@ async def import_outline_into_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="自定义 Prompt 缺少必要变量：raw_text、output_schema",
         ) from exc
-    result = await llm.ainvoke(prompt_text)
-    if isinstance(result, OutlineImportResult):
-        parsed = result
-    elif isinstance(result, dict):
-        parsed = OutlineImportResult.model_validate(result)
-    elif hasattr(result, "model_dump"):
-        parsed = OutlineImportResult.model_validate(result.model_dump())
-    else:
-        parsed = OutlineImportResult.model_validate(result)
+    if not provider_supports_native_structured_output(base_url, model_name):
+        prompt_text = build_json_only_prompt(prompt_text, OutlineImportResult)
+    result = await structured_llm.ainvoke(prompt_text)
+    parsed = parse_pydantic_response(OutlineImportResult, result)
 
     character_map: dict[str, CharacterProfile] = {}
     for character in parsed.characters:

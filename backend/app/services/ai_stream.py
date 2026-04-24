@@ -8,7 +8,7 @@ from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import get_api_key, get_base_url, get_model_name
+from ..config import get_api_key, get_base_url, get_model_name, get_reasoning_effort
 from ..graph_retriever import GraphRetriever
 from ..helpers import (
     choose_analysis_scope,
@@ -140,6 +140,7 @@ async def outline_analysis_stream_response(
         api_key=api_key,
         base_url=get_base_url(),
         model=get_model_name("sync"),
+        model_kwargs={"reasoning_effort": get_reasoning_effort("sync")},
         streaming=True,
     )
 
@@ -176,7 +177,12 @@ async def writing_assistant_stream_response(
     )
     is_continue_mode = (payload.mode or "transform").lower() == "continue"
 
-    api_key = config.api_key or get_api_key("default") or get_api_key("drafting")
+    api_key = (
+        config.api_key
+        or get_api_key("writing")
+        or get_api_key("default")
+        or get_api_key("drafting")
+    )
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -185,8 +191,9 @@ async def writing_assistant_stream_response(
 
     llm = ChatOpenAI(
         api_key=api_key,
-        base_url=config.base_url or get_base_url(),
-        model=config.model or get_model_name("drafting"),
+        base_url=config.base_url or get_base_url("writing"),
+        model=config.model or get_model_name("writing"),
+        model_kwargs={"reasoning_effort": get_reasoning_effort("writing")},
         streaming=True,
     )
     system_prompt = (

@@ -127,6 +127,9 @@ const UPLOAD_STAGES = [
   "构建文笔知识库",
 ] as const;
 
+const MIN_CONTINUE_CHAPTER_WORDS = 2000;
+const MAX_CONTINUE_MIN_LENGTH_ATTEMPTS = 3;
+
 function countChapterWords(text: string) {
   if (!text) {
     return 0;
@@ -134,6 +137,18 @@ function countChapterWords(text: string) {
   const cjkChars = text.match(/[\u4e00-\u9fff]/g) ?? [];
   const tokens = text.match(/[A-Za-z0-9]+/g) ?? [];
   return cjkChars.length + tokens.length;
+}
+
+function appendChapterText(existingText: string, generatedText: string) {
+  const cleanedGeneratedText = generatedText.trim();
+  if (!cleanedGeneratedText) {
+    return existingText;
+  }
+  if (!existingText.trim()) {
+    return cleanedGeneratedText;
+  }
+  const separator = existingText.endsWith("\n") ? "\n" : "\n\n";
+  return `${existingText}${separator}${cleanedGeneratedText}`;
 }
 
 export function WritingWorkspace() {
@@ -234,6 +249,15 @@ export function WritingWorkspace() {
       document.activeElement.blur();
     }
   }, [isWorkspaceLocked]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [content, activeChapterId, isZenMode]);
 
   // Sync content when active chapter changes
   useEffect(() => {
@@ -614,22 +638,47 @@ export function WritingWorkspace() {
         setStylePreview(preview);
       }
 
-      const generatedText = await requestWritingAssistant({
-        text: content,
-        instruction: continueInstruction,
-        chapterId: activeChapterId,
-        mode: "continue",
-      });
+      let accumulatedContent = content;
+      let generatedText = "";
+
+      for (
+        let attempt = 0;
+        attempt < MAX_CONTINUE_MIN_LENGTH_ATTEMPTS;
+        attempt += 1
+      ) {
+        const currentWords = countChapterWords(accumulatedContent);
+        const remainingWords = Math.max(
+          0,
+          MIN_CONTINUE_CHAPTER_WORDS - currentWords,
+        );
+        const lengthInstruction =
+          attempt === 0
+            ? continueInstruction
+            : [
+                continueInstruction,
+                `补足要求：当前章节合计约${currentWords}字，仍未达到整章${MIN_CONTINUE_CHAPTER_WORDS}字保底。请继续从现有结尾续写，至少补足约${remainingWords}字，使整章不少于${MIN_CONTINUE_CHAPTER_WORDS}字。`,
+                "保持长篇小说慢节奏，不要用概述跳过过程，不要重复已写内容。",
+              ].join("\n");
+        const nextText = await requestWritingAssistant({
+          text: accumulatedContent,
+          instruction: lengthInstruction,
+          chapterId: activeChapterId,
+          mode: "continue",
+        });
+        if (!nextText.trim()) {
+          break;
+        }
+        generatedText = appendChapterText(generatedText, nextText);
+        accumulatedContent = appendChapterText(accumulatedContent, nextText);
+        if (countChapterWords(accumulatedContent) >= MIN_CONTINUE_CHAPTER_WORDS) {
+          break;
+        }
+      }
+
       if (!generatedText.trim()) {
         return;
       }
-      setContent((prev) => {
-        if (!prev.trim()) {
-          return generatedText;
-        }
-        const separator = prev.endsWith("\n") ? "\n" : "\n\n";
-        return `${prev}${separator}${generatedText}`;
-      });
+      setContent((prev) => appendChapterText(prev, generatedText));
       markChapterDirty();
     } catch (error) {
       console.error("Continue failed", error);
@@ -1234,13 +1283,16 @@ export function WritingWorkspace() {
                         : "border-transparent bg-background/40 hover:bg-background/80",
                     )}
                   >
-                    <div className="relative flex items-start gap-2">
+                    <div className="relative grid grid-cols-[minmax(0,1fr)_4.75rem] items-center gap-2">
                       <button
                         onClick={() => {
                           setActiveChapterId(chapter.id);
                           setMobileChapterSheetOpen(false);
                         }}
-                        className="min-w-0 flex-1 text-left outline-none"
+                        className={cn(
+                          "min-w-0 text-left outline-none",
+                          isEditing && "col-span-2",
+                        )}
                       >
                         {isEditing ? (
                           <Input
@@ -1270,6 +1322,7 @@ export function WritingWorkspace() {
                                 "truncate text-sm font-medium",
                                 isActive ? "text-primary" : "text-foreground",
                               )}
+                              title={chapter.title || "未命名章节"}
                             >
                               {chapter.title || "未命名章节"}
                             </div>
@@ -1282,7 +1335,7 @@ export function WritingWorkspace() {
                         )}
                       </button>
                       {!isEditing && (
-                        <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                        <div className="flex w-[4.75rem] shrink-0 items-center justify-end gap-1 opacity-100 transition-opacity">
                           <Button
                             variant="ghost"
                             size="icon-sm"
@@ -1291,6 +1344,7 @@ export function WritingWorkspace() {
                               e.stopPropagation();
                               handleStartEditTitle(chapter.id, chapter.title);
                             }}
+                            title="重命名章节"
                           >
                             <PencilLine className="h-3.5 w-3.5" />
                           </Button>
@@ -1302,6 +1356,7 @@ export function WritingWorkspace() {
                               e.stopPropagation();
                               handleDeleteChapter(chapter.id);
                             }}
+                            title="删除章节"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -2142,8 +2197,8 @@ export function WritingWorkspace() {
             </div>
           </motion.div>
 
-          <ScrollArea className="min-h-0 flex-1 w-full bg-transparent">
-            <div className="flex min-h-full flex-col items-center px-4 py-6 sm:px-6 sm:py-8">
+          <div className="min-h-0 flex-1 w-full bg-transparent px-4 py-4 sm:px-6 sm:py-6">
+            <div className="flex h-full min-h-0 flex-col items-center">
               <motion.div
                 layout
                 animate={
@@ -2156,7 +2211,7 @@ export function WritingWorkspace() {
                 }
                 transition={motionTransition}
                 className={cn(
-                  "relative w-full transition-all duration-500 p-6 pb-14 sm:p-10 sm:pb-16",
+                  "relative flex min-h-0 w-full flex-1 flex-col transition-all duration-500 p-6 pb-14 sm:p-10 sm:pb-16",
                   isZenMode
                     ? "max-w-[1100px] border-transparent bg-transparent shadow-none"
                     : "max-w-[980px] rounded-[17px] border surface-card bg-background/95 shadow-xl",
@@ -2195,7 +2250,7 @@ export function WritingWorkspace() {
                 <textarea
                   ref={textareaRef}
                   className={cn(
-                    "min-h-[58vh] w-full resize-none bg-transparent font-serif text-foreground/90 placeholder:text-muted-foreground/25 focus:outline-none sm:min-h-[66vh] transition-all duration-500",
+                    "min-h-[58vh] flex-1 w-full resize-none overflow-hidden bg-transparent font-serif text-foreground/90 placeholder:text-muted-foreground/25 focus:outline-none transition-all duration-500 sm:min-h-[66vh]",
                     isZenMode
                       ? "text-xl leading-[2.2]"
                       : "text-base leading-[1.95] sm:text-lg",
@@ -2220,9 +2275,8 @@ export function WritingWorkspace() {
                   </div>
                 </div>
               </motion.div>
-              <div className="h-20 shrink-0" />
             </div>
-          </ScrollArea>
+          </div>
 
           <div className="border-t border-border/50 bg-background/88 px-3 py-2 backdrop-blur md:hidden">
             <div className="grid grid-cols-3 gap-2">
